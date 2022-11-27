@@ -4,3 +4,6 @@
 [submodule "argparse"]
 	path = external/argparse
 	url = https://github.com/p-ranav/argparse
+[submodule "external/cmake-git-versioning-example"]
+	path = external/cmake-git-versioning
+	url = https://github.com/nocnokneo/cmake-git-versioning-example
