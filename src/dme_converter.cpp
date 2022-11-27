@@ -1,17 +1,160 @@
 #include <fstream>
 #include <filesystem>
 #include <memory>
+#include <string>
+#include <unordered_map>
 
 #include <spdlog/spdlog.h>
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
 #include "tiny_gltf.h"
 #include "json.hpp"
+#include "half.hpp"
+#include "version.h"
 
+namespace gltf2 = tinygltf;
+namespace logger = spdlog;
+using namespace nlohmann;
+using half_float::half;
 
+/**
+ * POSITION = "Position"
+ * NORMAL = "Normal"
+ * BINORMAL = "Binormal"
+ * TANGENT = "Tangent"
+ * BLENDWEIGHT = "BlendWeight"
+ * BLENDINDICES = "BlendIndices"
+ * TEXCOORD = "Texcoord"
+ * COLOR = "Color"
+ * 
+ */
+std::unordered_map<std::string, std::string> usages = {
+    {"Position", "POSITION"},
+    {"Normal", "NORMAL"},
+    {"Binormal", "BINORMAL"},
+    {"Tangent", "TANGENT"},
+    {"BlendWeight", "WEIGHTS_0"},
+    {"BlendIndices", "JOINTS_0"},
+    {"Texcoord", "TEXCOORD_"},
+    {"Color", "COLOR_"},
+};
+
+std::unordered_map<std::string, int> sizes = {
+    {"Float3", 12},
+    {"D3dcolor", 4},
+    {"Float2", 8},
+    {"Float4", 16},
+    {"ubyte4n", 4},
+    {"Float16_2", 4},
+    {"float16_2", 4},
+    {"Short2", 4},
+    {"Float1", 4},
+    {"Short4", 8}
+};
+
+std::unordered_map<std::string, int> component_types = {
+    {"Float3", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"D3dcolor", TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE},
+    {"Float2", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"Float4", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"ubyte4n", TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE},
+    {"Float16_2", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"float16_2", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"Short2", TINYGLTF_COMPONENT_TYPE_SHORT},
+    {"Float1", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"Short4", TINYGLTF_COMPONENT_TYPE_SHORT}
+};
+
+std::unordered_map<std::string, int> types = {
+    {"Float3", TINYGLTF_TYPE_VEC3},
+    {"D3dcolor", TINYGLTF_TYPE_VEC4},
+    {"Float2", TINYGLTF_TYPE_VEC2},
+    {"Float4", TINYGLTF_TYPE_VEC4},
+    {"ubyte4n", TINYGLTF_TYPE_VEC4},
+    {"Float16_2", TINYGLTF_TYPE_VEC2},
+    {"float16_2", TINYGLTF_TYPE_VEC2},
+    {"Short2", TINYGLTF_TYPE_VEC2},
+    {"Float1", TINYGLTF_TYPE_SCALAR},
+    {"Short4", TINYGLTF_TYPE_VEC4}
+};
+
+json materials;
+void init_materials() {
+    std::ifstream materials_file(MATERIALS_JSON_LOCATION);
+    if(materials_file.fail()) {
+        logger::error("Could not open materials.json: looking at location {}", MATERIALS_JSON_LOCATION);
+        std::exit(1);
+    }
+    materials = json::parse(materials_file);
+}
+
+json get_input_layout(uint32_t material_definition) {
+    std::string input_layout_name = materials
+        .at("materialDefinitions")
+        .at(std::to_string(material_definition))
+        .at("drawStyles")
+        .at(0)
+        .at("inputLayout")
+        .get<std::string>();
+    
+    return materials.at("inputLayouts").at(input_layout_name);
+}
+
+std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32_t stream) {
+    VertexStream vertices(data);
+    logger::debug("{}['{}']", layout.at("sizes").dump(), std::to_string(stream));
+    uint32_t stride = layout.at("sizes")
+                            .at(std::to_string(stream))
+                            .get<uint32_t>();
+    logger::info("Data stride: {}", stride);
+    std::vector<std::pair<uint32_t, bool>> offsets;
+    bool conversion_required = false;
+    for(json &entry : layout.at("entries")) {
+        if(entry.at("stream").get<uint32_t>() != stream) {
+            logger::debug("Skipping entry...");
+            continue;
+        }
+        logger::debug("{}", entry.dump());
+        std::string type = entry.at("type").get<std::string>();
+        bool needs_conversion = type == "Float16_2" || type == "float16_2";
+        offsets.push_back({
+            sizes.at(type), 
+            needs_conversion
+        });
+        if(needs_conversion) {
+            conversion_required = true;
+            entry.at("type") = "Float2";
+            layout.at("sizes").at(std::to_string(stream)) = layout.at("sizes").at(std::to_string(stream)).get<uint32_t>() + 4;
+        }
+    }
+
+    if(!conversion_required) {
+        logger::info("No conversion required!");
+        return std::vector<uint8_t>(vertices.buf_.begin(), vertices.buf_.end());
+    }
+
+    logger::info("Converting {} entries", std::count_if(offsets.begin(), offsets.end(), [](auto pair) { return pair.second; }));
+    std::vector<uint8_t> output;
+    for(uint32_t vertex_offset = 0; vertex_offset < vertices.size(); vertex_offset += stride) {
+        uint32_t entry_offset = 0;
+        float converter[2] = {0, 0};
+        for(auto iter = offsets.begin(); iter != offsets.end(); iter++) {
+            if(iter->second) {
+                converter[0] = (float)(half)vertices.get<half>(vertex_offset + entry_offset);
+                converter[1] = (float)(half)vertices.get<half>(vertex_offset + entry_offset + 2);
+                output.insert(output.end(), reinterpret_cast<uint8_t*>(converter), reinterpret_cast<uint8_t*>(converter) + 8);
+            } else {
+                std::span<uint8_t> to_add = vertices.buf_.subspan(vertex_offset + entry_offset, iter->first);
+                output.insert(output.end(), to_add.begin(), to_add.end());
+            }
+            entry_offset += iter->first;
+        }
+    }
+    return output;
+}
 
 int main(int argc, const char* argv[]) {
-    argparse::ArgumentParser parser("dme_converter", CPP_DMOD_VERSION);
+    argparse::ArgumentParser parser("dme_converter", CPPDMOD_VERSION);
     parser.add_description("C++ DMEv4 to GLTF2 model conversion tool");
     parser.add_argument("input_file");
     parser.add_argument("output_file");
@@ -25,7 +168,7 @@ int main(int argc, const char* argv[]) {
             }
             return std::string{ "" };
         });
-    int log_level = spdlog::level::warn;
+    int log_level = logger::level::warn;
     parser.add_argument("--verbose", "-v")
         .help("Increase log level. May be specified multiple times")
         .action([&](const auto &){ 
@@ -45,7 +188,9 @@ int main(int argc, const char* argv[]) {
         std::cerr << parser;
         std::exit(1);
     }
-    spdlog::set_level(spdlog::level::level_enum(log_level));
+    logger::set_level(logger::level::level_enum(log_level));
+    init_materials();
+
     std::filesystem::path input_filename(parser.get<std::string>("input_file"));
     
     std::filesystem::path output_filename(parser.get<std::string>("output_file"));
@@ -55,13 +200,13 @@ int main(int argc, const char* argv[]) {
             std::filesystem::create_directories(output_filename.parent_path());
         }
     } catch (std::filesystem::filesystem_error& err) {
-        spdlog::error("Failed to create directory {}: {}", err.path1().string(), err.what());
+        logger::error("Failed to create directory {}: {}", err.path1().string(), err.what());
         std::exit(3);
     }
 
     std::ifstream input(input_filename, std::ios::binary | std::ios::ate);
     if(input.fail()) {
-        spdlog::error("Failed to open file '{}'", input_filename.string());
+        logger::error("Failed to open file '{}'", input_filename.string());
         std::exit(2);
     }
     size_t length = input.tellg();
@@ -70,7 +215,124 @@ int main(int argc, const char* argv[]) {
     input.read((char*)data.get(), length);
 
     DME dme(data.get(), length);
-    tinygltf::Model gltf;
+    gltf2::Model gltf;
+    gltf2::Material material;
+    gltf2::Scene scene;
+    material.pbrMetallicRoughness.baseColorFactor = {0.7, 0.5, 0.6, 1.0};
+    material.doubleSided = true;
+    gltf.materials.push_back(material);
+
+    for(size_t i = 0; i < dme.mesh_count(); i++) {
+        int texcoord = 0;
+        int color = 0;
+        gltf2::Mesh gltf_mesh;
+        gltf2::Primitive primitive;
+        std::shared_ptr<const Mesh> mesh = dme.mesh(i);
+        std::vector<uint32_t> offsets((std::size_t)mesh->vertex_stream_count(), 0);
+        json input_layout = get_input_layout(dme.dmat()->material(i)->definition());
+        
+        std::vector<gltf2::Buffer> buffers;
+        for(size_t j = 0; j < mesh->vertex_stream_count(); j++) {
+            std::span<uint8_t> vertex_stream = mesh->vertex_stream(j);
+            gltf2::Buffer buffer;
+            logger::info("Expanding vertex stream {}", j);
+            buffer.data = expand_halves(input_layout, vertex_stream, j);
+            buffers.push_back(buffer);
+        }
+
+        for(json entry : input_layout.at("entries")) {
+            std::string type = entry.at("type").get<std::string>();
+            std::string usage = entry.at("usage").get<std::string>();
+            int stream = entry.at("stream").get<int>();
+            if(usage == "Binormal") {
+                offsets.at(stream) += sizes.at(type);
+                continue;
+            }
+            logger::info("Adding accessor for {} {} data", type, usage);
+            gltf2::Accessor accessor;
+            accessor.bufferView = gltf.bufferViews.size();
+            accessor.byteOffset = 0;
+            accessor.componentType = component_types.at(type);
+            accessor.type = types.at(type);
+            accessor.count = mesh->vertex_count();
+
+            gltf2::BufferView bufferview;
+            bufferview.buffer = gltf.buffers.size() + stream;
+            bufferview.byteLength = buffers.at(stream).data.size() - offsets.at(stream);
+            bufferview.byteStride = input_layout.at("sizes").at(std::to_string(stream)).get<uint32_t>();
+            bufferview.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+            bufferview.byteOffset = offsets.at(stream);
+            std::string attribute = usages.at(usage);
+            if(usage == "Texcoord") {
+                attribute += std::to_string(texcoord);
+                texcoord++;
+            } else if (usage == "Color") {
+                offsets.at(stream) += sizes.at(type);
+                continue;
+                attribute += std::to_string(color);
+                color++;
+            } else if(usage == "Position") {
+                AABB aabb = dme.aabb();
+                accessor.minValues = {aabb.min.x, aabb.min.y, aabb.min.z};
+                accessor.maxValues = {aabb.max.x, aabb.max.y, aabb.max.z};
+            }
+            primitive.attributes[attribute] = gltf.accessors.size();
+            gltf.accessors.push_back(accessor);
+            gltf.bufferViews.push_back(bufferview);
+
+            offsets.at(stream) += sizes.at(type);
+        }
+
+        gltf.buffers.insert(gltf.buffers.end(), buffers.begin(), buffers.end());
+
+        std::span<uint8_t> indices = mesh->index_data();
+        gltf2::Accessor accessor;
+        accessor.bufferView = gltf.bufferViews.size();
+        accessor.byteOffset = 0;
+        accessor.componentType = mesh->index_size() == 2 ? TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT : TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+        accessor.type = TINYGLTF_TYPE_SCALAR;
+        accessor.count = mesh->index_count();
+
+        gltf2::BufferView bufferview;
+        bufferview.buffer = gltf.buffers.size();
+        bufferview.byteLength = indices.size();
+        bufferview.byteStride = mesh->index_size() & 0xFF;
+        bufferview.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
+        bufferview.byteOffset = 0;
+
+        gltf2::Buffer buffer;
+        buffer.data = std::vector<uint8_t>(indices.begin(), indices.end());
+
+        primitive.indices = gltf.accessors.size();
+        primitive.mode = TINYGLTF_MODE_TRIANGLES;
+        primitive.material = 0;
+        gltf_mesh.primitives.push_back(primitive);
+
+        gltf.accessors.push_back(accessor);
+        gltf.bufferViews.push_back(bufferview);
+        gltf.buffers.push_back(buffer);
+
+        scene.nodes.push_back(gltf.nodes.size());
+
+        gltf2::Node node;
+        node.mesh = gltf.meshes.size();
+        gltf.nodes.push_back(node);
+        
+        gltf.meshes.push_back(gltf_mesh);
+
+    }
+
+    gltf.defaultScene = gltf.scenes.size();
+    gltf.scenes.push_back(scene);
+
+    gltf.asset.version = "2.0";
+    gltf.asset.generator = "DME Converter (C++) v" + std::string(CPPDMOD_VERSION) + " via tinygltf";
+
+    std::string format = parser.get<std::string>("--format");
+
+    logger::info("Writing output file...");
+    tinygltf::TinyGLTF writer;
+    writer.WriteGltfSceneToFile(&gltf, output_filename.string(), false, format == "glb", format == "gltf", format == "glb");
 
     return 0;
 }
