@@ -1,6 +1,6 @@
 [submodule "tinygltf"]
-	path = tinygltf
+	path = external/tinygltf
 	url = https://github.com/syoyo/tinygltf
 [submodule "argparse"]
-	path = argparse
+	path = external/argparse
 	url = https://github.com/p-ranav/argparse
