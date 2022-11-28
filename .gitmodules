@@ -7,3 +7,6 @@
 [submodule "external/cmake-git-versioning-example"]
 	path = external/cmake-git-versioning
 	url = https://github.com/nocnokneo/cmake-git-versioning-example
+[submodule "external/spdlog"]
+	path = external/spdlog
+	url = https://github.com/gabime/spdlog
