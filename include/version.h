@@ -1,4 +1,0 @@
-#ifndef CPPDMOD_VERSION_H_
-#define CPPDMOD_VERSION_H_
-#define CPPDMOD_VERSION "v0.0.1"
-#endif  /* CPPDMOD_VERSION_H_ */

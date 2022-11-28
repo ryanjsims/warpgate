@@ -2,3 +2,4 @@ build/
 .vscode/
 testfiles/
 models/
+include/version.h

@@ -37,7 +37,7 @@ target_link_libraries(dme_converter PRIVATE argparse)
 find_package(Git)
 add_custom_target(version
   ${CMAKE_COMMAND} -D SRC=${CMAKE_SOURCE_DIR}/include/version.h.in
-                   -D DST=${CMAKE_BINARY_DIR}/include/version.h
+                   -D DST=${CMAKE_SOURCE_DIR}/include/version.h
                    -D GIT_EXECUTABLE=${GIT_EXECUTABLE}
                    -P ${CMAKE_SOURCE_DIR}/external/cmake-git-versioning/GenerateVersionHeader.cmake
   )
