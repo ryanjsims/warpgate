@@ -100,6 +100,27 @@ json get_input_layout(uint32_t material_definition) {
     return materials.at("inputLayouts").at(input_layout_name);
 }
 
+void normalize(float vector[3]) {
+    float length = sqrtf32(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
+    if(fabsf32(length) > 0) {
+        vector[0] /= length;
+        vector[1] /= length;
+        vector[2] /= length;
+    }
+}
+
+void load_vector(std::string vector_type, uint32_t vertex_offset, uint32_t entry_offset, VertexStream &vertices, float vector[3]) {
+    if(vector_type == "ubyte4n") {
+        vector[0] = ((float)vertices.get<uint8_t>(vertex_offset + entry_offset) / 255.0f * 2) - 1;
+        vector[1] = ((float)vertices.get<uint8_t>(vertex_offset + entry_offset + 1) / 255.0f * 2) - 1;
+        vector[2] = ((float)vertices.get<uint8_t>(vertex_offset + entry_offset + 2) / 255.0f * 2) - 1;
+    } else {
+        vector[0] = vertices.get<float>(vertex_offset + entry_offset);
+        vector[1] = vertices.get<float>(vertex_offset + entry_offset + 4);
+        vector[2] = vertices.get<float>(vertex_offset + entry_offset + 8);
+    }
+}
+
 std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32_t stream) {
     VertexStream vertices(data);
     logger::debug("{}['{}']", layout.at("sizes").dump(), std::to_string(stream));
@@ -109,13 +130,23 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
     logger::info("Data stride: {}", stride);
     std::vector<std::pair<uint32_t, bool>> offsets;
     bool conversion_required = false;
-    for(json &entry : layout.at("entries")) {
+    int tangent_index = -1;
+    int binormal_index = -1;
+    int vert_index_offset = 0;
+    bool has_normals = false;
+    //json &entry : layout.at("entries")
+
+    for(int i = 0; i < layout.at("entries").size(); i++) {
+        json &entry = layout.at("entries").at(i);
         if(entry.at("stream").get<uint32_t>() != stream) {
             logger::debug("Skipping entry...");
+            if(entry.at("stream").get<uint32_t>() < stream)
+                vert_index_offset++;
             continue;
         }
         logger::debug("{}", entry.dump());
         std::string type = entry.at("type").get<std::string>();
+        std::string usage = entry.at("usage").get<std::string>();
         bool needs_conversion = type == "Float16_2" || type == "float16_2";
         offsets.push_back({
             sizes.at(type), 
@@ -126,19 +157,44 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
             entry.at("type") = "Float2";
             layout.at("sizes").at(std::to_string(stream)) = layout.at("sizes").at(std::to_string(stream)).get<uint32_t>() + 4;
         }
+        if(usage == "Normal") {
+            has_normals = true;
+        } else if(usage == "Binormal") {
+            binormal_index = i;
+        } else if(usage == "Tangent") {
+            tangent_index = i;
+        }
     }
 
-    if(!conversion_required) {
+    bool calculate_normals = !has_normals && binormal_index != -1 && tangent_index != -1;
+
+    if(!conversion_required && !calculate_normals) {
         logger::info("No conversion required!");
         return std::vector<uint8_t>(vertices.buf_.begin(), vertices.buf_.end());
+    } else if(calculate_normals) {
+        logger::info("Calculating normals from tangents and binormals");
+        layout.at("sizes").at(std::to_string(stream)) = layout.at("sizes").at(std::to_string(stream)).get<uint32_t>() + 12;
+        layout.at("entries") += json::parse("{\"stream\":"+std::to_string(stream)+",\"type\":\"Float3\",\"usage\":\"Normal\",\"usageIndex\":0}");
     }
+
+    std::string binormal_type, tangent_type;
+    if(binormal_index != -1)
+        binormal_type = layout.at("entries").at(binormal_index).at("type");
+    if(tangent_index != -1)
+        tangent_type = layout.at("entries").at(tangent_index).at("type");
 
     logger::info("Converting {} entries", std::count_if(offsets.begin(), offsets.end(), [](auto pair) { return pair.second; }));
     std::vector<uint8_t> output;
     for(uint32_t vertex_offset = 0; vertex_offset < vertices.size(); vertex_offset += stride) {
         uint32_t entry_offset = 0;
+        float binormal[3] = {0, 0, 0};
+        float tangent[3] = {0, 0, 0};
+        float sign = 0;
+        float normal[3] = {0, 0, 0};
+
         float converter[2] = {0, 0};
         for(auto iter = offsets.begin(); iter != offsets.end(); iter++) {
+            int index = iter - offsets.begin();
             if(iter->second) {
                 converter[0] = (float)(half)vertices.get<half>(vertex_offset + entry_offset);
                 converter[1] = (float)(half)vertices.get<half>(vertex_offset + entry_offset + 2);
@@ -147,8 +203,41 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
                 std::span<uint8_t> to_add = vertices.buf_.subspan(vertex_offset + entry_offset, iter->first);
                 output.insert(output.end(), to_add.begin(), to_add.end());
             }
+
+            if(calculate_normals && index == binormal_index - vert_index_offset) {
+                load_vector(binormal_type, vertex_offset, entry_offset, vertices, binormal);
+            }
+
+            if(calculate_normals && index == tangent_index - vert_index_offset) {
+                load_vector(tangent_type, vertex_offset, entry_offset, vertices, tangent);
+                if(tangent_type == "ubyte4n") {
+                    sign = vertices.get<uint8_t>(vertex_offset + entry_offset + 3) / 255.0f * 2 - 1;
+                } else {
+                    sign = -1;
+                }
+            }
+
             entry_offset += iter->first;
         }
+
+        if(calculate_normals) {
+            sign /= fabsf32(sign);
+            normalize(binormal);
+            normalize(tangent);
+            logger::debug("Tangent {}:  ({: 0.2f} {: 0.2f} {: 0.2f})", tangent_index, tangent[0], tangent[1], tangent[2]);
+            logger::debug("Binormal {}: ({: 0.2f} {: 0.2f} {: 0.2f})", binormal_index, binormal[0], binormal[1], binormal[2]);
+            normal[0] = binormal[1] * tangent[2] - binormal[2] * tangent[1];
+            normal[1] = binormal[2] * tangent[0] - binormal[0] * tangent[2];
+            normal[2] = binormal[0] * tangent[1] - binormal[1] * tangent[0];
+            normalize(normal);
+            normal[0] *= sign;
+            normal[1] *= sign;
+            normal[2] *= sign;
+            logger::debug("Normal:     ({: 0.2f} {: 0.2f} {: 0.2f})", normal[0], normal[1], normal[2], sign);
+            logger::debug("Entry offset/stride: {} / {}", entry_offset, stride);
+            output.insert(output.end(), reinterpret_cast<uint8_t*>(normal), reinterpret_cast<uint8_t*>(normal) + 12);
+        }
+
     }
     return output;
 }
@@ -275,6 +364,8 @@ int main(int argc, const char* argv[]) {
                 AABB aabb = dme.aabb();
                 accessor.minValues = {aabb.min.x, aabb.min.y, aabb.min.z};
                 accessor.maxValues = {aabb.max.x, aabb.max.y, aabb.max.z};
+            } else if(usage == "Tangent") {
+                accessor.normalized = true;
             }
             primitive.attributes[attribute] = gltf.accessors.size();
             gltf.accessors.push_back(accessor);
