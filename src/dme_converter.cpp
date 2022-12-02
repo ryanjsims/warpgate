@@ -1,10 +1,12 @@
 #include <fstream>
 #include <filesystem>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <unordered_map>
 
 #include <spdlog/spdlog.h>
+#include <synthium/synthium.h>
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
 #include "tiny_gltf.h"
@@ -101,8 +103,8 @@ json get_input_layout(uint32_t material_definition) {
 }
 
 void normalize(float vector[3]) {
-    float length = sqrtf32(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-    if(fabsf32(length) > 0) {
+    float length = std::sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
+    if(std::fabsf(length) > 0) {
         vector[0] /= length;
         vector[1] /= length;
         vector[2] /= length;
@@ -194,7 +196,7 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
 
         float converter[2] = {0, 0};
         for(auto iter = offsets.begin(); iter != offsets.end(); iter++) {
-            int index = iter - offsets.begin();
+            int index = (int)(iter - offsets.begin());
             if(iter->second) {
                 converter[0] = (float)(half)vertices.get<half>(vertex_offset + entry_offset);
                 converter[1] = (float)(half)vertices.get<half>(vertex_offset + entry_offset + 2);
@@ -221,7 +223,7 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
         }
 
         if(calculate_normals) {
-            sign /= fabsf32(sign);
+            sign /= std::fabsf(sign);
             normalize(binormal);
             normalize(tangent);
             logger::debug("Tangent {}:  ({: 0.2f} {: 0.2f} {: 0.2f})", tangent_index, tangent[0], tangent[1], tangent[2]);
@@ -240,6 +242,107 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
 
     }
     return output;
+}
+
+void add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t i) {
+    int texcoord = 0;
+    int color = 0;
+    gltf2::Mesh gltf_mesh;
+    gltf2::Primitive primitive;
+    std::shared_ptr<const Mesh> mesh = dme.mesh(i);
+    std::vector<uint32_t> offsets((std::size_t)mesh->vertex_stream_count(), 0);
+    json input_layout = get_input_layout(dme.dmat()->material(i)->definition());
+    
+    std::vector<gltf2::Buffer> buffers;
+    for(uint32_t j = 0; j < mesh->vertex_stream_count(); j++) {
+        std::span<uint8_t> vertex_stream = mesh->vertex_stream(j);
+        gltf2::Buffer buffer;
+        logger::info("Expanding vertex stream {}", j);
+        buffer.data = expand_halves(input_layout, vertex_stream, j);
+        buffers.push_back(buffer);
+    }
+
+    for(json entry : input_layout.at("entries")) {
+        std::string type = entry.at("type").get<std::string>();
+        std::string usage = entry.at("usage").get<std::string>();
+        int stream = entry.at("stream").get<int>();
+        if(usage == "Binormal") {
+            offsets.at(stream) += sizes.at(type);
+            continue;
+        }
+        logger::info("Adding accessor for {} {} data", type, usage);
+        gltf2::Accessor accessor;
+        accessor.bufferView = (int)gltf.bufferViews.size();
+        accessor.byteOffset = 0;
+        accessor.componentType = component_types.at(type);
+        accessor.type = types.at(type);
+        accessor.count = mesh->vertex_count();
+
+        gltf2::BufferView bufferview;
+        bufferview.buffer = (int)gltf.buffers.size() + stream;
+        bufferview.byteLength = buffers.at(stream).data.size() - offsets.at(stream);
+        bufferview.byteStride = input_layout.at("sizes").at(std::to_string(stream)).get<uint32_t>();
+        bufferview.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+        bufferview.byteOffset = offsets.at(stream);
+        std::string attribute = usages.at(usage);
+        if(usage == "Texcoord") {
+            attribute += std::to_string(texcoord);
+            texcoord++;
+        } else if (usage == "Color") {
+            offsets.at(stream) += sizes.at(type);
+            continue;
+            attribute += std::to_string(color);
+            color++;
+        } else if(usage == "Position") {
+            AABB aabb = dme.aabb();
+            accessor.minValues = {aabb.min.x, aabb.min.y, aabb.min.z};
+            accessor.maxValues = {aabb.max.x, aabb.max.y, aabb.max.z};
+        } else if(usage == "Tangent") {
+            accessor.normalized = true;
+        }
+        primitive.attributes[attribute] = (int)gltf.accessors.size();
+        gltf.accessors.push_back(accessor);
+        gltf.bufferViews.push_back(bufferview);
+
+        offsets.at(stream) += sizes.at(type);
+    }
+
+    gltf.buffers.insert(gltf.buffers.end(), buffers.begin(), buffers.end());
+
+    std::span<uint8_t> indices = mesh->index_data();
+    gltf2::Accessor accessor;
+    accessor.bufferView = (int)gltf.bufferViews.size();
+    accessor.byteOffset = 0;
+    accessor.componentType = mesh->index_size() == 2 ? TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT : TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+    accessor.type = TINYGLTF_TYPE_SCALAR;
+    accessor.count = mesh->index_count();
+
+    gltf2::BufferView bufferview;
+    bufferview.buffer = (int)gltf.buffers.size();
+    bufferview.byteLength = indices.size();
+    bufferview.byteStride = mesh->index_size() & 0xFF;
+    bufferview.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
+    bufferview.byteOffset = 0;
+
+    gltf2::Buffer buffer;
+    buffer.data = std::vector<uint8_t>(indices.begin(), indices.end());
+
+    primitive.indices = (int)gltf.accessors.size();
+    primitive.mode = TINYGLTF_MODE_TRIANGLES;
+    primitive.material = 0;
+    gltf_mesh.primitives.push_back(primitive);
+
+    gltf.accessors.push_back(accessor);
+    gltf.bufferViews.push_back(bufferview);
+    gltf.buffers.push_back(buffer);
+
+    gltf.scenes.at(gltf.defaultScene).nodes.push_back((int)gltf.nodes.size());
+
+    gltf2::Node node;
+    node.mesh = (int)gltf.meshes.size();
+    gltf.nodes.push_back(node);
+    
+    gltf.meshes.push_back(gltf_mesh);
 }
 
 int main(int argc, const char* argv[]) {
@@ -278,9 +381,37 @@ int main(int argc, const char* argv[]) {
         std::exit(1);
     }
     logger::set_level(logger::level::level_enum(log_level));
+    std::filesystem::path server = "C:/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/";
+    std::vector<std::filesystem::path> assets;
+    for(int i = 0; i < 24; i++) {
+        assets.push_back(server / ("assets_x64_" + std::to_string(i) + ".pack2"));
+    }
+    logger::info("Loading packs...");
+    synthium::Manager manager(assets);
+    logger::info("Manager loaded.");
     init_materials();
 
-    std::filesystem::path input_filename(parser.get<std::string>("input_file"));
+    std::string input_str = parser.get<std::string>("input_file");
+    std::filesystem::path input_filename(input_str);
+    std::unique_ptr<uint8_t[]> data;
+    std::vector<uint8_t> data_vector;
+    std::span<uint8_t> data_span;
+    if(manager.contains(input_str)) {
+        data_vector = manager.get(input_str).get_data();
+        data_span = std::span<uint8_t>(data_vector.data(), data_vector.size());
+    } else {
+        std::ifstream input(input_filename, std::ios::binary | std::ios::ate);
+        if(input.fail()) {
+            logger::error("Failed to open file '{}'", input_filename.string());
+            std::exit(2);
+        }
+        size_t length = input.tellg();
+        input.seekg(0);
+        data = std::make_unique<uint8_t[]>(length);
+        input.read((char*)data.get(), length);
+        input.close();
+        data_span = std::span<uint8_t>(data.get(), length);
+    }
     
     std::filesystem::path output_filename(parser.get<std::string>("output_file"));
     output_filename = std::filesystem::weakly_canonical(output_filename);
@@ -293,131 +424,24 @@ int main(int argc, const char* argv[]) {
         std::exit(3);
     }
 
-    std::ifstream input(input_filename, std::ios::binary | std::ios::ate);
-    if(input.fail()) {
-        logger::error("Failed to open file '{}'", input_filename.string());
-        std::exit(2);
-    }
-    size_t length = input.tellg();
-    input.seekg(0);
-    std::unique_ptr<uint8_t[]> data = std::make_unique<uint8_t[]>(length);
-    input.read((char*)data.get(), length);
 
-    DME dme(data.get(), length);
+    DME dme(data_span);
     gltf2::Model gltf;
     gltf2::Material material;
-    gltf2::Scene scene;
     material.pbrMetallicRoughness.baseColorFactor = {0.7, 0.5, 0.6, 1.0};
     material.doubleSided = true;
     gltf.materials.push_back(material);
+    
+    gltf.defaultScene = (int)gltf.scenes.size();
+    gltf.scenes.push_back({});
 
-    for(size_t i = 0; i < dme.mesh_count(); i++) {
-        int texcoord = 0;
-        int color = 0;
-        gltf2::Mesh gltf_mesh;
-        gltf2::Primitive primitive;
-        std::shared_ptr<const Mesh> mesh = dme.mesh(i);
-        std::vector<uint32_t> offsets((std::size_t)mesh->vertex_stream_count(), 0);
-        json input_layout = get_input_layout(dme.dmat()->material(i)->definition());
-        
-        std::vector<gltf2::Buffer> buffers;
-        for(size_t j = 0; j < mesh->vertex_stream_count(); j++) {
-            std::span<uint8_t> vertex_stream = mesh->vertex_stream(j);
-            gltf2::Buffer buffer;
-            logger::info("Expanding vertex stream {}", j);
-            buffer.data = expand_halves(input_layout, vertex_stream, j);
-            buffers.push_back(buffer);
-        }
-
-        for(json entry : input_layout.at("entries")) {
-            std::string type = entry.at("type").get<std::string>();
-            std::string usage = entry.at("usage").get<std::string>();
-            int stream = entry.at("stream").get<int>();
-            if(usage == "Binormal") {
-                offsets.at(stream) += sizes.at(type);
-                continue;
-            }
-            logger::info("Adding accessor for {} {} data", type, usage);
-            gltf2::Accessor accessor;
-            accessor.bufferView = gltf.bufferViews.size();
-            accessor.byteOffset = 0;
-            accessor.componentType = component_types.at(type);
-            accessor.type = types.at(type);
-            accessor.count = mesh->vertex_count();
-
-            gltf2::BufferView bufferview;
-            bufferview.buffer = gltf.buffers.size() + stream;
-            bufferview.byteLength = buffers.at(stream).data.size() - offsets.at(stream);
-            bufferview.byteStride = input_layout.at("sizes").at(std::to_string(stream)).get<uint32_t>();
-            bufferview.target = TINYGLTF_TARGET_ARRAY_BUFFER;
-            bufferview.byteOffset = offsets.at(stream);
-            std::string attribute = usages.at(usage);
-            if(usage == "Texcoord") {
-                attribute += std::to_string(texcoord);
-                texcoord++;
-            } else if (usage == "Color") {
-                offsets.at(stream) += sizes.at(type);
-                continue;
-                attribute += std::to_string(color);
-                color++;
-            } else if(usage == "Position") {
-                AABB aabb = dme.aabb();
-                accessor.minValues = {aabb.min.x, aabb.min.y, aabb.min.z};
-                accessor.maxValues = {aabb.max.x, aabb.max.y, aabb.max.z};
-            } else if(usage == "Tangent") {
-                accessor.normalized = true;
-            }
-            primitive.attributes[attribute] = gltf.accessors.size();
-            gltf.accessors.push_back(accessor);
-            gltf.bufferViews.push_back(bufferview);
-
-            offsets.at(stream) += sizes.at(type);
-        }
-
-        gltf.buffers.insert(gltf.buffers.end(), buffers.begin(), buffers.end());
-
-        std::span<uint8_t> indices = mesh->index_data();
-        gltf2::Accessor accessor;
-        accessor.bufferView = gltf.bufferViews.size();
-        accessor.byteOffset = 0;
-        accessor.componentType = mesh->index_size() == 2 ? TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT : TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
-        accessor.type = TINYGLTF_TYPE_SCALAR;
-        accessor.count = mesh->index_count();
-
-        gltf2::BufferView bufferview;
-        bufferview.buffer = gltf.buffers.size();
-        bufferview.byteLength = indices.size();
-        bufferview.byteStride = mesh->index_size() & 0xFF;
-        bufferview.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
-        bufferview.byteOffset = 0;
-
-        gltf2::Buffer buffer;
-        buffer.data = std::vector<uint8_t>(indices.begin(), indices.end());
-
-        primitive.indices = gltf.accessors.size();
-        primitive.mode = TINYGLTF_MODE_TRIANGLES;
-        primitive.material = 0;
-        gltf_mesh.primitives.push_back(primitive);
-
-        gltf.accessors.push_back(accessor);
-        gltf.bufferViews.push_back(bufferview);
-        gltf.buffers.push_back(buffer);
-
-        scene.nodes.push_back(gltf.nodes.size());
-
-        gltf2::Node node;
-        node.mesh = gltf.meshes.size();
-        gltf.nodes.push_back(node);
-        
-        gltf.meshes.push_back(gltf_mesh);
-
+    for(uint32_t i = 0; i < dme.mesh_count(); i++) {
+        add_mesh_to_gltf(gltf, dme, i);
     }
 
-    gltf.defaultScene = gltf.scenes.size();
-    gltf.scenes.push_back(scene);
 
     gltf.asset.version = "2.0";
-    gltf.asset.generator = "DME Converter (C++) v" + std::string(CPPDMOD_VERSION) + " via tinygltf";
+    gltf.asset.generator = "DME Converter (C++) " + std::string(CPPDMOD_VERSION) + " via tinygltf";
 
     std::string format = parser.get<std::string>("--format");
 
