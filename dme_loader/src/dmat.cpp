@@ -2,8 +2,8 @@
 #include <spdlog/spdlog.h>
 
 DMAT::DMAT(std::span<uint8_t> subspan): buf_(subspan) {
-    parse_materials();
     parse_filenames();
+    parse_materials();
 }
 
 DMAT::ref<uint32_t> DMAT::magic() const {
@@ -54,7 +54,7 @@ void DMAT::parse_materials() {
     uint32_t material_count = this->material_count();
     spdlog::info("Parsing {} material{}", material_count, material_count != 1 ? "s" : "");
     for(size_t i = 0; i < material_count; i++) {
-        std::shared_ptr<Material> material = std::make_shared<Material>(buf_.subspan(material_offset() + 4 + materials_size));
+        std::shared_ptr<Material> material = std::make_shared<Material>(buf_.subspan(material_offset() + 4 + materials_size), texture_names);
         materials.push_back(material);
         materials_size += material->size();
     }

@@ -1,6 +1,7 @@
 #pragma once
 #include <stdexcept>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 #include "parameter.h"
@@ -9,6 +10,7 @@ struct Material {
     mutable std::span<uint8_t> buf_;
 
     Material(std::span<uint8_t> subspan);
+    Material(std::span<uint8_t> subspan, std::vector<std::string> textures);
 
     template <typename T>
     struct ref {
@@ -32,5 +34,12 @@ struct Material {
     ref<uint32_t> length() const;
     ref<uint32_t> definition() const;
     ref<uint32_t> param_count() const;
-    std::vector<Parameter> parameters() const;
+    Parameter parameter(uint32_t index) const;
+    std::string texture(int32_t semantic) const;
+private:
+    std::vector<Parameter> parameters;
+    std::unordered_map<int32_t, std::string> semantic_textures;
+
+    void parse_parameters();
+    void parse_semantics(std::vector<std::string> textures);
 };

@@ -4,8 +4,8 @@ Parameter::Parameter(std::span<uint8_t> subspan): buf_(subspan) {
     buf_ = buf_.first(16 + length());
 }
 
-Parameter::ref<uint32_t> Parameter::namehash() const {
-    return get<uint32_t>(0);
+Parameter::ref<int32_t> Parameter::semantic_hash() const {
+    return get<int32_t>(0);
 }
 
 Parameter::ref<Parameter::D3DXParamClass> Parameter::_class() const {
@@ -22,4 +22,25 @@ Parameter::ref<uint32_t> Parameter::length() const {
 
 std::span<uint8_t> Parameter::data() const {
     return buf_.subspan(16, length());
+}
+
+std::string semantic_name(int32_t semantic) {
+    switch(Parameter::Semantic(semantic)) {
+    case Parameter::Semantic::BASE_COLOR:
+        return "Base Color";
+    case Parameter::Semantic::NORMAL_MAP:
+        return "Normal Map";
+    case Parameter::Semantic::SPECULAR:
+        return "Specular";
+    case Parameter::Semantic::DETAIL_CUBE:
+        return "Detail Cube";
+    case Parameter::Semantic::DETAIL_SELECT:
+        return "Detail Select";
+    case Parameter::Semantic::OVERLAY0:
+        return "Overlay 1";
+    case Parameter::Semantic::OVERLAY1:
+        return "Overlay 2";
+    default:
+        return "Unknown";
+    }
 }

@@ -37,6 +37,16 @@ struct Parameter {
         FORCE_DWORD = 0x7fffffff
     };
 
+    enum class Semantic {
+        BASE_COLOR = -1295769314,
+        NORMAL_MAP = 789998085,
+        SPECULAR = 67211600,
+        DETAIL_SELECT = 1716414136,
+        DETAIL_CUBE = -125639093,
+        OVERLAY0 = -1260182040,
+        OVERLAY1 = 1449224430
+    };
+
     mutable std::span<uint8_t> buf_;
 
     Parameter(std::span<uint8_t> subspan);
@@ -59,9 +69,11 @@ struct Parameter {
         return buf_.size();
     }
     
-    ref<uint32_t> namehash() const;
+    ref<int32_t> semantic_hash() const;
     ref<D3DXParamClass> _class() const;
     ref<D3DXParamType> type() const;
     ref<uint32_t> length() const;
     std::span<uint8_t> data() const;
 };
+
+std::string semantic_name(int32_t semantic);
