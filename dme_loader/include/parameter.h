@@ -1,5 +1,6 @@
 #pragma once
 #include <span>
+#include <stdexcept>
 
 struct Parameter {
     enum class D3DXParamType {

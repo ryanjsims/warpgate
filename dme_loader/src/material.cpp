@@ -26,7 +26,7 @@ std::vector<Parameter> Material::parameters() const {
     uint32_t offset = 0;
     for(uint32_t i = 0; i < count; i++) {
         Parameter p(buf_.subspan(16 + offset));
-        offset += p.size();
+        offset += (uint32_t)p.size();
         parameters.push_back(p);
     }
     return parameters;
