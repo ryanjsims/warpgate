@@ -1,6 +1,9 @@
 #pragma once
 #include <stdexcept>
 #include <span>
+#include <vector>
+
+#include "parameter.h"
 
 struct Material {
     mutable std::span<uint8_t> buf_;
@@ -29,5 +32,5 @@ struct Material {
     ref<uint32_t> length() const;
     ref<uint32_t> definition() const;
     ref<uint32_t> param_count() const;
-    std::span<uint8_t> param_data() const;
+    std::vector<Parameter> parameters() const;
 };

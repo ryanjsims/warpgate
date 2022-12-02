@@ -20,6 +20,14 @@ Material::ref<uint32_t> Material::param_count() const {
     return get<uint32_t>(12);
 }
 
-std::span<uint8_t> Material::param_data() const {
-    return buf_.subspan(16, length() - 8);
+std::vector<Parameter> Material::parameters() const {
+    std::vector<Parameter> parameters;
+    uint32_t count = param_count();
+    uint32_t offset = 0;
+    for(uint32_t i = 0; i < count; i++) {
+        Parameter p(buf_.subspan(16 + offset));
+        offset += p.size();
+        parameters.push_back(p);
+    }
+    return parameters;
 }
