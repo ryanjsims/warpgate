@@ -11,9 +11,9 @@ namespace jenkins {
         *b = *a;
         *c = init;
         while(position >= 12) {
-            *a += key[p+0] + ((uint32_t)key[p+1]) << 8 + ((uint32_t)key[p+2]) << 16 + ((uint32_t)key[p+3]) << 24;
-            *b += key[p+4] + ((uint32_t)key[p+5]) << 8 + ((uint32_t)key[p+6]) << 16 + ((uint32_t)key[p+7]) << 24;
-            *c += key[p+8] + ((uint32_t)key[p+9]) << 8 + ((uint32_t)key[p+10]) << 16 + ((uint32_t)key[p+11]) << 24;
+            *a += key[p+0] + (((uint32_t)key[p+1]) << 8) + (((uint32_t)key[p+2]) << 16) + (((uint32_t)key[p+3]) << 24);
+            *b += key[p+4] + (((uint32_t)key[p+5]) << 8) + (((uint32_t)key[p+6]) << 16) + (((uint32_t)key[p+7]) << 24);
+            *c += key[p+8] + (((uint32_t)key[p+9]) << 8) + (((uint32_t)key[p+10]) << 16) + (((uint32_t)key[p+11]) << 24);
             mix(a, b, c);
             p += 12;
             position -= 12;
