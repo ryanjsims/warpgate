@@ -71,7 +71,7 @@ std::shared_ptr<const Mesh> DME::mesh(uint32_t index) const {
 }
 
 uint32_t DME::drawcall_offset() const {
-    return meshes_offset() + (uint32_t)meshes_size;
+    return meshes_offset() + 4 + (uint32_t)meshes_size;
 }
 
 DME::ref<uint32_t> DME::drawcall_count() const {
