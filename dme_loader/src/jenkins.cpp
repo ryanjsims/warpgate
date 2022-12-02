@@ -89,4 +89,8 @@ namespace jenkins {
         hash += hash << 15;
         return (uint32_t)hash;
     }
+
+    uint32_t oaat(std::string key) {
+        return oaat(key.c_str());
+    }
 }
