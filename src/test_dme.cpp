@@ -8,6 +8,7 @@
 #include "dme_loader.h"
 #include "bone_map.h"
 #include "utils.h"
+#include "version.h"
 
 #include <spdlog/spdlog.h>
 #include <synthium/synthium.h>
@@ -15,6 +16,7 @@
 namespace logger = spdlog;
 
 int main() {
+    logger::info("test_dme using dme_loader version {}", CPPDMOD_VERSION);
     //assert(jenkins::oaat("somefilename") == 0xe9eb0404 && "OAAT returned incorrect value.");
     int i = 0;
     for(auto iter = BONE_HASHMAP.begin(); iter != BONE_HASHMAP.end(); iter++) {
