@@ -1,5 +1,5 @@
 add_library(
-        dme_loader STATIC 
+        dme_loader STATIC
         src/dme.cpp
         src/dmat.cpp
         src/jenkins.cpp

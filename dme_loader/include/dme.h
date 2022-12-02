@@ -8,11 +8,11 @@
 #include "dmat.h"
 #include "mesh.h"
 
+struct Bone;
 
 struct DME {
     mutable std::span<uint8_t> buf_;
 
-    DME(uint8_t *data, size_t count);
     DME(std::span<uint8_t> subspan);
 
     template <typename T>
@@ -51,18 +51,22 @@ struct DME {
     std::span<BoneMapEntry> bone_map() const;
 
     ref<uint32_t> bone_count() const;
+    const Bone bone(uint32_t index) const;
 
 
 private:
     std::shared_ptr<DMAT> dmat_ = nullptr;
     std::vector<std::shared_ptr<Mesh>> meshes;
+    std::vector<Bone> bones;
     size_t meshes_size;
 
     uint32_t aabb_offset() const;
     uint32_t bonemap_offset() const;
+    uint32_t bones_offset() const;
     uint32_t dmat_offset() const;
     uint32_t drawcall_offset() const;
     uint32_t meshes_offset() const;
     void parse_meshes();
     void parse_dmat();
+    void parse_bones();
 };

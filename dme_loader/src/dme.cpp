@@ -1,15 +1,12 @@
 #include "dme.h"
+#include "bone.h"
 
 #include <spdlog/spdlog.h>
-
-DME::DME(uint8_t *data, size_t count): buf_(data, count) {
-    parse_dmat();
-    parse_meshes();
-}
 
 DME::DME(std::span<uint8_t> subspan): buf_(subspan) {
     parse_dmat();
     parse_meshes();
+    parse_bones();
 }
 
 void DME::parse_dmat() {
@@ -20,12 +17,25 @@ void DME::parse_meshes() {
     uint32_t mesh_count = this->mesh_count();
     meshes_size = 0;
     for(uint32_t i = 0; i < mesh_count; i++) {
-        spdlog::info("Loading mesh: {}", i);
         auto mesh = std::make_shared<Mesh>(buf_.subspan(meshes_offset() + 4 + meshes_size));
         meshes_size += mesh->size();
         meshes.push_back(mesh);
-        spdlog::info("Loaded mesh {}", i);
     }
+    spdlog::info("Loaded {} mesh{}", meshes.size(), meshes.size() != 1 ? "es" : "");
+}
+
+void DME::parse_bones() {
+    uint32_t count = bone_count();
+    uint32_t ivm_offset = bones_offset() + 4;
+    uint32_t bbox_offset = ivm_offset + count * sizeof(PackedMat4);
+    uint32_t namehash_offset = bbox_offset + count * sizeof(AABB);
+    for(uint32_t i = 0; i < count; i++) {
+        bones.push_back({get<PackedMat4>(ivm_offset), get<AABB>(bbox_offset), get<uint32_t>(namehash_offset)});
+        ivm_offset += sizeof(PackedMat4);
+        bbox_offset += sizeof(AABB);
+        namehash_offset += sizeof(uint32_t);
+    }
+    spdlog::info("Loaded {} bones", bones.size());
 }
 
 DME::ref<uint32_t> DME::magic() const { return get<uint32_t>(0); }
@@ -86,6 +96,14 @@ std::span<BoneMapEntry> DME::bone_map() const {
     return std::span<BoneMapEntry>(reinterpret_cast<BoneMapEntry*>(data.data()), bme_count());
 }
 
+uint32_t DME::bones_offset() const {
+    return bonemap_offset() + 4 + bme_count() * sizeof(BoneMapEntry);
+}
+
 DME::ref<uint32_t> DME::bone_count() const {
-    return get<uint32_t>(bonemap_offset() + 4 + bme_count() * sizeof(BoneMapEntry));
+    return get<uint32_t>(bones_offset());
+}
+
+const Bone DME::bone(uint32_t index) const {
+    return bones.at(index);
 }
