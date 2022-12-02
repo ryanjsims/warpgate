@@ -6,6 +6,7 @@ add_library(
         src/material.cpp
         src/mesh.cpp
         src/parameter.cpp
+        src/utils.cpp
         src/vertexstream.cpp
 )
 target_include_directories(dme_loader PUBLIC include)
