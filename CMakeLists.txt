@@ -22,6 +22,8 @@ target_include_directories(test_dme PUBLIC dme_loader/include/)
 target_link_libraries(test_dme PUBLIC dme_loader)
 target_link_libraries(test_dme PRIVATE spdlog::spdlog)
 
+find_package(synthium REQUIRED)
+
 add_executable(dme_converter src/dme_converter.cpp)
 target_include_directories(dme_converter PUBLIC include/)
 target_include_directories(dme_converter PUBLIC ${CMAKE_BINARY_DIR}/include/)
@@ -29,10 +31,11 @@ target_include_directories(dme_converter PUBLIC dme_loader/include/)
 target_include_directories(dme_converter PUBLIC external/argparse/include/)
 target_include_directories(dme_converter PUBLIC external/half/include/)
 target_include_directories(dme_converter PUBLIC external/tinygltf/)
-target_link_libraries(dme_converter PUBLIC dme_loader)
+target_link_libraries(dme_converter PRIVATE dme_loader)
 target_link_libraries(dme_converter PRIVATE spdlog::spdlog)
 target_link_libraries(dme_converter PRIVATE tinygltf)
 target_link_libraries(dme_converter PRIVATE argparse)
+target_link_libraries(dme_converter PRIVATE synthium::synthium)
 
 find_package(Git)
 add_custom_target(version
