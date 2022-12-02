@@ -13,6 +13,7 @@ endif()
 
 add_subdirectory(dme_loader)
 add_subdirectory(external)
+find_package(synthium REQUIRED)
 
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}")
 
@@ -21,8 +22,8 @@ target_include_directories(test_dme PUBLIC include/)
 target_include_directories(test_dme PUBLIC dme_loader/include/)
 target_link_libraries(test_dme PUBLIC dme_loader)
 target_link_libraries(test_dme PRIVATE spdlog::spdlog)
+target_link_libraries(test_dme PRIVATE synthium::synthium)
 
-find_package(synthium REQUIRED)
 
 add_executable(dme_converter src/dme_converter.cpp)
 target_include_directories(dme_converter PUBLIC include/)
