@@ -3,10 +3,14 @@
 
 #include <spdlog/spdlog.h>
 
+namespace logger = spdlog;
+
 DME::DME(std::span<uint8_t> subspan): buf_(subspan) {
+    logger::info("Parsing DME file...");
     parse_dmat();
     parse_meshes();
     parse_bones();
+    logger::info("DME file parsed");
 }
 
 void DME::parse_dmat() {
