@@ -14,6 +14,7 @@ endif()
 add_subdirectory(dme_loader)
 add_subdirectory(external)
 find_package(synthium REQUIRED)
+find_package(gli REQUIRED)
 
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}")
 
@@ -25,7 +26,7 @@ target_link_libraries(test_dme PRIVATE spdlog::spdlog)
 target_link_libraries(test_dme PRIVATE synthium::synthium)
 
 
-add_executable(dme_converter src/dme_converter.cpp)
+add_executable(dme_converter src/dme_converter.cpp src/tsqueue.cpp)
 target_include_directories(dme_converter PUBLIC include/)
 target_include_directories(dme_converter PUBLIC ${CMAKE_BINARY_DIR}/include/)
 target_include_directories(dme_converter PUBLIC dme_loader/include/)
@@ -37,6 +38,7 @@ target_link_libraries(dme_converter PRIVATE spdlog::spdlog)
 target_link_libraries(dme_converter PRIVATE tinygltf)
 target_link_libraries(dme_converter PRIVATE argparse)
 target_link_libraries(dme_converter PRIVATE synthium::synthium)
+target_link_libraries(dme_converter PRIVATE gli)
 
 find_package(Git)
 add_custom_target(version

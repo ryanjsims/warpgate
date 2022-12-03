@@ -44,7 +44,8 @@ struct Parameter {
         DETAIL_SELECT = 1716414136,
         DETAIL_CUBE = -125639093,
         OVERLAY0 = -1260182040,
-        OVERLAY1 = 1449224430
+        OVERLAY1 = 1449224430,
+        UNKNOWN = 0
     };
 
     mutable std::span<uint8_t> buf_;

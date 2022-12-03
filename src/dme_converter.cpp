@@ -3,12 +3,20 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 #include <spdlog/spdlog.h>
 #include <synthium/synthium.h>
+#include <gli/load_dds.hpp>
+#include <gli/convert.hpp>
+#include <gli/sampler2d.hpp>
+#include "stb_image_write.h"
+
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
+#include "utils.h"
+#include "tsqueue.h"
 #include "tiny_gltf.h"
 #include "json.hpp"
 #include "half.hpp"
@@ -18,6 +26,8 @@ namespace gltf2 = tinygltf;
 namespace logger = spdlog;
 using namespace nlohmann;
 using half_float::half;
+
+#define THREAD_COUNT 3
 
 /**
  * POSITION = "Position"
@@ -123,6 +133,261 @@ void load_vector(std::string vector_type, uint32_t vertex_offset, uint32_t entry
     }
 }
 
+void process_normalmap(std::string texture_name, std::vector<uint8_t> texture_data, std::filesystem::path output_directory) {
+    logger::info("Processing normal map...");
+    gli::texture2d texture(gli::load_dds((char*)texture_data.data(), texture_data.size()));
+    if(texture.format() == gli::format::FORMAT_UNDEFINED) {
+        logger::error("Failed to load {} from memory", texture_name);
+    }
+    if(gli::is_compressed(texture.format())) {
+        logger::info("Compressed texture (format {})", (int)texture.format());
+        texture = gli::convert(texture, gli::format::FORMAT_RGBA8_UNORM_PACK8);
+    }
+    std::span<uint32_t> pixels = std::span<uint32_t>(texture.data<uint32_t>(), texture.size<uint32_t>());
+    std::unique_ptr<uint32_t[]> unpacked_normal = std::make_unique<uint32_t[]>(pixels.size());
+    std::unique_ptr<uint32_t[]> tint_map = std::make_unique<uint32_t[]>(pixels.size());
+
+    for(int i = 0; i < pixels.size(); i++) {
+        uint32_t pixel = pixels[i];
+        uint32_t unpack = (pixel & 0x000000FF) | (pixel & 0x0000FF00) | 0xFFFF0000;
+        uint32_t tint = ((pixel & 0x00FF0000) < ( 50 << 16) ? 0x000000FF : 0) 
+                      | ((pixel & 0x000000FF) < ( 50 <<  0) ? 0x0000FF00 : 0)
+                      | ((pixel & 0x00FF0000) > (150 << 16) ? 0x00FF0000 : 0)
+                      |                                       0xFF000000;
+        unpacked_normal[i] = unpack;
+        tint_map[i] = tint;
+    }
+
+    std::filesystem::path normal_path(texture_name);
+    normal_path.replace_extension(".png");
+    normal_path = output_directory / "textures" / normal_path;
+    auto extent = texture[0].extent();
+    logger::info("Writing image of size ({}, {})", extent.x, extent.y);
+    if(!stbi_write_png(
+            normal_path.string().c_str(), 
+            extent.x, extent.y, 
+            4, 
+            unpacked_normal.get(),
+            4 * extent.x
+        )) {
+        logger::error("Failed to write to {}", normal_path.string());
+        return;
+    }
+    logger::info("Saved normal map to {}", normal_path.string());
+
+    std::string tint_name = normal_path.filename().string();
+    size_t pos = tint_name.find_last_of('_');
+    tint_name[pos + 1] = 'T';
+    std::filesystem::path tint_path = normal_path.parent_path() / tint_name;
+    if(!stbi_write_png(
+            tint_path.string().c_str(), 
+            extent.x, extent.y, 
+            4, 
+            tint_map.get(),
+            4 * extent.x
+        )) {
+        logger::error("Failed to write to {}", tint_path.string());
+        return;
+    }
+    logger::info("Saved tint map to {}", tint_path.string());
+}
+
+void process_specular(std::string texture_name, std::vector<uint8_t> specular_data, std::vector<uint8_t> albedo_data, std::filesystem::path output_directory) {
+    logger::info("Processing specular...");
+    gli::texture2d specular(gli::load_dds((char*)specular_data.data(), specular_data.size()));
+    if(specular.format() == gli::format::FORMAT_UNDEFINED) {
+        logger::error("Failed to load {} from memory", texture_name);
+    }
+    if(gli::is_compressed(specular.format())) {
+        logger::info("Compressed texture (format {})", (int)specular.format());
+        specular = gli::convert(specular, gli::format::FORMAT_RGBA8_UNORM_PACK8);
+    }
+    gli::texture2d albedo(gli::load_dds((char*)albedo_data.data(), albedo_data.size()));
+    if(albedo.format() == gli::format::FORMAT_UNDEFINED) {
+        logger::error("Failed to load albedo from memory");
+    }
+    if(gli::is_compressed(albedo.format())) {
+        logger::info("Compressed texture (format {})", (int)albedo.format());
+        albedo = gli::convert(albedo, gli::format::FORMAT_RGBA8_SRGB_PACK8);
+    }
+
+    std::span<uint32_t> specular_pixels = std::span<uint32_t>(specular.data<uint32_t>(), specular.size<uint32_t>());
+    std::span<uint32_t> albedo_pixels = std::span<uint32_t>(albedo.data<uint32_t>(), albedo.size<uint32_t>());
+    std::unique_ptr<uint32_t[]> metallic_roughness = std::make_unique<uint32_t[]>(albedo_pixels.size());
+    std::unique_ptr<uint32_t[]> emissive = std::make_unique<uint32_t[]>(albedo_pixels.size());
+    auto extent = albedo.extent();
+    int stride = (int)gli::component_count(albedo.format()) * extent.x;
+    for(int i = 0; i < albedo_pixels.size(); i++) {
+        uint32_t pixel = specular_pixels[i];
+        uint32_t albedo_pixel = albedo_pixels[i];
+        uint32_t metal_rough = ((pixel & 0x000000FF) << 16) | ((pixel & 0xFF000000) >> 16) | 0xFF000000;
+        uint32_t emissive_pixel = (((pixel & 0x00FF0000) > (50 << 16)) && (albedo_pixel & 0xFF000000) != 0) ? albedo_pixel : 0; 
+        metallic_roughness[i] = metal_rough;
+        emissive[i] = emissive_pixel;
+    }
+
+    std::string metallic_roughness_name = texture_name;
+    size_t pos = metallic_roughness_name.find_last_of('_');
+    metallic_roughness_name = metallic_roughness_name.substr(0, pos + 1) + "MR" + metallic_roughness_name.substr(pos + 2);
+    std::filesystem::path metallic_roughness_path(metallic_roughness_name);
+    metallic_roughness_path.replace_extension(".png");
+    metallic_roughness_path = output_directory / "textures" / metallic_roughness_path;
+    logger::info("Writing image of size ({}, {})", extent.x, extent.y);
+    if(!stbi_write_png(
+            metallic_roughness_path.string().c_str(), 
+            extent.x, extent.y, 
+            4, 
+            metallic_roughness.get(),
+            4 * extent.x
+        )) {
+        logger::error("Failed to write to {}", metallic_roughness_path.string());
+        return;
+    }
+    logger::info("Saved metallic roughness map to {}", metallic_roughness_path.string());
+
+    std::string emissive_name = texture_name;
+    pos = emissive_name.find_last_of('_');
+    emissive_name[pos+1] = 'E';
+    std::filesystem::path emissive_path = metallic_roughness_path.parent_path() / emissive_name;
+    emissive_path.replace_extension(".png");
+    if(!stbi_write_png(
+            emissive_path.string().c_str(), 
+            extent.x, extent.y, 
+            4, 
+            emissive.get(),
+            4 * extent.x
+        )) {
+        logger::error("Failed to write to {}", emissive_path.string());
+        return;
+    }
+    logger::info("Saved emissive map to {}", emissive_path.string());
+}
+
+void save_dds_as_png(std::string texture_name, std::vector<uint8_t> texture_data, std::filesystem::path output_directory) {
+    logger::info("Saving {} as png...", texture_name);
+    gli::texture2d texture(gli::load_dds((char*)texture_data.data(), texture_data.size()));
+    if(texture.format() == gli::format::FORMAT_UNDEFINED) {
+        logger::error("Failed to load {} from memory", texture_name);
+    }
+    if(gli::is_compressed(texture.format())) {
+        logger::info("Compressed texture (format {})", (int)texture.format());
+        texture = gli::convert(texture, gli::format::FORMAT_RGBA8_SRGB_PACK8);
+    }
+    std::filesystem::path texture_path(texture_name);
+    texture_path.replace_extension(".png");
+    texture_path = output_directory / "textures" / texture_path;
+    auto extent = texture[0].extent();
+    logger::info("Writing image of size ({}, {})", extent.x, extent.y);
+    if(!stbi_write_png(
+            texture_path.string().c_str(), 
+            extent.x, extent.y, 
+            (int)gli::component_count(texture.format()), 
+            texture.data(0, 0, 0),
+            (int)gli::component_count(texture.format()) * extent.x
+        )) {
+        logger::error("Failed to write to {}", texture_path.string());
+        return;
+    }
+    logger::info("Saved base color to {}", texture_path.string());
+}
+
+void process_images(
+    const synthium::Manager& manager, 
+    utils::tsqueue<std::pair<std::string, Parameter::Semantic>>& queue, 
+    std::filesystem::path output_directory
+) {
+    logger::info("Got output directory {}", output_directory.string());
+    while(!queue.is_closed()) {
+        auto texture_info = queue.try_dequeue({"", Parameter::Semantic::UNKNOWN});
+        std::string texture_name = texture_info.first, albedo_name;
+        size_t index;
+        Parameter::Semantic semantic = texture_info.second;
+        if(semantic == Parameter::Semantic::UNKNOWN) {
+            logger::info("Got default value from try_dequeue, stopping thread.");
+            break;
+        }
+
+        switch (semantic)
+        {
+        case Parameter::Semantic::BASE_COLOR:
+            save_dds_as_png(texture_name, manager.get(texture_name).get_data(), output_directory);
+            break;
+        case Parameter::Semantic::NORMAL_MAP:
+            process_normalmap(texture_name, manager.get(texture_name).get_data(), output_directory);
+            break;
+        case Parameter::Semantic::SPECULAR:
+            albedo_name = texture_name;
+            index = albedo_name.find_last_of('_');
+            albedo_name[index + 1] = 'C';
+            process_specular(texture_name, manager.get(texture_name).get_data(), manager.get(albedo_name).get_data(), output_directory);
+            break;
+        default:
+            logger::warn("Skipping unimplemented semantic: {}", texture_name);
+            break;
+        }
+    }
+}
+
+gltf2::TextureInfo load_texture_info(
+    gltf2::Model &gltf,
+    const DME &dme, 
+    uint32_t i, 
+    std::unordered_map<uint32_t, uint32_t> &texture_indices, 
+    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+    std::filesystem::path output_filename,
+    Parameter::Semantic semantic
+) {
+    gltf2::TextureInfo info;
+    std::string texture_name = dme.dmat()->material(i)->texture(semantic), original_name;
+    uint32_t hash = jenkins::oaat(utils::uppercase(texture_name));
+    std::unordered_map<uint32_t, uint32_t>::iterator value;
+    if((value = texture_indices.find(hash)) == texture_indices.end()) {
+        image_queue.enqueue({texture_name, semantic});
+        if(semantic == Parameter::Semantic::SPECULAR) {
+            original_name = texture_name;
+            size_t index = texture_name.find_last_of('_') + 1;
+            texture_name = texture_name.substr(0, index) + "MR" + texture_name.substr(index + 1);
+        }
+        std::filesystem::path texture_path(texture_name);
+        texture_path.replace_extension(".png");
+        texture_path = output_filename.parent_path() / "textures" / texture_path;
+        
+        texture_indices[hash] = (uint32_t)gltf.textures.size();
+        info.index = (int)gltf.textures.size();
+        gltf2::Texture tex;
+        tex.source = (int)gltf.images.size();
+        tex.name = texture_path.filename().string();
+        tex.sampler = 0;
+        gltf2::Image img;
+        img.uri = texture_path.lexically_relative(output_filename.parent_path()).string();
+        
+        gltf.textures.push_back(tex);
+        gltf.images.push_back(img);
+        if(semantic == Parameter::Semantic::SPECULAR) {
+            std::string emissive_name = original_name;
+            size_t index = emissive_name.find_last_of('_');
+            emissive_name[index + 1] = 'E';
+            std::filesystem::path emissive_path = texture_path.parent_path() / emissive_name;
+            emissive_path.replace_extension(".png");
+
+            hash = jenkins::oaat(utils::uppercase(emissive_name));
+            texture_indices[hash] = (uint32_t)gltf.textures.size();
+            gltf2::Texture emissive;
+            emissive.source = (int)gltf.images.size();
+            emissive.name = emissive_path.filename().string();
+            emissive.sampler = 0;
+            gltf2::Image emissive_img;
+            emissive_img.uri = emissive_path.lexically_relative(output_filename.parent_path()).string();
+            
+            gltf.textures.push_back(emissive);
+            gltf.images.push_back(emissive_img);
+        }
+    } else {
+        info.index = value->second;
+    }
+    return info;
+}
+
 std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32_t stream) {
     VertexStream vertices(data);
     logger::debug("{}['{}']", layout.at("sizes").dump(), std::to_string(stream));
@@ -136,7 +401,6 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
     int binormal_index = -1;
     int vert_index_offset = 0;
     bool has_normals = false;
-    //json &entry : layout.at("entries")
 
     for(int i = 0; i < layout.at("entries").size(); i++) {
         json &entry = layout.at("entries").at(i);
@@ -244,14 +508,14 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
     return output;
 }
 
-void add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t i) {
+void add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
     int texcoord = 0;
     int color = 0;
     gltf2::Mesh gltf_mesh;
     gltf2::Primitive primitive;
-    std::shared_ptr<const Mesh> mesh = dme.mesh(i);
+    std::shared_ptr<const Mesh> mesh = dme.mesh(index);
     std::vector<uint32_t> offsets((std::size_t)mesh->vertex_stream_count(), 0);
-    json input_layout = get_input_layout(dme.dmat()->material(i)->definition());
+    json input_layout = get_input_layout(dme.dmat()->material(index)->definition());
     
     std::vector<gltf2::Buffer> buffers;
     for(uint32_t j = 0; j < mesh->vertex_stream_count(); j++) {
@@ -329,7 +593,7 @@ void add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t i) {
 
     primitive.indices = (int)gltf.accessors.size();
     primitive.mode = TINYGLTF_MODE_TRIANGLES;
-    primitive.material = 0;
+    primitive.material = index;
     gltf_mesh.primitives.push_back(primitive);
 
     gltf.accessors.push_back(accessor);
@@ -415,28 +679,92 @@ int main(int argc, const char* argv[]) {
     
     std::filesystem::path output_filename(parser.get<std::string>("output_file"));
     output_filename = std::filesystem::weakly_canonical(output_filename);
+    std::filesystem::path output_directory;
+    if(output_filename.has_parent_path()) {
+        output_directory = output_filename.parent_path();
+    }
+
     try {
-        if(output_filename.has_parent_path() && !std::filesystem::exists(output_filename.parent_path())) {
-            std::filesystem::create_directories(output_filename.parent_path());
+        if(!std::filesystem::exists(output_filename.parent_path())) {
+            std::filesystem::create_directories(output_directory / "textures");
         }
     } catch (std::filesystem::filesystem_error& err) {
         logger::error("Failed to create directory {}: {}", err.path1().string(), err.what());
         std::exit(3);
     }
 
+    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> image_queue;
+
+    std::vector<std::thread> image_processor_pool;
+    for(int i = 0; i < THREAD_COUNT; i++) {
+        image_processor_pool.push_back(std::thread{
+            process_images, 
+            std::cref(manager), 
+            std::ref(image_queue), 
+            output_directory
+        });
+    }
 
     DME dme(data_span);
     gltf2::Model gltf;
-    gltf2::Material material;
-    material.pbrMetallicRoughness.baseColorFactor = {0.7, 0.5, 0.6, 1.0};
-    material.doubleSided = true;
-    gltf.materials.push_back(material);
+    gltf2::Sampler sampler;
+    sampler.magFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
+    sampler.minFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
+    sampler.wrapS = TINYGLTF_TEXTURE_WRAP_REPEAT;
+    sampler.wrapT = TINYGLTF_TEXTURE_WRAP_REPEAT;
+    gltf.samplers.push_back(sampler);
     
     gltf.defaultScene = (int)gltf.scenes.size();
     gltf.scenes.push_back({});
 
+    std::vector<Parameter::Semantic> semantics = {
+        Parameter::Semantic::BASE_COLOR,
+        Parameter::Semantic::NORMAL_MAP,
+        Parameter::Semantic::SPECULAR,
+        Parameter::Semantic::DETAIL_SELECT,
+        Parameter::Semantic::DETAIL_CUBE,
+        Parameter::Semantic::OVERLAY0,
+        Parameter::Semantic::OVERLAY1
+    };
+
+    std::unordered_map<uint32_t, uint32_t> texture_indices;
+
     for(uint32_t i = 0; i < dme.mesh_count(); i++) {
+        gltf2::Material material;
+        for(Parameter::Semantic semantic : semantics) {
+            switch(semantic) {
+            case Parameter::Semantic::NORMAL_MAP:
+                material.normalTexture.index = load_texture_info(
+                    gltf, dme, i, texture_indices, image_queue, output_filename, semantic
+                ).index;
+                break;
+            case Parameter::Semantic::BASE_COLOR:
+                material.pbrMetallicRoughness.baseColorTexture = load_texture_info(
+                    gltf, dme, i, texture_indices, image_queue, output_filename, semantic
+                );
+                break;
+            case Parameter::Semantic::SPECULAR:
+                material.pbrMetallicRoughness.metallicRoughnessTexture = load_texture_info(
+                    gltf, dme, i, texture_indices, image_queue, output_filename, semantic
+                );
+                material.emissiveTexture.index = material.pbrMetallicRoughness.metallicRoughnessTexture.index + 1;
+                material.emissiveFactor = {1.0, 1.0, 1.0};
+                break;
+            default:
+                break;
+            }
+        }
+        material.doubleSided = true;
+        gltf.materials.push_back(material);
+
         add_mesh_to_gltf(gltf, dme, i);
+
+        logger::info("Added mesh {} to gltf", i);
+    }
+    image_queue.close();
+    logger::info("Joining image processing thread...");
+    for(uint32_t i = 0; i < image_processor_pool.size(); i++) {
+        image_processor_pool.at(i).join();
     }
 
 

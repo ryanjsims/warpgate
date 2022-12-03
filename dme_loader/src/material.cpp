@@ -73,3 +73,7 @@ std::string Material::texture(int32_t semantic) const {
     }
     return "";
 }
+
+std::string Material::texture(Parameter::Semantic semantic) const {
+    return texture((int32_t)semantic);
+}
