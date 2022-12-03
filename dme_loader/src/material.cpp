@@ -66,14 +66,14 @@ Parameter Material::parameter(uint32_t index) const {
     return parameters.at(index);
 }
 
-std::string Material::texture(int32_t semantic) const {
+std::optional<std::string> Material::texture(int32_t semantic) const {
     auto value = semantic_textures.find(semantic);
     if(value != semantic_textures.end()) {
         return value->second;
     }
-    return "";
+    return {};
 }
 
-std::string Material::texture(Parameter::Semantic semantic) const {
+std::optional<std::string> Material::texture(Parameter::Semantic semantic) const {
     return texture((int32_t)semantic);
 }
