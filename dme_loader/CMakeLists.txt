@@ -6,6 +6,7 @@ add_library(
         src/material.cpp
         src/mesh.cpp
         src/parameter.cpp
+        src/ps2_bone_map.cpp
         src/utils.cpp
         src/vertexstream.cpp
 )
