@@ -11,6 +11,11 @@
 #include <gli/load_dds.hpp>
 #include <gli/convert.hpp>
 #include <gli/sampler2d.hpp>
+#include <glm/matrix.hpp>
+
+#define _USE_MATH_DEFINES
+#include <math.h>
+//#include <glm/gtc/type_ptr.hpp>
 #include "stb_image_write.h"
 
 #include "argparse/argparse.hpp"
@@ -273,7 +278,7 @@ void process_images(
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>>& queue, 
     std::filesystem::path output_directory
 ) {
-    logger::info("Got output directory {}", output_directory.string());
+    logger::debug("Got output directory {}", output_directory.string());
     while(!queue.is_closed()) {
         auto texture_info = queue.try_dequeue({"", Parameter::Semantic::UNKNOWN});
         std::string texture_name = texture_info.first, albedo_name;
@@ -287,6 +292,7 @@ void process_images(
         switch (semantic)
         {
         case Parameter::Semantic::BASE_COLOR:
+        case Parameter::Semantic::BASE_CAMO:
         case Parameter::Semantic::DETAIL_SELECT:
         case Parameter::Semantic::OVERLAY0:
         case Parameter::Semantic::OVERLAY1:
@@ -401,7 +407,7 @@ std::optional<std::pair<gltf2::TextureInfo, gltf2::TextureInfo>> load_specular_i
     return std::make_pair(metallic_roughness_info, emissive_info);
 }
 
-std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32_t stream) {
+std::vector<uint8_t> expand_vertex_stream(json &layout, std::span<uint8_t> data, uint32_t stream, bool is_rigid, const DME &dme) {
     VertexStream vertices(data);
     logger::debug("{}['{}']", layout.at("sizes").dump(), std::to_string(stream));
     uint32_t stride = layout.at("sizes")
@@ -412,8 +418,9 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
     bool conversion_required = false;
     int tangent_index = -1;
     int binormal_index = -1;
+    int blend_indices_index = -1;
     int vert_index_offset = 0;
-    bool has_normals = false;
+    bool has_normals = false, bone_remapping = false;
 
     for(int i = 0; i < layout.at("entries").size(); i++) {
         json &entry = layout.at("entries").at(i);
@@ -436,31 +443,46 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
             entry.at("type") = "Float2";
             layout.at("sizes").at(std::to_string(stream)) = layout.at("sizes").at(std::to_string(stream)).get<uint32_t>() + 4;
         }
+        
         if(usage == "Normal") {
             has_normals = true;
         } else if(usage == "Binormal") {
             binormal_index = i;
         } else if(usage == "Tangent") {
             tangent_index = i;
+        } else if (usage == "BlendIndices") {
+            bone_remapping = true;
+            blend_indices_index = i;
         }
     }
-
-    bool calculate_normals = !has_normals && binormal_index != -1 && tangent_index != -1;
-
-    if(!conversion_required && !calculate_normals) {
-        logger::info("No conversion required!");
-        return std::vector<uint8_t>(vertices.buf_.begin(), vertices.buf_.end());
-    } else if(calculate_normals) {
-        logger::info("Calculating normals from tangents and binormals");
-        layout.at("sizes").at(std::to_string(stream)) = layout.at("sizes").at(std::to_string(stream)).get<uint32_t>() + 12;
-        layout.at("entries") += json::parse("{\"stream\":"+std::to_string(stream)+",\"type\":\"Float3\",\"usage\":\"Normal\",\"usageIndex\":0}");
-    }
-
+    
     std::string binormal_type, tangent_type;
     if(binormal_index != -1)
         binormal_type = layout.at("entries").at(binormal_index).at("type");
     if(tangent_index != -1)
         tangent_type = layout.at("entries").at(tangent_index).at("type");
+    
+    
+    bool calculate_normals = !has_normals && binormal_index != -1 && tangent_index != -1;
+    bool add_rigid_bones = is_rigid && binormal_type == "ubyte4n";
+
+    if(!conversion_required && !calculate_normals && !add_rigid_bones && !bone_remapping) {
+        logger::info("No conversion required!");
+        return std::vector<uint8_t>(vertices.buf_.begin(), vertices.buf_.end());
+    }
+    
+    if(calculate_normals) {
+        logger::info("Calculating normals from tangents and binormals");
+        layout.at("sizes").at(std::to_string(stream)) = layout.at("sizes").at(std::to_string(stream)).get<uint32_t>() + 12;
+        layout.at("entries") += json::parse("{\"stream\":"+std::to_string(stream)+",\"type\":\"Float3\",\"usage\":\"Normal\",\"usageIndex\":0}");
+    }
+
+    if(add_rigid_bones) {
+        logger::info("Adding rigid bone weights");
+        layout.at("sizes").at(std::to_string(stream)) = layout.at("sizes").at(std::to_string(stream)).get<uint32_t>() + 20;
+        layout.at("entries") += json::parse("{\"stream\":"+std::to_string(stream)+",\"type\":\"D3dcolor\",\"usage\":\"BlendIndices\",\"usageIndex\":0}");
+        layout.at("entries") += json::parse("{\"stream\":"+std::to_string(stream)+",\"type\":\"Float4\",\"usage\":\"BlendWeight\",\"usageIndex\":0}");
+    }
 
     logger::info("Converting {} entries", std::count_if(offsets.begin(), offsets.end(), [](auto pair) { return pair.second; }));
     std::vector<uint8_t> output;
@@ -470,6 +492,7 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
         float tangent[3] = {0, 0, 0};
         float sign = 0;
         float normal[3] = {0, 0, 0};
+        uint16_t rigid_joint_index = 0;
 
         float converter[2] = {0, 0};
         for(auto iter = offsets.begin(); iter != offsets.end(); iter++) {
@@ -480,11 +503,21 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
                 output.insert(output.end(), reinterpret_cast<uint8_t*>(converter), reinterpret_cast<uint8_t*>(converter) + 8);
             } else {
                 std::span<uint8_t> to_add = vertices.buf_.subspan(vertex_offset + entry_offset, iter->first);
+                if(index == blend_indices_index - vert_index_offset) {
+                    for(uint32_t bone_index = 0; bone_index < to_add.size(); bone_index++) {
+                        to_add[bone_index] = (uint8_t)dme.map_bone(to_add[bone_index]);
+                    }
+                }
                 output.insert(output.end(), to_add.begin(), to_add.end());
             }
 
-            if(calculate_normals && index == binormal_index - vert_index_offset) {
-                utils::load_vector(binormal_type, vertex_offset, entry_offset, vertices, binormal);
+            if(index == binormal_index - vert_index_offset) {
+                if(calculate_normals) {
+                    utils::load_vector(binormal_type, vertex_offset, entry_offset, vertices, binormal);
+                }
+                if(is_rigid && binormal_type == "ubyte4n") {
+                    rigid_joint_index = dme.map_bone(vertices.get<uint8_t>(vertex_offset + entry_offset + 3));
+                }
             }
 
             if(calculate_normals && index == tangent_index - vert_index_offset) {
@@ -517,11 +550,17 @@ std::vector<uint8_t> expand_halves(json &layout, std::span<uint8_t> data, uint32
             output.insert(output.end(), reinterpret_cast<uint8_t*>(normal), reinterpret_cast<uint8_t*>(normal) + 12);
         }
 
+        if(add_rigid_bones) {
+            uint8_t blend_indices[4] = {(uint8_t)rigid_joint_index, 0, 0, 0};
+            float blend_weights[4] = {1, 0, 0, 0};
+            output.insert(output.end(), blend_indices, blend_indices + 4);
+            output.insert(output.end(), reinterpret_cast<uint8_t*>(blend_weights), reinterpret_cast<uint8_t*>(blend_weights) + 16);
+        }
     }
     return output;
 }
 
-void add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
+int add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
     int texcoord = 0;
     int color = 0;
     gltf2::Mesh gltf_mesh;
@@ -529,13 +568,16 @@ void add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
     std::shared_ptr<const Mesh> mesh = dme.mesh(index);
     std::vector<uint32_t> offsets((std::size_t)mesh->vertex_stream_count(), 0);
     json input_layout = get_input_layout(dme.dmat()->material(index)->definition());
+    std::string layout_name = input_layout.at("name").get<std::string>();
+    logger::info("Using input layout {}", layout_name);
+    bool rigid = utils::uppercase(layout_name).find("RIGID") != std::string::npos;
     
     std::vector<gltf2::Buffer> buffers;
     for(uint32_t j = 0; j < mesh->vertex_stream_count(); j++) {
         std::span<uint8_t> vertex_stream = mesh->vertex_stream(j);
         gltf2::Buffer buffer;
         logger::info("Expanding vertex stream {}", j);
-        buffer.data = expand_halves(input_layout, vertex_stream, j);
+        buffer.data = expand_vertex_stream(input_layout, vertex_stream, j, rigid, dme);
         buffers.push_back(buffer);
     }
 
@@ -566,10 +608,9 @@ void add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
             attribute += std::to_string(texcoord);
             texcoord++;
         } else if (usage == "Color") {
-            offsets.at(stream) += sizes.at(type);
-            continue;
             attribute += std::to_string(color);
             color++;
+            accessor.normalized = true;
         } else if(usage == "Position") {
             AABB aabb = dme.aabb();
             accessor.minValues = {aabb.min.x, aabb.min.y, aabb.min.z};
@@ -597,7 +638,6 @@ void add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
     gltf2::BufferView bufferview;
     bufferview.buffer = (int)gltf.buffers.size();
     bufferview.byteLength = indices.size();
-    bufferview.byteStride = mesh->index_size() & 0xFF;
     bufferview.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
     bufferview.byteOffset = 0;
 
@@ -615,11 +655,55 @@ void add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
 
     gltf.scenes.at(gltf.defaultScene).nodes.push_back((int)gltf.nodes.size());
 
+    int node_index = (int)gltf.nodes.size();
+
     gltf2::Node node;
     node.mesh = (int)gltf.meshes.size();
     gltf.nodes.push_back(node);
     
     gltf.meshes.push_back(gltf_mesh);
+
+    return node_index;
+}
+
+void update_transforms(gltf2::Model &gltf, int root, glm::vec4 global_offset = glm::vec4(0, 0, 0, 1), glm::quat global_rotation = glm::quat(0, 0, 0, 1)) {
+    for(int child : gltf.nodes.at(root).children) {
+        glm::vec4 translation_vec(gltf.nodes.at(root).translation[0], gltf.nodes.at(root).translation[1], gltf.nodes.at(root).translation[2], 1);
+        glm::quat rotation(
+            gltf.nodes.at(root).rotation[0], 
+            gltf.nodes.at(root).rotation[1], 
+            gltf.nodes.at(root).rotation[2], 
+            gltf.nodes.at(root).rotation[3]
+        );
+        update_transforms(gltf, child, global_offset + rotation * translation_vec, global_rotation * rotation);
+        std::vector<double> translation = gltf.nodes.at(child).translation;
+        translation_vec = glm::inverse(global_rotation) * global_offset;
+        gltf.nodes.at(child).translation = {
+            translation[0] - translation_vec.x, 
+            translation[1] - translation_vec.y, 
+            translation[2] - translation_vec.z
+        };
+        glm::quat child_rotation(
+            gltf.nodes.at(child).rotation[0], 
+            gltf.nodes.at(child).rotation[1], 
+            gltf.nodes.at(child).rotation[2], 
+            gltf.nodes.at(child).rotation[3]
+        );
+
+        child_rotation = child_rotation * glm::inverse(global_rotation);
+        gltf.nodes.at(child).rotation = {child_rotation.x, child_rotation.y, child_rotation.z, child_rotation.w};
+        // glm::vec4 translation_vec(translation[0], translation[1], translation[2], 1);
+        // glm::quat rotation(
+        //     gltf.nodes.at(root).rotation[0], 
+        //     gltf.nodes.at(root).rotation[1], 
+        //     gltf.nodes.at(root).rotation[2], 
+        //     gltf.nodes.at(root).rotation[3]
+        // );
+        // translation_vec = rotation * translation_vec;
+        // gltf.nodes.at(child).translation = {translation_vec.x - gltf.nodes.at(root).translation[0], translation_vec.y - gltf.nodes.at(root).translation[1], translation_vec.z - gltf.nodes.at(root).translation[2]};
+        // gltf.nodes.at(child).rotation = {0, 0, 0, 1};
+    }
+
 }
 
 int main(int argc, const char* argv[]) {
@@ -654,6 +738,12 @@ int main(int argc, const char* argv[]) {
         .help("The number of threads to use for image processing")
         .default_value(4u)
         .scan<'u', uint32_t>();
+
+    parser.add_argument("--no-skeleton", "-s")
+        .help("Exclude the skeleton from the output")
+        .default_value(true)
+        .implicit_value(false)
+        .nargs(0);
     
     try {
         parser.parse_args(argc, argv);
@@ -662,6 +752,8 @@ int main(int argc, const char* argv[]) {
         std::cerr << parser;
         std::exit(1);
     }
+    std::string input_str = parser.get<std::string>("input_file");
+    logger::info("Converting file {} using dme_converter {}", input_str, CPPDMOD_VERSION);
     uint32_t image_processor_thread_count = parser.get<uint32_t>("--threads");
     logger::set_level(logger::level::level_enum(log_level));
     std::filesystem::path server = "C:/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/";
@@ -674,7 +766,6 @@ int main(int argc, const char* argv[]) {
     logger::info("Manager loaded.");
     init_materials();
 
-    std::string input_str = parser.get<std::string>("input_file");
     std::filesystem::path input_filename(input_str);
     std::unique_ptr<uint8_t[]> data;
     std::vector<uint8_t> data_vector;
@@ -744,10 +835,12 @@ int main(int argc, const char* argv[]) {
         Parameter::Semantic::DETAIL_SELECT,
         Parameter::Semantic::DETAIL_CUBE,
         Parameter::Semantic::OVERLAY0,
-        Parameter::Semantic::OVERLAY1
+        Parameter::Semantic::OVERLAY1,
+        Parameter::Semantic::BASE_CAMO,
     };
 
     std::unordered_map<uint32_t, uint32_t> texture_indices;
+    std::vector<int> mesh_nodes;
 
     for(uint32_t i = 0; i < dme.mesh_count(); i++) {
         gltf2::Material material;
@@ -781,15 +874,7 @@ int main(int argc, const char* argv[]) {
                 break;
             default:
                 // Just export the texture
-                if(semantic == Parameter::Semantic::DETAIL_SELECT) {
-                    label = "Detail Select";
-                } else if (semantic == Parameter::Semantic::OVERLAY0) {
-                    label = "Overlay 1";
-                } else if (semantic == Parameter::Semantic::OVERLAY1) {
-                    label = "Overlay 2";
-                } else if (semantic == Parameter::Semantic::DETAIL_CUBE) {
-                    label = "Detail Cube ";
-                }
+                label = Parameter::semantic_name(semantic);
                 texture_name = dme.dmat()->material(i)->texture(semantic);
                 if(texture_name) {
                     image_queue.enqueue({*texture_name, semantic});
@@ -802,7 +887,7 @@ int main(int argc, const char* argv[]) {
                                 gltf, 
                                 (output_directory / "textures" / (temp.stem().string() + "_" + face)).replace_extension(".png"),
                                 output_filename,
-                                *label + face
+                                *label + " " + face
                             );
                         }
                     }
@@ -813,25 +898,114 @@ int main(int argc, const char* argv[]) {
         material.doubleSided = true;
         gltf.materials.push_back(material);
 
-        add_mesh_to_gltf(gltf, dme, i);
-
+        int node_index = add_mesh_to_gltf(gltf, dme, i);
+        mesh_nodes.push_back(node_index);
+        
         logger::info("Added mesh {} to gltf", i);
     }
-    image_queue.close();
-    logger::info("Joining image processing thread...");
-    for(uint32_t i = 0; i < image_processor_pool.size(); i++) {
-        image_processor_pool.at(i).join();
+
+    bool include_skeleton = parser.get<bool>("--no-skeleton");
+    if(dme.bone_count() > 0 && include_skeleton) {
+        for(int node_index : mesh_nodes) {
+            gltf.nodes.at(node_index).skin = (int)gltf.skins.size();
+        }
+
+        gltf2::Buffer bone_buffer;
+        gltf2::Skin skin;
+        skin.inverseBindMatrices = (int)gltf.accessors.size();
+
+        std::unordered_map<uint32_t, size_t> skeleton_map;
+        for(uint32_t bone_index = 0; bone_index < dme.bone_count(); bone_index++) {
+            gltf2::Node bone_node;
+            Bone bone = dme.bone(bone_index);
+            PackedMat4 packed_inv = bone.inverse_bind_matrix;
+            uint32_t namehash = bone.namehash;
+            glm::mat4 inverse_bind_matrix(glm::mat4x3(
+                packed_inv[0][0], packed_inv[0][1], packed_inv[0][2],
+                packed_inv[1][0], packed_inv[1][1], packed_inv[1][2],
+                packed_inv[2][0], packed_inv[2][1], packed_inv[2][2],
+                packed_inv[3][0], packed_inv[3][1], packed_inv[3][2]
+            ));
+            glm::mat4 bind_matrix = glm::inverse(inverse_bind_matrix);
+            glm::mat4 rotated = glm::rotate(inverse_bind_matrix, (float)M_PI, glm::vec3(0, 1, 0));
+            std::span<float> inverse_matrix_data(&inverse_bind_matrix[0].x, 16);
+            std::span<float> matrix_data(&bind_matrix[0].x, 16);
+            //bone_node.matrix = std::vector<double>(matrix_data.begin(), matrix_data.end());
+            bone_node.translation = {bind_matrix[3].x, bind_matrix[3].y, bind_matrix[3].z};
+            bind_matrix[3].x = 0;
+            bind_matrix[3].y = 0;
+            bind_matrix[3].z = 0;
+            //bone_node.scale = {glm::length(bind_matrix[0]), glm::length(bind_matrix[1]), glm::length(bind_matrix[2])};
+            bind_matrix[0] /= glm::length(bind_matrix[0]);
+            bind_matrix[1] /= glm::length(bind_matrix[1]);
+            bind_matrix[2] /= glm::length(bind_matrix[2]);
+            glm::quat quat(bind_matrix);
+            bone_node.rotation = {quat.x, quat.y, quat.z, quat.w};
+            bone_node.name = utils::bone_hashmap.at(bone.namehash);
+            skeleton_map[bone.namehash] = gltf.nodes.size();
+            skin.joints.push_back((int)gltf.nodes.size());
+
+            bone_buffer.data.insert(
+                bone_buffer.data.end(), 
+                reinterpret_cast<uint8_t*>(inverse_matrix_data.data()), 
+                reinterpret_cast<uint8_t*>(inverse_matrix_data.data()) + inverse_matrix_data.size_bytes()
+            );
+
+            gltf.nodes.push_back(bone_node);
+        }
+
+        for(auto iter = skeleton_map.begin(); iter != skeleton_map.end(); iter++) {
+            uint32_t curr_hash = iter->first;
+            size_t curr_index = iter->second;
+            uint32_t parent = utils::bone_hierarchy.at(curr_hash);
+            std::unordered_map<uint32_t, size_t>::iterator parent_index;
+            while(parent != 0 && (parent_index = skeleton_map.find(parent)) == skeleton_map.end()) {
+                parent = utils::bone_hierarchy.at(parent);
+            }
+            if(parent != 0) {
+                // Bone has parent in the skeleton, add it to its parent's children
+                gltf.nodes.at(parent_index->second).children.push_back((int)curr_index);
+            } else if(parent == 0) {
+                // Bone is the root of the skeleton, add it as the skin's skeleton
+                skin.skeleton = (int)curr_index;
+                gltf.scenes.at(gltf.defaultScene).nodes.push_back((int)curr_index);
+            }
+        }
+
+        update_transforms(gltf, skin.skeleton);
+
+        gltf2::Accessor accessor;
+        accessor.bufferView = (int)gltf.bufferViews.size();
+        accessor.byteOffset = 0;
+        accessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+        accessor.type = TINYGLTF_TYPE_MAT4;
+        accessor.count = dme.bone_count();
+
+        gltf2::BufferView bufferview;
+        bufferview.buffer = (int)gltf.buffers.size();
+        bufferview.byteLength = bone_buffer.data.size();
+        bufferview.byteOffset = 0;
+        
+        gltf.accessors.push_back(accessor);
+        gltf.buffers.push_back(bone_buffer);
+        gltf.bufferViews.push_back(bufferview);
+        gltf.skins.push_back(skin);
     }
-
-
+    
     gltf.asset.version = "2.0";
     gltf.asset.generator = "DME Converter (C++) " + std::string(CPPDMOD_VERSION) + " via tinygltf";
 
     std::string format = parser.get<std::string>("--format");
 
-    logger::info("Writing output file...");
+    logger::info("Writing GLTF2 file {}...", output_filename.filename().string());
     tinygltf::TinyGLTF writer;
     writer.WriteGltfSceneToFile(&gltf, output_filename.string(), false, format == "glb", format == "gltf", format == "glb");
-
+    
+    image_queue.close();
+    logger::info("Joining image processing thread{}...", image_processor_pool.size() == 1 ? "" : "s");
+    for(uint32_t i = 0; i < image_processor_pool.size(); i++) {
+        image_processor_pool.at(i).join();
+    }
+    logger::info("Done.");
     return 0;
 }
