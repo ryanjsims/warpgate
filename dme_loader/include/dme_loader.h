@@ -7,4 +7,5 @@
 #include "material.h"
 #include "mesh.h"
 #include "parameter.h"
+#include "ps2_bone_map.h"
 #include "vertexstream.h"

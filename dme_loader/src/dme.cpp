@@ -100,6 +100,13 @@ std::span<BoneMapEntry> DME::bone_map() const {
     return std::span<BoneMapEntry>(reinterpret_cast<BoneMapEntry*>(data.data()), bme_count());
 }
 
+uint16_t DME::map_bone(uint16_t global_bone) const {
+    if(global_bone > bme_count()) {
+        return 0;
+    }
+    return bone_map()[global_bone].bone_index;
+}
+
 uint32_t DME::bones_offset() const {
     return bonemap_offset() + 4 + bme_count() * sizeof(BoneMapEntry);
 }

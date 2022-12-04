@@ -50,6 +50,8 @@ struct DME {
     ref<uint32_t> bme_count() const;
     std::span<BoneMapEntry> bone_map() const;
 
+    uint16_t map_bone(uint16_t local_bone) const;
+
     ref<uint32_t> bone_count() const;
     const Bone bone(uint32_t index) const;
 
