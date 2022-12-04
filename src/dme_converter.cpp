@@ -741,8 +741,14 @@ int main(int argc, const char* argv[]) {
 
     parser.add_argument("--no-skeleton", "-s")
         .help("Exclude the skeleton from the output")
-        .default_value(true)
-        .implicit_value(false)
+        .default_value(false)
+        .implicit_value(true)
+        .nargs(0);
+    
+    parser.add_argument("--no-textures", "-i")
+        .help("Exclude the skeleton from the output")
+        .default_value(false)
+        .implicit_value(true)
         .nargs(0);
     
     try {
@@ -805,15 +811,20 @@ int main(int argc, const char* argv[]) {
 
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> image_queue;
 
-    logger::info("Using {} image processing thread{}", image_processor_thread_count, image_processor_thread_count == 1 ? "" : "s");
+    bool export_textures = !parser.get<bool>("--no-textures");
     std::vector<std::thread> image_processor_pool;
-    for(uint32_t i = 0; i < image_processor_thread_count; i++) {
-        image_processor_pool.push_back(std::thread{
-            process_images, 
-            std::cref(manager), 
-            std::ref(image_queue), 
-            output_directory
-        });
+    if(export_textures) {
+        logger::info("Using {} image processing thread{}", image_processor_thread_count, image_processor_thread_count == 1 ? "" : "s");
+        for(uint32_t i = 0; i < image_processor_thread_count; i++) {
+            image_processor_pool.push_back(std::thread{
+                process_images, 
+                std::cref(manager), 
+                std::ref(image_queue), 
+                output_directory
+            });
+        }
+    } else {
+        logger::info("Not exporting textures by user request.");
     }
 
     DME dme(data_span);
@@ -844,56 +855,60 @@ int main(int argc, const char* argv[]) {
 
     for(uint32_t i = 0; i < dme.mesh_count(); i++) {
         gltf2::Material material;
-        std::optional<gltf2::TextureInfo> info;
-        std::optional<std::pair<gltf2::TextureInfo, gltf2::TextureInfo>> info_pair;
-        std::optional<std::string> texture_name, label = {};
-        std::filesystem::path temp;
-        for(Parameter::Semantic semantic : semantics) {
-            switch(semantic) {
-            case Parameter::Semantic::NORMAL_MAP:
-                info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_filename, semantic);
-                if(!info)
+        if(export_textures) {
+            std::optional<gltf2::TextureInfo> info;
+            std::optional<std::pair<gltf2::TextureInfo, gltf2::TextureInfo>> info_pair;
+            std::optional<std::string> texture_name, label = {};
+            std::filesystem::path temp;
+            for(Parameter::Semantic semantic : semantics) {
+                switch(semantic) {
+                case Parameter::Semantic::NORMAL_MAP:
+                    info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_filename, semantic);
+                    if(!info)
+                        break;
+                    material.normalTexture.index = info->index;
                     break;
-                material.normalTexture.index = info->index;
-                break;
-            case Parameter::Semantic::BASE_COLOR:
-                info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_filename, semantic);
-                if(!info)
+                case Parameter::Semantic::BASE_COLOR:
+                    info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_filename, semantic);
+                    if(!info)
+                        break;
+                    material.pbrMetallicRoughness.baseColorTexture = *info;
                     break;
-                material.pbrMetallicRoughness.baseColorTexture = *info;
-                break;
-            case Parameter::Semantic::SPECULAR:
-                info_pair = load_specular_info(
-                    gltf, dme, i, texture_indices, image_queue, output_filename, semantic
-                );
-                if(!info_pair)
+                case Parameter::Semantic::SPECULAR:
+                    info_pair = load_specular_info(
+                        gltf, dme, i, texture_indices, image_queue, output_filename, semantic
+                    );
+                    if(!info_pair)
+                        break;
+                    material.pbrMetallicRoughness.metallicRoughnessTexture = info_pair->first;
+                    material.emissiveTexture = info_pair->second;
+                    material.emissiveFactor = {1.0, 1.0, 1.0};
                     break;
-                material.pbrMetallicRoughness.metallicRoughnessTexture = info_pair->first;
-                material.emissiveTexture = info_pair->second;
-                material.emissiveFactor = {1.0, 1.0, 1.0};
-                break;
-            default:
-                // Just export the texture
-                label = Parameter::semantic_name(semantic);
-                texture_name = dme.dmat()->material(i)->texture(semantic);
-                if(texture_name) {
-                    image_queue.enqueue({*texture_name, semantic});
-                    if (semantic != Parameter::Semantic::DETAIL_CUBE) {
-                        add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_filename, label);
-                    } else {
-                        temp = std::filesystem::path(*texture_name);
-                        for(std::string face : detailcube_faces) {
-                            add_texture_to_gltf(
-                                gltf, 
-                                (output_directory / "textures" / (temp.stem().string() + "_" + face)).replace_extension(".png"),
-                                output_filename,
-                                *label + " " + face
-                            );
+                default:
+                    // Just export the texture
+                    label = Parameter::semantic_name(semantic);
+                    texture_name = dme.dmat()->material(i)->texture(semantic);
+                    if(texture_name) {
+                        image_queue.enqueue({*texture_name, semantic});
+                        if (semantic != Parameter::Semantic::DETAIL_CUBE) {
+                            add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_filename, label);
+                        } else {
+                            temp = std::filesystem::path(*texture_name);
+                            for(std::string face : detailcube_faces) {
+                                add_texture_to_gltf(
+                                    gltf, 
+                                    (output_directory / "textures" / (temp.stem().string() + "_" + face)).replace_extension(".png"),
+                                    output_filename,
+                                    *label + " " + face
+                                );
+                            }
                         }
                     }
+                    break;
                 }
-                break;
             }
+        } else {
+            material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133 }; // Forest Green
         }
         material.doubleSided = true;
         gltf.materials.push_back(material);
@@ -904,7 +919,7 @@ int main(int argc, const char* argv[]) {
         logger::info("Added mesh {} to gltf", i);
     }
 
-    bool include_skeleton = parser.get<bool>("--no-skeleton");
+    bool include_skeleton = !parser.get<bool>("--no-skeleton");
     if(dme.bone_count() > 0 && include_skeleton) {
         for(int node_index : mesh_nodes) {
             gltf.nodes.at(node_index).skin = (int)gltf.skins.size();
