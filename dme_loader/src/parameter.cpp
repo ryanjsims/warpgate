@@ -1,4 +1,5 @@
 #include "parameter.h"
+#include <string>
 
 Parameter::Parameter(std::span<uint8_t> subspan): buf_(subspan) {
     buf_ = buf_.first(16 + length());
@@ -24,7 +25,7 @@ std::span<uint8_t> Parameter::data() const {
     return buf_.subspan(16, length());
 }
 
-std::string semantic_name(int32_t semantic) {
+std::string Parameter::semantic_name(int32_t semantic) {
     switch(Parameter::Semantic(semantic)) {
     case Parameter::Semantic::BASE_COLOR:
         return "Base Color";
@@ -40,7 +41,13 @@ std::string semantic_name(int32_t semantic) {
         return "Overlay 1";
     case Parameter::Semantic::OVERLAY1:
         return "Overlay 2";
+    case Parameter::Semantic::BASE_CAMO:
+        return "Base Camo";
     default:
-        return "Unknown";
+        return "Unknown (" + std::to_string(semantic) + ")";
     }
+}
+
+std::string Parameter::semantic_name(Parameter::Semantic semantic) {
+    return semantic_name((int32_t)semantic);
 }

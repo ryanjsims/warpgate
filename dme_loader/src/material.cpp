@@ -40,7 +40,7 @@ void Material::parse_semantics(std::vector<std::string> textures) {
         std::unordered_map<uint32_t, std::string>::iterator value;
         if(p.type() == Parameter::D3DXParamType::TEXTURE && (value = hash_to_names.find(p.get<uint32_t>(16))) != hash_to_names.end()) {
             semantic_textures[p.semantic_hash()] = value->second;
-            std::string name = semantic_name(p.semantic_hash());
+            std::string name = Parameter::semantic_name(p.semantic_hash());
             logger::info("Semantic '{}' = '{}'", name, value->second);
         }
     }

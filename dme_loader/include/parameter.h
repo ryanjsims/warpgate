@@ -45,6 +45,7 @@ struct Parameter {
         DETAIL_CUBE = -125639093,
         OVERLAY0 = -1260182040,
         OVERLAY1 = 1449224430,
+        BASE_CAMO = -305773271,
         UNKNOWN = 0
     };
 
@@ -75,6 +76,8 @@ struct Parameter {
     ref<D3DXParamType> type() const;
     ref<uint32_t> length() const;
     std::span<uint8_t> data() const;
+    static std::string semantic_name(int32_t semantic);
+    static std::string semantic_name(Semantic semantic);
 };
 
-std::string semantic_name(int32_t semantic);
+//std::string semantic_name(int32_t semantic);
