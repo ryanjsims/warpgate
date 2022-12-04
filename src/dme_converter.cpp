@@ -666,32 +666,34 @@ int add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
     return node_index;
 }
 
-void update_transforms(gltf2::Model &gltf, int root, glm::vec4 global_offset = glm::vec4(0, 0, 0, 1), glm::quat global_rotation = glm::quat(0, 0, 0, 1)) {
+void update_transforms(gltf2::Model &gltf, int root) {
     for(int child : gltf.nodes.at(root).children) {
-        glm::vec4 translation_vec(gltf.nodes.at(root).translation[0], gltf.nodes.at(root).translation[1], gltf.nodes.at(root).translation[2], 1);
-        glm::quat rotation(
-            gltf.nodes.at(root).rotation[0], 
-            gltf.nodes.at(root).rotation[1], 
-            gltf.nodes.at(root).rotation[2], 
-            gltf.nodes.at(root).rotation[3]
+        update_transforms(gltf, child);
+        glm::vec4 parent_translation(gltf.nodes.at(root).translation[0], gltf.nodes.at(root).translation[1], gltf.nodes.at(root).translation[2], 1);
+        glm::quat parent_rotation(
+            (float)gltf.nodes.at(root).rotation[0], 
+            (float)gltf.nodes.at(root).rotation[1], 
+            (float)gltf.nodes.at(root).rotation[2], 
+            (float)gltf.nodes.at(root).rotation[3]
         );
-        update_transforms(gltf, child, global_offset + rotation * translation_vec, global_rotation * rotation);
         std::vector<double> translation = gltf.nodes.at(child).translation;
-        translation_vec = glm::inverse(global_rotation) * global_offset;
+        //translation_vec = glm::inverse(global_rotation) * global_offset;
         gltf.nodes.at(child).translation = {
-            translation[0] - translation_vec.x, 
-            translation[1] - translation_vec.y, 
-            translation[2] - translation_vec.z
+            translation[0] - parent_translation.x, 
+            translation[1] - parent_translation.y, 
+            translation[2] - parent_translation.z
         };
-        glm::quat child_rotation(
-            gltf.nodes.at(child).rotation[0], 
-            gltf.nodes.at(child).rotation[1], 
-            gltf.nodes.at(child).rotation[2], 
-            gltf.nodes.at(child).rotation[3]
-        );
 
-        child_rotation = child_rotation * glm::inverse(global_rotation);
-        gltf.nodes.at(child).rotation = {child_rotation.x, child_rotation.y, child_rotation.z, child_rotation.w};
+
+        // glm::quat child_rotation(
+        //     gltf.nodes.at(child).rotation[0], 
+        //     gltf.nodes.at(child).rotation[1], 
+        //     gltf.nodes.at(child).rotation[2], 
+        //     gltf.nodes.at(child).rotation[3]
+        // );
+
+        // child_rotation = child_rotation * glm::inverse(global_rotation);
+        // gltf.nodes.at(child).rotation = {child_rotation.x, child_rotation.y, child_rotation.z, child_rotation.w};
         // glm::vec4 translation_vec(translation[0], translation[1], translation[2], 1);
         // glm::quat rotation(
         //     gltf.nodes.at(root).rotation[0], 
@@ -908,7 +910,7 @@ int main(int argc, const char* argv[]) {
                 }
             }
         } else {
-            material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133 }; // Forest Green
+            material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133, 1.0 }; // Forest Green
         }
         material.doubleSided = true;
         gltf.materials.push_back(material);
