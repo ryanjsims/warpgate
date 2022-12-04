@@ -20,6 +20,7 @@
 
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
+#include "sign.h"
 #include "utils.h"
 #include "tsqueue.h"
 #include "tiny_gltf.h"
@@ -669,43 +670,49 @@ int add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
 void update_transforms(gltf2::Model &gltf, int root) {
     for(int child : gltf.nodes.at(root).children) {
         update_transforms(gltf, child);
-        glm::vec4 parent_translation(gltf.nodes.at(root).translation[0], gltf.nodes.at(root).translation[1], gltf.nodes.at(root).translation[2], 1);
-        glm::quat parent_rotation(
-            (float)gltf.nodes.at(root).rotation[0], 
-            (float)gltf.nodes.at(root).rotation[1], 
-            (float)gltf.nodes.at(root).rotation[2], 
-            (float)gltf.nodes.at(root).rotation[3]
+        glm::dvec3 parent_translation(
+            gltf.nodes.at(root).translation[0], 
+            gltf.nodes.at(root).translation[1], 
+            gltf.nodes.at(root).translation[2]
         );
-        std::vector<double> translation = gltf.nodes.at(child).translation;
-        //translation_vec = glm::inverse(global_rotation) * global_offset;
+        glm::dquat parent_rotation(
+            gltf.nodes.at(root).rotation[3],
+            gltf.nodes.at(root).rotation[0], 
+            gltf.nodes.at(root).rotation[1], 
+            gltf.nodes.at(root).rotation[2]
+        );
+        
+        glm::dvec3 child_translation = glm::dvec3(
+            gltf.nodes.at(child).translation[0], 
+            gltf.nodes.at(child).translation[1], 
+            gltf.nodes.at(child).translation[2]
+        );
+        glm::dquat child_rotation(
+            gltf.nodes.at(child).rotation[3],
+            gltf.nodes.at(child).rotation[0], 
+            gltf.nodes.at(child).rotation[1], 
+            gltf.nodes.at(child).rotation[2]
+        );
+
+        child_translation -= parent_translation;
+        
+        child_rotation = glm::inverse(parent_rotation) * child_rotation;
+        child_translation = utils::sign(parent_rotation) * glm::inverse(parent_rotation) * child_translation;
+
+
         gltf.nodes.at(child).translation = {
-            translation[0] - parent_translation.x, 
-            translation[1] - parent_translation.y, 
-            translation[2] - parent_translation.z
+            child_translation.x, 
+            child_translation.y, 
+            child_translation.z
         };
 
-
-        // glm::quat child_rotation(
-        //     gltf.nodes.at(child).rotation[0], 
-        //     gltf.nodes.at(child).rotation[1], 
-        //     gltf.nodes.at(child).rotation[2], 
-        //     gltf.nodes.at(child).rotation[3]
-        // );
-
-        // child_rotation = child_rotation * glm::inverse(global_rotation);
-        // gltf.nodes.at(child).rotation = {child_rotation.x, child_rotation.y, child_rotation.z, child_rotation.w};
-        // glm::vec4 translation_vec(translation[0], translation[1], translation[2], 1);
-        // glm::quat rotation(
-        //     gltf.nodes.at(root).rotation[0], 
-        //     gltf.nodes.at(root).rotation[1], 
-        //     gltf.nodes.at(root).rotation[2], 
-        //     gltf.nodes.at(root).rotation[3]
-        // );
-        // translation_vec = rotation * translation_vec;
-        // gltf.nodes.at(child).translation = {translation_vec.x - gltf.nodes.at(root).translation[0], translation_vec.y - gltf.nodes.at(root).translation[1], translation_vec.z - gltf.nodes.at(root).translation[2]};
-        // gltf.nodes.at(child).rotation = {0, 0, 0, 1};
+        gltf.nodes.at(child).rotation = {
+            child_rotation.x,
+            child_rotation.y,
+            child_rotation.z,
+            child_rotation.w
+        };
     }
-
 }
 
 int main(int argc, const char* argv[]) {
@@ -985,6 +992,7 @@ int main(int argc, const char* argv[]) {
             } else if(parent == 0) {
                 // Bone is the root of the skeleton, add it as the skin's skeleton
                 skin.skeleton = (int)curr_index;
+                //     and make sure it is in the scene
                 gltf.scenes.at(gltf.defaultScene).nodes.push_back((int)curr_index);
             }
         }
