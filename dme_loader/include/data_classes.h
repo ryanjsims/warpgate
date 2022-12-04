@@ -3,6 +3,9 @@
 
 struct PackedMat4 {
     float data[4][3];
+    float* operator[](uint32_t index) {
+        return data[index];
+    }
 };
 
 struct AABB {
