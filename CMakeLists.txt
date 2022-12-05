@@ -30,6 +30,7 @@ add_executable(dme_converter
     src/sign.cpp 
     src/materials_3.cpp 
     src/textures.cpp
+    src/gltf.cpp
   )
 target_include_directories(dme_converter PUBLIC include/)
 target_include_directories(dme_converter PUBLIC ${CMAKE_BINARY_DIR}/include/)

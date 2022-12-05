@@ -20,6 +20,7 @@
 
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
+#include "utils/gltf.h"
 #include "utils/materials_3.h"
 #include "utils/textures.h"
 #include "sign.h"
@@ -324,96 +325,97 @@ void process_images(
     }
 }
 
-int add_texture_to_gltf(gltf2::Model &gltf, std::filesystem::path texture_path, std::filesystem::path output_filename, std::optional<std::string> label = {}) {
-    int index = (int)gltf.textures.size();
-    gltf2::Texture tex;
-    tex.source = (int)gltf.images.size();
-    tex.name = label ? *label : texture_path.filename().string();
-    tex.sampler = 0;
-    gltf2::Image img;
-    img.uri = texture_path.lexically_relative(output_filename.parent_path()).string();
-    
-    gltf.textures.push_back(tex);
-    gltf.images.push_back(img);
-    return index;
-}
+// int add_texture_to_gltf(gltf2::Model &gltf, std::filesystem::path texture_path, std::filesystem::path output_filename, std::optional<std::string> label = {}) {
+//     int index = (int)gltf.textures.size();
+//     gltf2::Texture tex;
+//     tex.source = (int)gltf.images.size();
+//     tex.name = label ? *label : texture_path.filename().string();
+//     tex.sampler = 0;
+//     gltf2::Image img;
+//     img.uri = texture_path.lexically_relative(output_filename.parent_path()).string();
+//    
+//     gltf.textures.push_back(tex);
+//     gltf.images.push_back(img);
+//     return index;
+// }
+//
+// std::optional<gltf2::TextureInfo> load_texture_info(
+//     gltf2::Model &gltf,
+//     const DME &dme, 
+//     uint32_t i, 
+//     std::unordered_map<uint32_t, uint32_t> &texture_indices, 
+//     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+//     std::filesystem::path output_filename,
+//     Parameter::Semantic semantic
+// ) {
+//     std::optional<std::string> texture_name = dme.dmat()->material(i)->texture(semantic);
+//     if(!texture_name) {
+//         return {};
+//     }
+//     gltf2::TextureInfo info;
+//     std::string original_name;
+//     uint32_t hash = jenkins::oaat(*texture_name);
+//     std::unordered_map<uint32_t, uint32_t>::iterator value;
+//     if((value = texture_indices.find(hash)) == texture_indices.end()) {
+//         image_queue.enqueue({*texture_name, semantic});
+//        
+//         std::filesystem::path texture_path(*texture_name);
+//         texture_path.replace_extension(".png");
+//         texture_path = output_filename.parent_path() / "textures" / texture_path;
+//        
+//         texture_indices[hash] = (uint32_t)gltf.textures.size();
+//         info.index = add_texture_to_gltf(gltf, texture_path, output_filename);
+//     } else {
+//         info.index = value->second;
+//     }
+//     return info;
+// }
+//
+//
+// std::optional<std::pair<gltf2::TextureInfo, gltf2::TextureInfo>> load_specular_info(
+//     gltf2::Model &gltf,
+//     const DME &dme, 
+//     uint32_t i, 
+//     std::unordered_map<uint32_t, uint32_t> &texture_indices, 
+//     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+//     std::filesystem::path output_filename,
+//     Parameter::Semantic semantic
+// ) {
+//     gltf2::TextureInfo metallic_roughness_info, emissive_info;
+//     std::optional<std::string> texture_name = dme.dmat()->material(i)->texture(semantic);
+//     if(!texture_name) {
+//         return {};
+//     }
+//     uint32_t hash = jenkins::oaat(*texture_name);
+//     std::unordered_map<uint32_t, uint32_t>::iterator value;
+//     if((value = texture_indices.find(hash)) == texture_indices.end()) {
+//         image_queue.enqueue({*texture_name, semantic});
+//         std::string metallic_roughness_name = utils::textures::relabel_texture(*texture_name, "MR");
+//
+//         std::filesystem::path metallic_roughness_path(metallic_roughness_name);
+//         metallic_roughness_path.replace_extension(".png");
+//         metallic_roughness_path = output_filename.parent_path() / "textures" / metallic_roughness_path;
+//        
+//         texture_indices[hash] = (uint32_t)gltf.textures.size();
+//         metallic_roughness_info.index = add_texture_to_gltf(gltf, metallic_roughness_path, output_filename);
+//        
+//         std::string emissive_name = utils::textures::relabel_texture(*texture_name, "E");
+//         std::filesystem::path emissive_path = metallic_roughness_path.parent_path() / emissive_name;
+//         emissive_path.replace_extension(".png");
+//
+//         hash = jenkins::oaat(emissive_name);
+//         texture_indices[hash] = (uint32_t)gltf.textures.size();
+//         emissive_info.index = add_texture_to_gltf(gltf, emissive_path, output_filename);
+//     } else {
+//         metallic_roughness_info.index = value->second;
+//         std::string emissive_name = utils::textures::relabel_texture(*texture_name, "E");
+//         hash = jenkins::oaat(emissive_name);
+//         emissive_info.index = texture_indices.at(hash);
+//     }
+//     return std::make_pair(metallic_roughness_info, emissive_info);
+// }
 
-std::optional<gltf2::TextureInfo> load_texture_info(
-    gltf2::Model &gltf,
-    const DME &dme, 
-    uint32_t i, 
-    std::unordered_map<uint32_t, uint32_t> &texture_indices, 
-    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
-    std::filesystem::path output_filename,
-    Parameter::Semantic semantic
-) {
-    std::optional<std::string> texture_name = dme.dmat()->material(i)->texture(semantic);
-    if(!texture_name) {
-        return {};
-    }
-    gltf2::TextureInfo info;
-    std::string original_name;
-    uint32_t hash = jenkins::oaat(*texture_name);
-    std::unordered_map<uint32_t, uint32_t>::iterator value;
-    if((value = texture_indices.find(hash)) == texture_indices.end()) {
-        image_queue.enqueue({*texture_name, semantic});
-        
-        std::filesystem::path texture_path(*texture_name);
-        texture_path.replace_extension(".png");
-        texture_path = output_filename.parent_path() / "textures" / texture_path;
-        
-        texture_indices[hash] = (uint32_t)gltf.textures.size();
-        info.index = add_texture_to_gltf(gltf, texture_path, output_filename);
-    } else {
-        info.index = value->second;
-    }
-    return info;
-}
-
-
-std::optional<std::pair<gltf2::TextureInfo, gltf2::TextureInfo>> load_specular_info(
-    gltf2::Model &gltf,
-    const DME &dme, 
-    uint32_t i, 
-    std::unordered_map<uint32_t, uint32_t> &texture_indices, 
-    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
-    std::filesystem::path output_filename,
-    Parameter::Semantic semantic
-) {
-    gltf2::TextureInfo metallic_roughness_info, emissive_info;
-    std::optional<std::string> texture_name = dme.dmat()->material(i)->texture(semantic);
-    if(!texture_name) {
-        return {};
-    }
-    uint32_t hash = jenkins::oaat(*texture_name);
-    std::unordered_map<uint32_t, uint32_t>::iterator value;
-    if((value = texture_indices.find(hash)) == texture_indices.end()) {
-        image_queue.enqueue({*texture_name, semantic});
-        std::string metallic_roughness_name = utils::textures::relabel_texture(*texture_name, "MR");
-
-        std::filesystem::path metallic_roughness_path(metallic_roughness_name);
-        metallic_roughness_path.replace_extension(".png");
-        metallic_roughness_path = output_filename.parent_path() / "textures" / metallic_roughness_path;
-        
-        texture_indices[hash] = (uint32_t)gltf.textures.size();
-        metallic_roughness_info.index = add_texture_to_gltf(gltf, metallic_roughness_path, output_filename);
-        
-        std::string emissive_name = utils::textures::relabel_texture(*texture_name, "E");
-        std::filesystem::path emissive_path = metallic_roughness_path.parent_path() / emissive_name;
-        emissive_path.replace_extension(".png");
-
-        hash = jenkins::oaat(emissive_name);
-        texture_indices[hash] = (uint32_t)gltf.textures.size();
-        emissive_info.index = add_texture_to_gltf(gltf, emissive_path, output_filename);
-    } else {
-        metallic_roughness_info.index = value->second;
-        std::string emissive_name = utils::textures::relabel_texture(*texture_name, "E");
-        hash = jenkins::oaat(emissive_name);
-        emissive_info.index = texture_indices.at(hash);
-    }
-    return std::make_pair(metallic_roughness_info, emissive_info);
-}
-
+/*
 std::vector<uint8_t> expand_vertex_stream(json &layout, std::span<uint8_t> data, uint32_t stream, bool is_rigid, const DME &dme) {
     VertexStream vertices(data);
     logger::debug("{}['{}']", layout.at("sizes").dump(), std::to_string(stream));
@@ -566,7 +568,9 @@ std::vector<uint8_t> expand_vertex_stream(json &layout, std::span<uint8_t> data,
     }
     return output;
 }
+*/
 
+/*
 int add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
     int texcoord = 0;
     int color = 0;
@@ -672,6 +676,7 @@ int add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
 
     return node_index;
 }
+*/
 
 void update_transforms(gltf2::Model &gltf, int root) {
     for(int child : gltf.nodes.at(root).children) {
@@ -854,81 +859,20 @@ int main(int argc, const char* argv[]) {
     gltf.defaultScene = (int)gltf.scenes.size();
     gltf.scenes.push_back({});
 
-    std::vector<Parameter::Semantic> semantics = {
-        Parameter::Semantic::BASE_COLOR,
-        Parameter::Semantic::NORMAL_MAP,
-        Parameter::Semantic::SPECULAR,
-        Parameter::Semantic::DETAIL_SELECT,
-        Parameter::Semantic::DETAIL_CUBE,
-        Parameter::Semantic::OVERLAY0,
-        Parameter::Semantic::OVERLAY1,
-        Parameter::Semantic::BASE_CAMO,
-    };
-
     std::unordered_map<uint32_t, uint32_t> texture_indices;
     std::vector<int> mesh_nodes;
 
     for(uint32_t i = 0; i < dme.mesh_count(); i++) {
         gltf2::Material material;
         if(export_textures) {
-            std::optional<gltf2::TextureInfo> info;
-            std::optional<std::pair<gltf2::TextureInfo, gltf2::TextureInfo>> info_pair;
-            std::optional<std::string> texture_name, label = {};
-            std::filesystem::path temp;
-            for(Parameter::Semantic semantic : semantics) {
-                switch(semantic) {
-                case Parameter::Semantic::NORMAL_MAP:
-                    info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_filename, semantic);
-                    if(!info)
-                        break;
-                    material.normalTexture.index = info->index;
-                    break;
-                case Parameter::Semantic::BASE_COLOR:
-                    info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_filename, semantic);
-                    if(!info)
-                        break;
-                    material.pbrMetallicRoughness.baseColorTexture = *info;
-                    break;
-                case Parameter::Semantic::SPECULAR:
-                    info_pair = load_specular_info(
-                        gltf, dme, i, texture_indices, image_queue, output_filename, semantic
-                    );
-                    if(!info_pair)
-                        break;
-                    material.pbrMetallicRoughness.metallicRoughnessTexture = info_pair->first;
-                    material.emissiveTexture = info_pair->second;
-                    material.emissiveFactor = {1.0, 1.0, 1.0};
-                    break;
-                default:
-                    // Just export the texture
-                    label = Parameter::semantic_name(semantic);
-                    texture_name = dme.dmat()->material(i)->texture(semantic);
-                    if(texture_name) {
-                        image_queue.enqueue({*texture_name, semantic});
-                        if (semantic != Parameter::Semantic::DETAIL_CUBE) {
-                            add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_filename, label);
-                        } else {
-                            temp = std::filesystem::path(*texture_name);
-                            for(std::string face : utils::materials3::detailcube_faces) {
-                                add_texture_to_gltf(
-                                    gltf, 
-                                    (output_directory / "textures" / (temp.stem().string() + "_" + face)).replace_extension(".png"),
-                                    output_filename,
-                                    *label + " " + face
-                                );
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
+            utils::gltf::build_material(gltf, material, dme, i, texture_indices, image_queue, output_directory);
         } else {
             material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133, 1.0 }; // Forest Green
         }
         material.doubleSided = true;
         gltf.materials.push_back(material);
 
-        int node_index = add_mesh_to_gltf(gltf, dme, i);
+        int node_index = utils::gltf::add_mesh_to_gltf(gltf, dme, i);
         mesh_nodes.push_back(node_index);
         
         logger::info("Added mesh {} to gltf", i);
