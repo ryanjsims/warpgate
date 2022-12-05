@@ -21,6 +21,7 @@
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
 #include "utils/materials_3.h"
+#include "utils/textures.h"
 #include "sign.h"
 #include "utils.h"
 #include "tsqueue.h"
@@ -110,6 +111,7 @@ json get_input_layout(uint32_t material_definition) {
 }
 */
 
+/*
 bool write_texture(std::span<uint32_t> data, std::filesystem::path texture_path, gli::texture2d::extent_type extent) {
     if(!stbi_write_png(
             texture_path.string().c_str(), 
@@ -276,6 +278,7 @@ void save_texture(std::string texture_name, std::vector<uint8_t> texture_data, s
         logger::info("Saved texture to {}", texture_path.lexically_relative(output_directory).string());
     }
 }
+*/
 
 void process_images(
     const synthium::Manager& manager, 
@@ -300,19 +303,19 @@ void process_images(
         case Parameter::Semantic::DETAIL_SELECT:
         case Parameter::Semantic::OVERLAY0:
         case Parameter::Semantic::OVERLAY1:
-            save_texture(texture_name, manager.get(texture_name).get_data(), output_directory);
+            utils::textures::save_texture(texture_name, manager.get(texture_name).get_data(), output_directory);
             break;
         case Parameter::Semantic::NORMAL_MAP:
-            process_normalmap(texture_name, manager.get(texture_name).get_data(), output_directory);
+            utils::textures::process_normalmap(texture_name, manager.get(texture_name).get_data(), output_directory);
             break;
         case Parameter::Semantic::SPECULAR:
             albedo_name = texture_name;
             index = albedo_name.find_last_of('_');
             albedo_name[index + 1] = 'C';
-            process_specular(texture_name, manager.get(texture_name).get_data(), manager.get(albedo_name).get_data(), output_directory);
+            utils::textures::process_specular(texture_name, manager.get(texture_name).get_data(), manager.get(albedo_name).get_data(), output_directory);
             break;
         case Parameter::Semantic::DETAIL_CUBE:
-            process_detailcube(texture_name, manager.get(texture_name).get_data(), output_directory);
+            utils::textures::process_detailcube(texture_name, manager.get(texture_name).get_data(), output_directory);
             break;
         default:
             logger::warn("Skipping unimplemented semantic: {}", texture_name);
@@ -386,7 +389,7 @@ std::optional<std::pair<gltf2::TextureInfo, gltf2::TextureInfo>> load_specular_i
     std::unordered_map<uint32_t, uint32_t>::iterator value;
     if((value = texture_indices.find(hash)) == texture_indices.end()) {
         image_queue.enqueue({*texture_name, semantic});
-        std::string metallic_roughness_name = utils::relabel_texture(*texture_name, "MR");
+        std::string metallic_roughness_name = utils::textures::relabel_texture(*texture_name, "MR");
 
         std::filesystem::path metallic_roughness_path(metallic_roughness_name);
         metallic_roughness_path.replace_extension(".png");
@@ -395,7 +398,7 @@ std::optional<std::pair<gltf2::TextureInfo, gltf2::TextureInfo>> load_specular_i
         texture_indices[hash] = (uint32_t)gltf.textures.size();
         metallic_roughness_info.index = add_texture_to_gltf(gltf, metallic_roughness_path, output_filename);
         
-        std::string emissive_name = utils::relabel_texture(*texture_name, "E");
+        std::string emissive_name = utils::textures::relabel_texture(*texture_name, "E");
         std::filesystem::path emissive_path = metallic_roughness_path.parent_path() / emissive_name;
         emissive_path.replace_extension(".png");
 
@@ -404,7 +407,7 @@ std::optional<std::pair<gltf2::TextureInfo, gltf2::TextureInfo>> load_specular_i
         emissive_info.index = add_texture_to_gltf(gltf, emissive_path, output_filename);
     } else {
         metallic_roughness_info.index = value->second;
-        std::string emissive_name = utils::relabel_texture(*texture_name, "E");
+        std::string emissive_name = utils::textures::relabel_texture(*texture_name, "E");
         hash = jenkins::oaat(emissive_name);
         emissive_info.index = texture_indices.at(hash);
     }

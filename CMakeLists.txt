@@ -24,7 +24,13 @@ target_link_libraries(test_dme PRIVATE spdlog::spdlog)
 target_link_libraries(test_dme PRIVATE synthium::synthium)
 
 
-add_executable(dme_converter src/dme_converter.cpp src/tsqueue.cpp src/sign.cpp src/materials_3.cpp)
+add_executable(dme_converter 
+    src/dme_converter.cpp 
+    src/tsqueue.cpp 
+    src/sign.cpp 
+    src/materials_3.cpp 
+    src/textures.cpp
+  )
 target_include_directories(dme_converter PUBLIC include/)
 target_include_directories(dme_converter PUBLIC ${CMAKE_BINARY_DIR}/include/)
 target_include_directories(dme_converter PUBLIC dme_loader/include/)
