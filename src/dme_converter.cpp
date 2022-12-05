@@ -17,7 +17,6 @@
 #include "utils/tsqueue.h"
 #include "utils.h"
 #include "tiny_gltf.h"
-#include "json.hpp"
 #include "version.h"
 
 namespace gltf2 = tinygltf;
