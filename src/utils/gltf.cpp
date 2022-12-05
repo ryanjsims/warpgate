@@ -49,17 +49,19 @@ int utils::gltf::add_material_to_gltf(
         material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133, 1.0 }; // Forest Green
     }
     std::unordered_map<uint32_t, std::vector<uint32_t>>::iterator value;
-    if((value = material_indices.find(dme.dmat()->material(material_index)->namehash())) != material_indices.end()) {
+    uint32_t material_namehash = dme.dmat()->material(material_index)->definition();
+    if((value = material_indices.find(material_namehash)) != material_indices.end()) {
         for(uint32_t index : value->second) {
             if(gltf.materials.at(index) == material) {
                 return index;
             }
         }
     } else {
-        material_indices[dme.dmat()->material(material_index)->namehash()] = {};
+        material_indices[material_namehash] = {};
     }
-    material_indices[dme.dmat()->material(material_index)->namehash()].push_back((uint32_t)gltf.materials.size());
+    material_indices[material_namehash].push_back((uint32_t)gltf.materials.size());
     material.doubleSided = true;
+    material.name = dme.get_name() + "::" + utils::materials3::materials.at("materialDefinitions").at(std::to_string(material_namehash)).at("name").get<std::string>();
     int to_return = (int)gltf.materials.size();
     gltf.materials.push_back(material);
     return to_return;
@@ -185,6 +187,7 @@ int utils::gltf::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_
     node.mesh = (int)gltf.meshes.size();
     gltf.nodes.push_back(node);
     
+    gltf_mesh.name = dme.get_name() + " mesh " + std::to_string(index);
     gltf.meshes.push_back(gltf_mesh);
 
     return node_index;
@@ -197,6 +200,7 @@ void utils::gltf::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, st
 
     tinygltf::Buffer bone_buffer;
     tinygltf::Skin skin;
+    skin.name = dme.get_name();
     skin.inverseBindMatrices = (int)gltf.accessors.size();
 
     std::unordered_map<uint32_t, size_t> skeleton_map;

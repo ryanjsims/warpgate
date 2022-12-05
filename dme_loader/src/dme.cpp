@@ -5,7 +5,7 @@
 
 namespace logger = spdlog;
 
-DME::DME(std::span<uint8_t> subspan): buf_(subspan) {
+DME::DME(std::span<uint8_t> subspan, std::string name_): buf_(subspan), name(name_) {
     logger::info("Parsing DME file...");
     parse_dmat();
     parse_meshes();

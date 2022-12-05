@@ -13,7 +13,7 @@ struct Bone;
 struct DME {
     mutable std::span<uint8_t> buf_;
 
-    DME(std::span<uint8_t> subspan);
+    DME(std::span<uint8_t> subspan, std::string name);
 
     template <typename T>
     struct ref {
@@ -31,6 +31,10 @@ struct DME {
 
     size_t size() const {
         return buf_.size();
+    }
+
+    const std::string &get_name() const {
+        return name;
     }
 
     ref<uint32_t> magic() const;
@@ -60,6 +64,7 @@ private:
     std::shared_ptr<DMAT> dmat_ = nullptr;
     std::vector<std::shared_ptr<Mesh>> meshes;
     std::vector<Bone> bones;
+    std::string name;
     size_t meshes_size;
 
     uint32_t aabb_offset() const;

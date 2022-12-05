@@ -207,7 +207,7 @@ int main(int argc, const char* argv[]) {
         logger::info("Not exporting textures by user request.");
     }
 
-    DME dme(data_span);
+    DME dme(data_span, output_filename.stem().string());
     tinygltf::Model gltf = utils::gltf::build_gltf_from_dme(dme, image_queue, output_directory, export_textures, include_skeleton);
     
     logger::info("Writing GLTF2 file {}...", output_filename.filename().string());
