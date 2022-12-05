@@ -451,8 +451,9 @@ std::vector<uint8_t> utils::gltf::expand_vertex_stream(nlohmann::json &layout, s
     int tangent_index = -1;
     int binormal_index = -1;
     int blend_indices_index = -1;
+    int blend_weights_index = -1;
     int vert_index_offset = 0;
-    bool has_normals = false, bone_remapping = false;
+    bool has_normals = false, bone_remapping = false, weight_conversion = false;
 
     for(int i = 0; i < layout.at("entries").size(); i++) {
         nlohmann::json &entry = layout.at("entries").at(i);
@@ -485,6 +486,11 @@ std::vector<uint8_t> utils::gltf::expand_vertex_stream(nlohmann::json &layout, s
         } else if (usage == "BlendIndices") {
             bone_remapping = true;
             blend_indices_index = i;
+        } else if (usage == "BlendWeight" && type == "ubyte4n") {
+            weight_conversion = true;
+            blend_weights_index = i;
+            entry.at("type") = "Float4";
+            layout.at("sizes").at(std::to_string(stream)) = layout.at("sizes").at(std::to_string(stream)).get<uint32_t>() + 12;
         }
     }
     
@@ -498,7 +504,7 @@ std::vector<uint8_t> utils::gltf::expand_vertex_stream(nlohmann::json &layout, s
     bool calculate_normals = !has_normals && binormal_index != -1 && tangent_index != -1;
     bool add_rigid_bones = is_rigid && binormal_type == "ubyte4n";
 
-    if(!conversion_required && !calculate_normals && !add_rigid_bones && !bone_remapping) {
+    if(!conversion_required && !calculate_normals && !add_rigid_bones && !bone_remapping && !weight_conversion) {
         logger::info("No conversion required!");
         return std::vector<uint8_t>(vertices.buf_.begin(), vertices.buf_.end());
     }
@@ -540,6 +546,15 @@ std::vector<uint8_t> utils::gltf::expand_vertex_stream(nlohmann::json &layout, s
                         to_add[bone_index] = (uint8_t)dme.map_bone(to_add[bone_index]);
                     }
                 }
+
+                float weights[4];
+                if(index == blend_weights_index - vert_index_offset) {
+                    for(uint32_t weight_index = 0; weight_index < to_add.size(); weight_index++) {
+                        weights[weight_index] = (float)(to_add[weight_index]) / 255.0f;
+                    }
+                    to_add = std::span<uint8_t>(reinterpret_cast<uint8_t*>(weights), sizeof(weights));
+                }
+
                 output.insert(output.end(), to_add.begin(), to_add.end());
             }
 
