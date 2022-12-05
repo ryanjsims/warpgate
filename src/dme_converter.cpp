@@ -188,7 +188,10 @@ int main(int argc, const char* argv[]) {
 
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> image_queue;
 
+    std::string format = parser.get<std::string>("--format");
+    bool include_skeleton = !parser.get<bool>("--no-skeleton");
     bool export_textures = !parser.get<bool>("--no-textures");
+
     std::vector<std::thread> image_processor_pool;
     if(export_textures) {
         logger::info("Using {} image processing thread{}", image_processor_thread_count, image_processor_thread_count == 1 ? "" : "s");
@@ -205,46 +208,8 @@ int main(int argc, const char* argv[]) {
     }
 
     DME dme(data_span);
-    gltf2::Model gltf;
-    gltf2::Sampler sampler;
-    sampler.magFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
-    sampler.minFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
-    sampler.wrapS = TINYGLTF_TEXTURE_WRAP_REPEAT;
-    sampler.wrapT = TINYGLTF_TEXTURE_WRAP_REPEAT;
-    gltf.samplers.push_back(sampler);
+    gltf2::Model gltf = utils::gltf::build_gltf_from_dme(dme, image_queue, output_directory, export_textures, include_skeleton);
     
-    gltf.defaultScene = (int)gltf.scenes.size();
-    gltf.scenes.push_back({});
-
-    std::unordered_map<uint32_t, uint32_t> texture_indices;
-    std::vector<int> mesh_nodes;
-
-    for(uint32_t i = 0; i < dme.mesh_count(); i++) {
-        gltf2::Material material;
-        if(export_textures) {
-            utils::gltf::build_material(gltf, material, dme, i, texture_indices, image_queue, output_directory);
-        } else {
-            material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133, 1.0 }; // Forest Green
-        }
-        material.doubleSided = true;
-        gltf.materials.push_back(material);
-
-        int node_index = utils::gltf::add_mesh_to_gltf(gltf, dme, i);
-        mesh_nodes.push_back(node_index);
-        
-        logger::info("Added mesh {} to gltf", i);
-    }
-
-    bool include_skeleton = !parser.get<bool>("--no-skeleton");
-    if(dme.bone_count() > 0 && include_skeleton) {
-        utils::gltf::add_skeleton_to_gltf(gltf, dme, mesh_nodes);
-    }
-    
-    gltf.asset.version = "2.0";
-    gltf.asset.generator = "DME Converter (C++) " + std::string(CPPDMOD_VERSION) + " via tinygltf";
-
-    std::string format = parser.get<std::string>("--format");
-
     logger::info("Writing GLTF2 file {}...", output_filename.filename().string());
     tinygltf::TinyGLTF writer;
     writer.WriteGltfSceneToFile(&gltf, output_filename.string(), false, format == "glb", format == "gltf", format == "glb");

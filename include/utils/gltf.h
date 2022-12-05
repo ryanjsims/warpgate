@@ -9,9 +9,24 @@
 #include "parameter.h"
 #include "tiny_gltf.h"
 #include "tsqueue.h"
+#include "version.h"
 
 
 namespace utils::gltf {
+    void add_material_to_gltf(
+        tinygltf::Model &gltf, 
+        const DME &dme, 
+        uint32_t material_index, 
+        bool export_textures,
+        std::unordered_map<uint32_t, uint32_t> &texture_indices, 
+        utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        std::filesystem::path output_directory
+    );
+
+    int add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index);
+
+    void add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes);
+
     int add_texture_to_gltf(
         tinygltf::Model &gltf, 
         std::filesystem::path texture_path, 
@@ -19,9 +34,13 @@ namespace utils::gltf {
         std::optional<std::string> label = {}
     );
 
-    int add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index);
-
-    void add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes);
+    tinygltf::Model build_gltf_from_dme(
+        const DME &dme, 
+        utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue, 
+        std::filesystem::path output_directory, 
+        bool export_textures, 
+        bool include_skeleton
+    );
 
     void build_material(
         tinygltf::Model &gltf, 

@@ -32,6 +32,25 @@ std::vector<Parameter::Semantic> semantics = {
     Parameter::Semantic::BASE_CAMO,
 };
 
+void utils::gltf::add_material_to_gltf(
+    tinygltf::Model &gltf, 
+    const DME &dme, 
+    uint32_t material_index, 
+    bool export_textures,
+    std::unordered_map<uint32_t, uint32_t> &texture_indices, 
+    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+    std::filesystem::path output_directory
+) {
+    tinygltf::Material material;
+    if(export_textures) {
+        build_material(gltf, material, dme, material_index, texture_indices, image_queue, output_directory);
+    } else {
+        material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133, 1.0 }; // Forest Green
+    }
+    material.doubleSided = true;
+    gltf.materials.push_back(material);
+}
+
 int utils::gltf::add_texture_to_gltf(
     tinygltf::Model &gltf, 
     std::filesystem::path texture_path, 
@@ -243,6 +262,44 @@ void utils::gltf::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, st
     gltf.buffers.push_back(bone_buffer);
     gltf.bufferViews.push_back(bufferview);
     gltf.skins.push_back(skin);
+}
+
+tinygltf::Model utils::gltf::build_gltf_from_dme(
+    const DME &dme, 
+    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue, 
+    std::filesystem::path output_directory, 
+    bool export_textures, 
+    bool include_skeleton
+) {
+    tinygltf::Model gltf;
+    tinygltf::Sampler sampler;
+    sampler.magFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
+    sampler.minFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
+    sampler.wrapS = TINYGLTF_TEXTURE_WRAP_REPEAT;
+    sampler.wrapT = TINYGLTF_TEXTURE_WRAP_REPEAT;
+    gltf.samplers.push_back(sampler);
+    
+    gltf.defaultScene = (int)gltf.scenes.size();
+    gltf.scenes.push_back({});
+
+    std::unordered_map<uint32_t, uint32_t> texture_indices;
+    std::vector<int> mesh_nodes;
+
+    for(uint32_t i = 0; i < dme.mesh_count(); i++) {
+        utils::gltf::add_material_to_gltf(gltf, dme, i, export_textures, texture_indices, image_queue, output_directory);
+        int node_index = utils::gltf::add_mesh_to_gltf(gltf, dme, i);
+        mesh_nodes.push_back(node_index);
+        
+        logger::info("Added mesh {} to gltf", i);
+    }
+
+    if(dme.bone_count() > 0 && include_skeleton) {
+        utils::gltf::add_skeleton_to_gltf(gltf, dme, mesh_nodes);
+    }
+    
+    gltf.asset.version = "2.0";
+    gltf.asset.generator = "DME Converter (C++) " + std::string(CPPDMOD_VERSION) + " via tinygltf";
+    return gltf;
 }
 
 void utils::gltf::build_material(
