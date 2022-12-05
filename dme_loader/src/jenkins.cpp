@@ -18,7 +18,7 @@ namespace jenkins {
             p += 12;
             position -= 12;
         }
-        *c += length;
+        *c += (uint32_t)length;
         if(position >= 11) *c += ((uint32_t)key[p+10])<<24;
         if(position >= 10) *c += ((uint32_t)key[p+9])<<16;
         if(position >= 9) *c += ((uint32_t)key[p+8])<<8;
