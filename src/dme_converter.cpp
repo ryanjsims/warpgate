@@ -111,7 +111,7 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
 
     parser.add_argument("--assets-directory", "-d")
         .help("The directory where the game's assets are stored")
-        .default_value("C:/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/");
+        .default_value(std::string("C:/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/"));
     
 }
 
@@ -134,7 +134,8 @@ int main(int argc, const char* argv[]) {
     
     logger::info("Converting file {} using dme_converter {}", input_str, CPPDMOD_VERSION);
     uint32_t image_processor_thread_count = parser.get<uint32_t>("--threads");
-    std::filesystem::path server = parser.get<std::string>("--assets-directory");
+    std::string path = parser.get<std::string>("--assets-directory");
+    std::filesystem::path server(path);
     std::vector<std::filesystem::path> assets;
     for(int i = 0; i < 24; i++) {
         assets.push_back(server / ("assets_x64_" + std::to_string(i) + ".pack2"));
