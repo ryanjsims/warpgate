@@ -26,11 +26,11 @@ target_link_libraries(test_dme PRIVATE synthium::synthium)
 
 add_executable(dme_converter 
     src/dme_converter.cpp 
-    src/tsqueue.cpp 
-    src/sign.cpp 
-    src/materials_3.cpp 
-    src/textures.cpp
-    src/gltf.cpp
+    src/utils/gltf.cpp
+    src/utils/materials_3.cpp 
+    src/utils/sign.cpp 
+    src/utils/textures.cpp
+    src/utils/tsqueue.cpp 
   )
 target_include_directories(dme_converter PUBLIC include/)
 target_include_directories(dme_converter PUBLIC ${CMAKE_BINARY_DIR}/include/)
