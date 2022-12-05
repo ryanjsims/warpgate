@@ -20,6 +20,7 @@
 
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
+#include "utils/materials_3.h"
 #include "sign.h"
 #include "utils.h"
 #include "tsqueue.h"
@@ -33,6 +34,7 @@ namespace logger = spdlog;
 using namespace nlohmann;
 using half_float::half;
 
+/*
 std::vector<std::string> detailcube_faces = {"+x", "-x", "+y", "-y", "+z", "-z"};
 
 std::unordered_map<std::string, std::string> usages = {
@@ -106,6 +108,7 @@ json get_input_layout(uint32_t material_definition) {
     
     return materials.at("inputLayouts").at(input_layout_name);
 }
+*/
 
 bool write_texture(std::span<uint32_t> data, std::filesystem::path texture_path, gli::texture2d::extent_type extent) {
     if(!stbi_write_png(
@@ -237,7 +240,7 @@ void process_detailcube(std::string texture_name, std::vector<uint8_t> texture_d
             logger::debug("Compressed detailcube texture (format {})", (int)texture.format());
             face_texture = gli::convert(face_texture, gli::format::FORMAT_RGBA8_UNORM_PACK8);
         }
-        logger::debug("Cube map {} face info:", detailcube_faces[face]);
+        logger::debug("Cube map {} face info:", utils::materials3::detailcube_faces[face]);
         logger::debug("    Base level: {}", face_texture.base_level());
         logger::debug("    Max level:  {}", face_texture.max_level());
         logger::debug("    Base face:  {}", face_texture.base_face());
@@ -245,11 +248,11 @@ void process_detailcube(std::string texture_name, std::vector<uint8_t> texture_d
         logger::debug("    Base layer: {}", face_texture.base_layer());
         logger::debug("    Max layer:  {}", face_texture.max_layer());
         auto extent = face_texture.extent();
-        texture_path = output_directory / "textures" / (std::filesystem::path(texture_name).stem().string() + "_" + detailcube_faces.at(face));
+        texture_path = output_directory / "textures" / (std::filesystem::path(texture_name).stem().string() + "_" + utils::materials3::detailcube_faces.at(face));
         texture_path.replace_extension(".png");
         logger::debug("Writing image of size ({}, {}) to {}", extent.x, extent.y, texture_path.lexically_relative(output_directory).string());
         if(write_texture(std::span<uint32_t>(face_texture.data<uint32_t>(), face_texture.size<uint32_t>()), texture_path, extent)){
-            logger::info("   Saved face {} to {}", detailcube_faces.at(face), texture_path.lexically_relative(output_directory).string());
+            logger::info("   Saved face {} to {}", utils::materials3::detailcube_faces.at(face), texture_path.lexically_relative(output_directory).string());
         }
     }
 }
@@ -436,7 +439,7 @@ std::vector<uint8_t> expand_vertex_stream(json &layout, std::span<uint8_t> data,
         std::string usage = entry.at("usage").get<std::string>();
         bool needs_conversion = type == "Float16_2" || type == "float16_2";
         offsets.push_back({
-            sizes.at(type), 
+            utils::materials3::sizes.at(type), 
             needs_conversion
         });
         if(needs_conversion) {
@@ -568,7 +571,7 @@ int add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
     gltf2::Primitive primitive;
     std::shared_ptr<const Mesh> mesh = dme.mesh(index);
     std::vector<uint32_t> offsets((std::size_t)mesh->vertex_stream_count(), 0);
-    json input_layout = get_input_layout(dme.dmat()->material(index)->definition());
+    json input_layout = utils::materials3::get_input_layout(dme.dmat()->material(index)->definition());
     std::string layout_name = input_layout.at("name").get<std::string>();
     logger::info("Using input layout {}", layout_name);
     bool rigid = utils::uppercase(layout_name).find("RIGID") != std::string::npos;
@@ -587,15 +590,15 @@ int add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
         std::string usage = entry.at("usage").get<std::string>();
         int stream = entry.at("stream").get<int>();
         if(usage == "Binormal") {
-            offsets.at(stream) += sizes.at(type);
+            offsets.at(stream) += utils::materials3::sizes.at(type);
             continue;
         }
         logger::info("Adding accessor for {} {} data", type, usage);
         gltf2::Accessor accessor;
         accessor.bufferView = (int)gltf.bufferViews.size();
         accessor.byteOffset = 0;
-        accessor.componentType = component_types.at(type);
-        accessor.type = types.at(type);
+        accessor.componentType = utils::materials3::component_types.at(type);
+        accessor.type = utils::materials3::types.at(type);
         accessor.count = mesh->vertex_count();
 
         gltf2::BufferView bufferview;
@@ -604,7 +607,7 @@ int add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
         bufferview.byteStride = input_layout.at("sizes").at(std::to_string(stream)).get<uint32_t>();
         bufferview.target = TINYGLTF_TARGET_ARRAY_BUFFER;
         bufferview.byteOffset = offsets.at(stream);
-        std::string attribute = usages.at(usage);
+        std::string attribute = utils::materials3::usages.at(usage);
         if(usage == "Texcoord") {
             attribute += std::to_string(texcoord);
             texcoord++;
@@ -623,7 +626,7 @@ int add_mesh_to_gltf(gltf2::Model &gltf, const DME &dme, uint32_t index) {
         gltf.accessors.push_back(accessor);
         gltf.bufferViews.push_back(bufferview);
 
-        offsets.at(stream) += sizes.at(type);
+        offsets.at(stream) += utils::materials3::sizes.at(type);
     }
 
     gltf.buffers.insert(gltf.buffers.end(), buffers.begin(), buffers.end());
@@ -779,7 +782,7 @@ int main(int argc, const char* argv[]) {
     logger::info("Loading packs...");
     synthium::Manager manager(assets);
     logger::info("Manager loaded.");
-    init_materials();
+    utils::materials3::init_materials();
 
     std::filesystem::path input_filename(input_str);
     std::unique_ptr<uint8_t[]> data;
@@ -903,7 +906,7 @@ int main(int argc, const char* argv[]) {
                             add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_filename, label);
                         } else {
                             temp = std::filesystem::path(*texture_name);
-                            for(std::string face : detailcube_faces) {
+                            for(std::string face : utils::materials3::detailcube_faces) {
                                 add_texture_to_gltf(
                                     gltf, 
                                     (output_directory / "textures" / (temp.stem().string() + "_" + face)).replace_extension(".png"),
