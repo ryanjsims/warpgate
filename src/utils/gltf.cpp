@@ -32,12 +32,13 @@ std::vector<Parameter::Semantic> semantics = {
     Parameter::Semantic::BASE_CAMO,
 };
 
-void utils::gltf::add_material_to_gltf(
+int utils::gltf::add_material_to_gltf(
     tinygltf::Model &gltf, 
     const DME &dme, 
     uint32_t material_index, 
     bool export_textures,
-    std::unordered_map<uint32_t, uint32_t> &texture_indices, 
+    std::unordered_map<uint32_t, uint32_t> &texture_indices,
+    std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
     std::filesystem::path output_directory
 ) {
@@ -47,8 +48,21 @@ void utils::gltf::add_material_to_gltf(
     } else {
         material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133, 1.0 }; // Forest Green
     }
+    std::unordered_map<uint32_t, std::vector<uint32_t>>::iterator value;
+    if((value = material_indices.find(dme.dmat()->material(material_index)->namehash())) != material_indices.end()) {
+        for(uint32_t index : value->second) {
+            if(gltf.materials.at(index) == material) {
+                return index;
+            }
+        }
+    } else {
+        material_indices[dme.dmat()->material(material_index)->namehash()] = {};
+    }
+    material_indices[dme.dmat()->material(material_index)->namehash()].push_back((uint32_t)gltf.materials.size());
     material.doubleSided = true;
+    int to_return = (int)gltf.materials.size();
     gltf.materials.push_back(material);
+    return to_return;
 }
 
 int utils::gltf::add_texture_to_gltf(
@@ -70,7 +84,7 @@ int utils::gltf::add_texture_to_gltf(
     return index;
 }
 
-int utils::gltf::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index) {
+int utils::gltf::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index, uint32_t material_index) {
     int texcoord = 0;
     int color = 0;
     tinygltf::Mesh gltf_mesh;
@@ -156,7 +170,7 @@ int utils::gltf::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_
 
     primitive.indices = (int)gltf.accessors.size();
     primitive.mode = TINYGLTF_MODE_TRIANGLES;
-    primitive.material = index;
+    primitive.material = material_index;
     gltf_mesh.primitives.push_back(primitive);
 
     gltf.accessors.push_back(accessor);
@@ -283,11 +297,12 @@ tinygltf::Model utils::gltf::build_gltf_from_dme(
     gltf.scenes.push_back({});
 
     std::unordered_map<uint32_t, uint32_t> texture_indices;
+    std::unordered_map<uint32_t, std::vector<uint32_t>> material_indices;
     std::vector<int> mesh_nodes;
 
     for(uint32_t i = 0; i < dme.mesh_count(); i++) {
-        utils::gltf::add_material_to_gltf(gltf, dme, i, export_textures, texture_indices, image_queue, output_directory);
-        int node_index = utils::gltf::add_mesh_to_gltf(gltf, dme, i);
+        int material_index = utils::gltf::add_material_to_gltf(gltf, dme, i, export_textures, texture_indices, material_indices, image_queue, output_directory);
+        int node_index = utils::gltf::add_mesh_to_gltf(gltf, dme, i, material_index);
         mesh_nodes.push_back(node_index);
         
         logger::info("Added mesh {} to gltf", i);
@@ -307,7 +322,7 @@ void utils::gltf::build_material(
     tinygltf::Material &material,
     const DME &dme, 
     uint32_t i, 
-    std::unordered_map<uint32_t, uint32_t> &texture_indices, 
+    std::unordered_map<uint32_t, uint32_t> &texture_indices,
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
     std::filesystem::path output_directory
 ) {
@@ -344,6 +359,11 @@ void utils::gltf::build_material(
             label = Parameter::semantic_name(semantic);
             texture_name = dme.dmat()->material(i)->texture(semantic);
             if(texture_name) {
+                uint32_t hash = jenkins::oaat(*texture_name);
+                if(texture_indices.find(hash) != texture_indices.end()) {
+                    break;
+                }
+                texture_indices[hash] = (uint32_t)gltf.textures.size();
                 image_queue.enqueue({*texture_name, semantic});
                 if (semantic != Parameter::Semantic::DETAIL_CUBE) {
                     add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_directory, label);
