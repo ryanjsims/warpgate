@@ -1,9 +1,19 @@
 #include "utils/gltf.h"
 
+#define _USE_MATH_DEFINES
+#include <math.h>
 #include <spdlog/spdlog.h>
 
+#include "bone.h"
+#include "glm/matrix.hpp"
+#include "glm/gtx/quaternion.hpp"
 #include "half.hpp"
 #include "jenkins.h"
+#include "ps2_bone_map.h"
+
+// Here it is
+#include "sign.h"
+
 #include "utils/textures.h"
 #include "utils/materials_3.h"
 #include "utils.h"
@@ -147,67 +157,155 @@ int utils::gltf::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_
     return node_index;
 }
 
-void utils::gltf::build_material(
-        tinygltf::Model &gltf, 
-        tinygltf::Material &material,
-        const DME &dme, 
-        uint32_t i, 
-        std::unordered_map<uint32_t, uint32_t> &texture_indices, 
-        utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
-        std::filesystem::path output_directory
-    ) {
-        std::optional<tinygltf::TextureInfo> info;
-        std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> info_pair;
-        std::optional<std::string> texture_name, label = {};
-        std::filesystem::path temp;
-        for(Parameter::Semantic semantic : semantics) {
-            switch(semantic) {
-            case Parameter::Semantic::NORMAL_MAP:
-                info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_directory, semantic);
-                if(!info)
-                    break;
-                material.normalTexture.index = info->index;
-                break;
-            case Parameter::Semantic::BASE_COLOR:
-                info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_directory, semantic);
-                if(!info)
-                    break;
-                material.pbrMetallicRoughness.baseColorTexture = *info;
-                break;
-            case Parameter::Semantic::SPECULAR:
-                info_pair = load_specular_info(
-                    gltf, dme, i, texture_indices, image_queue, output_directory, semantic
-                );
-                if(!info_pair)
-                    break;
-                material.pbrMetallicRoughness.metallicRoughnessTexture = info_pair->first;
-                material.emissiveTexture = info_pair->second;
-                material.emissiveFactor = {1.0, 1.0, 1.0};
-                break;
-            default:
-                // Just export the texture
-                label = Parameter::semantic_name(semantic);
-                texture_name = dme.dmat()->material(i)->texture(semantic);
-                if(texture_name) {
-                    image_queue.enqueue({*texture_name, semantic});
-                    if (semantic != Parameter::Semantic::DETAIL_CUBE) {
-                        add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_directory, label);
-                    } else {
-                        temp = std::filesystem::path(*texture_name);
-                        for(std::string face : utils::materials3::detailcube_faces) {
-                            add_texture_to_gltf(
-                                gltf, 
-                                (output_directory / "textures" / (temp.stem().string() + "_" + face)).replace_extension(".png"),
-                                output_directory,
-                                *label + " " + face
-                            );
-                        }
-                    }
-                }
-                break;
-            }
+void utils::gltf::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes) {
+    for(int node_index : mesh_nodes) {
+        gltf.nodes.at(node_index).skin = (int)gltf.skins.size();
+    }
+
+    tinygltf::Buffer bone_buffer;
+    tinygltf::Skin skin;
+    skin.inverseBindMatrices = (int)gltf.accessors.size();
+
+    std::unordered_map<uint32_t, size_t> skeleton_map;
+    for(uint32_t bone_index = 0; bone_index < dme.bone_count(); bone_index++) {
+        tinygltf::Node bone_node;
+        Bone bone = dme.bone(bone_index);
+        PackedMat4 packed_inv = bone.inverse_bind_matrix;
+        uint32_t namehash = bone.namehash;
+        glm::mat4 inverse_bind_matrix(glm::mat4x3(
+            packed_inv[0][0], packed_inv[0][1], packed_inv[0][2],
+            packed_inv[1][0], packed_inv[1][1], packed_inv[1][2],
+            packed_inv[2][0], packed_inv[2][1], packed_inv[2][2],
+            packed_inv[3][0], packed_inv[3][1], packed_inv[3][2]
+        ));
+        glm::mat4 bind_matrix = glm::inverse(inverse_bind_matrix);
+        glm::mat4 rotated = glm::rotate(inverse_bind_matrix, (float)M_PI, glm::vec3(0, 1, 0));
+        std::span<float> inverse_matrix_data(&inverse_bind_matrix[0].x, 16);
+        std::span<float> matrix_data(&bind_matrix[0].x, 16);
+        //bone_node.matrix = std::vector<double>(matrix_data.begin(), matrix_data.end());
+        bone_node.translation = {bind_matrix[3].x, bind_matrix[3].y, bind_matrix[3].z};
+        bind_matrix[3].x = 0;
+        bind_matrix[3].y = 0;
+        bind_matrix[3].z = 0;
+        //bone_node.scale = {glm::length(bind_matrix[0]), glm::length(bind_matrix[1]), glm::length(bind_matrix[2])};
+        bind_matrix[0] /= glm::length(bind_matrix[0]);
+        bind_matrix[1] /= glm::length(bind_matrix[1]);
+        bind_matrix[2] /= glm::length(bind_matrix[2]);
+        glm::quat quat(bind_matrix);
+        bone_node.rotation = {quat.x, quat.y, quat.z, quat.w};
+        bone_node.name = utils::bone_hashmap.at(bone.namehash);
+        skeleton_map[bone.namehash] = gltf.nodes.size();
+        skin.joints.push_back((int)gltf.nodes.size());
+
+        bone_buffer.data.insert(
+            bone_buffer.data.end(), 
+            reinterpret_cast<uint8_t*>(inverse_matrix_data.data()), 
+            reinterpret_cast<uint8_t*>(inverse_matrix_data.data()) + inverse_matrix_data.size_bytes()
+        );
+
+        gltf.nodes.push_back(bone_node);
+    }
+
+    for(auto iter = skeleton_map.begin(); iter != skeleton_map.end(); iter++) {
+        uint32_t curr_hash = iter->first;
+        size_t curr_index = iter->second;
+        uint32_t parent = utils::bone_hierarchy.at(curr_hash);
+        std::unordered_map<uint32_t, size_t>::iterator parent_index;
+        while(parent != 0 && (parent_index = skeleton_map.find(parent)) == skeleton_map.end()) {
+            parent = utils::bone_hierarchy.at(parent);
+        }
+        if(parent != 0) {
+            // Bone has parent in the skeleton, add it to its parent's children
+            gltf.nodes.at(parent_index->second).children.push_back((int)curr_index);
+        } else if(parent == 0) {
+            // Bone is the root of the skeleton, add it as the skin's skeleton
+            skin.skeleton = (int)curr_index;
+            //     and make sure it is in the scene
+            gltf.scenes.at(gltf.defaultScene).nodes.push_back((int)curr_index);
         }
     }
+
+    update_bone_transforms(gltf, skin.skeleton);
+
+    tinygltf::Accessor accessor;
+    accessor.bufferView = (int)gltf.bufferViews.size();
+    accessor.byteOffset = 0;
+    accessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+    accessor.type = TINYGLTF_TYPE_MAT4;
+    accessor.count = dme.bone_count();
+
+    tinygltf::BufferView bufferview;
+    bufferview.buffer = (int)gltf.buffers.size();
+    bufferview.byteLength = bone_buffer.data.size();
+    bufferview.byteOffset = 0;
+    
+    gltf.accessors.push_back(accessor);
+    gltf.buffers.push_back(bone_buffer);
+    gltf.bufferViews.push_back(bufferview);
+    gltf.skins.push_back(skin);
+}
+
+void utils::gltf::build_material(
+    tinygltf::Model &gltf, 
+    tinygltf::Material &material,
+    const DME &dme, 
+    uint32_t i, 
+    std::unordered_map<uint32_t, uint32_t> &texture_indices, 
+    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+    std::filesystem::path output_directory
+) {
+    std::optional<tinygltf::TextureInfo> info;
+    std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> info_pair;
+    std::optional<std::string> texture_name, label = {};
+    std::filesystem::path temp;
+    for(Parameter::Semantic semantic : semantics) {
+        switch(semantic) {
+        case Parameter::Semantic::NORMAL_MAP:
+            info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_directory, semantic);
+            if(!info)
+                break;
+            material.normalTexture.index = info->index;
+            break;
+        case Parameter::Semantic::BASE_COLOR:
+            info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_directory, semantic);
+            if(!info)
+                break;
+            material.pbrMetallicRoughness.baseColorTexture = *info;
+            break;
+        case Parameter::Semantic::SPECULAR:
+            info_pair = load_specular_info(
+                gltf, dme, i, texture_indices, image_queue, output_directory, semantic
+            );
+            if(!info_pair)
+                break;
+            material.pbrMetallicRoughness.metallicRoughnessTexture = info_pair->first;
+            material.emissiveTexture = info_pair->second;
+            material.emissiveFactor = {1.0, 1.0, 1.0};
+            break;
+        default:
+            // Just export the texture
+            label = Parameter::semantic_name(semantic);
+            texture_name = dme.dmat()->material(i)->texture(semantic);
+            if(texture_name) {
+                image_queue.enqueue({*texture_name, semantic});
+                if (semantic != Parameter::Semantic::DETAIL_CUBE) {
+                    add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_directory, label);
+                } else {
+                    temp = std::filesystem::path(*texture_name);
+                    for(std::string face : utils::materials3::detailcube_faces) {
+                        add_texture_to_gltf(
+                            gltf, 
+                            (output_directory / "textures" / (temp.stem().string() + "_" + face)).replace_extension(".png"),
+                            output_directory,
+                            *label + " " + face
+                        );
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
 
 std::optional<tinygltf::TextureInfo> utils::gltf::load_texture_info(
     tinygltf::Model &gltf,
@@ -435,4 +533,52 @@ std::vector<uint8_t> utils::gltf::expand_vertex_stream(nlohmann::json &layout, s
         }
     }
     return output;
+}
+
+void utils::gltf::update_bone_transforms(tinygltf::Model &gltf, int skeleton_root) {
+    for(int child : gltf.nodes.at(skeleton_root).children) {
+        update_bone_transforms(gltf, child);
+        glm::dvec3 parent_translation(
+            gltf.nodes.at(skeleton_root).translation[0], 
+            gltf.nodes.at(skeleton_root).translation[1], 
+            gltf.nodes.at(skeleton_root).translation[2]
+        );
+        glm::dquat parent_rotation(
+            gltf.nodes.at(skeleton_root).rotation[3],
+            gltf.nodes.at(skeleton_root).rotation[0], 
+            gltf.nodes.at(skeleton_root).rotation[1], 
+            gltf.nodes.at(skeleton_root).rotation[2]
+        );
+        
+        glm::dvec3 child_translation = glm::dvec3(
+            gltf.nodes.at(child).translation[0], 
+            gltf.nodes.at(child).translation[1], 
+            gltf.nodes.at(child).translation[2]
+        );
+        glm::dquat child_rotation(
+            gltf.nodes.at(child).rotation[3],
+            gltf.nodes.at(child).rotation[0], 
+            gltf.nodes.at(child).rotation[1], 
+            gltf.nodes.at(child).rotation[2]
+        );
+
+        child_translation -= parent_translation;
+        
+        child_rotation = glm::inverse(parent_rotation) * child_rotation;
+        child_translation = utils::sign(parent_rotation) * glm::inverse(parent_rotation) * child_translation;
+
+
+        gltf.nodes.at(child).translation = {
+            child_translation.x, 
+            child_translation.y, 
+            child_translation.z
+        };
+
+        gltf.nodes.at(child).rotation = {
+            child_rotation.x,
+            child_rotation.y,
+            child_rotation.z,
+            child_rotation.w
+        };
+    }
 }

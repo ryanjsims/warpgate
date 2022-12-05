@@ -21,6 +21,8 @@ namespace utils::gltf {
 
     int add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index);
 
+    void add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes);
+
     void build_material(
         tinygltf::Model &gltf, 
         tinygltf::Material &material,
@@ -52,4 +54,6 @@ namespace utils::gltf {
     );
 
     std::vector<uint8_t> expand_vertex_stream(nlohmann::json &layout, std::span<uint8_t> data, uint32_t stream, bool is_rigid, const DME &dme);
+
+    void update_bone_transforms(tinygltf::Model &gltf, int skeleton_root);
 }
