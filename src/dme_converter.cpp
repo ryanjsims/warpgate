@@ -19,7 +19,6 @@
 #include "tiny_gltf.h"
 #include "version.h"
 
-namespace gltf2 = tinygltf;
 namespace logger = spdlog;
 
 void process_images(
@@ -208,7 +207,7 @@ int main(int argc, const char* argv[]) {
     }
 
     DME dme(data_span);
-    gltf2::Model gltf = utils::gltf::build_gltf_from_dme(dme, image_queue, output_directory, export_textures, include_skeleton);
+    tinygltf::Model gltf = utils::gltf::build_gltf_from_dme(dme, image_queue, output_directory, export_textures, include_skeleton);
     
     logger::info("Writing GLTF2 file {}...", output_filename.filename().string());
     tinygltf::TinyGLTF writer;
