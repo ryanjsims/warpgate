@@ -11,6 +11,7 @@ endif()
 
 add_subdirectory(dme_loader)
 add_subdirectory(external)
+add_subdirectory(cnk_loader)
 find_package(synthium REQUIRED)
 find_package(gli REQUIRED)
 
@@ -32,18 +33,20 @@ add_executable(dme_converter
     src/utils/textures.cpp
     src/utils/tsqueue.cpp 
   )
-target_include_directories(dme_converter PUBLIC include/)
-target_include_directories(dme_converter PUBLIC ${CMAKE_BINARY_DIR}/include/)
-target_include_directories(dme_converter PUBLIC dme_loader/include/)
-target_include_directories(dme_converter PUBLIC external/argparse/include/)
-target_include_directories(dme_converter PUBLIC external/half/include/)
-target_include_directories(dme_converter PUBLIC external/tinygltf/)
+target_include_directories(dme_converter PUBLIC include/ ${CMAKE_BINARY_DIR}/include/ dme_loader/include/ external/argparse/include/ external/half/include/ external/tinygltf/)
 target_link_libraries(dme_converter PRIVATE dme_loader)
 target_link_libraries(dme_converter PRIVATE spdlog::spdlog)
 target_link_libraries(dme_converter PRIVATE tinygltf)
 target_link_libraries(dme_converter PRIVATE argparse)
 target_link_libraries(dme_converter PRIVATE synthium::synthium)
 target_link_libraries(dme_converter PRIVATE gli)
+
+add_executable(test_cnk
+  src/test_cnk.cpp
+)
+
+target_link_libraries(test_cnk PRIVATE cnk_loader spdlog::spdlog)
+
 
 find_package(Git)
 add_custom_target(version
