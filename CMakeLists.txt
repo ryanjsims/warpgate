@@ -3,9 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 
-project(cppdmod VERSION 0.0.1)
-
-add_definitions(-DCPP_DMOD_VERSION="${CMAKE_PROJECT_VERSION}")
+project(cppdmod)
 
 if(NOT TARGET spdlog)
 find_package(spdlog REQUIRED)
