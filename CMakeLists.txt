@@ -5,9 +5,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
 
 project(warpgate)
 
-add_subdirectory(dme_loader)
 add_subdirectory(external)
-add_subdirectory(cnk_loader)
+add_subdirectory(internal)
 
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}")
 
