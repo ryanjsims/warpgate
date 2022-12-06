@@ -16,3 +16,6 @@
 [submodule "external/lzham_alpha"]
 	path = external/lzham_alpha
 	url = https://github.com/ryanjsims/lzham_alpha
+[submodule "external/synthium"]
+	path = external/synthium
+	url = https://github.com/ryanjsims/synthium
