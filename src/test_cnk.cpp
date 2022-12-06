@@ -1,4 +1,4 @@
-#include "forgelight_chunk.h"
+#include "cnk_loader.h"
 #include <fstream>
 #include <memory>
 #include <span>
@@ -21,11 +21,24 @@ int main() {
     input.close();
     std::span<uint8_t> data_span = std::span<uint8_t>(data.get(), length);
 
-    Chunk chunk(data_span);
+    warpgate::Chunk chunk(data_span);
 
     std::unique_ptr<uint8_t[]> decompressed = chunk.decompress();
     logger::info("Decompressed successfully!");
     logger::info("{}", logger::to_hex((char*)(decompressed.get()), (char*)(decompressed.get() + 512)));
-
+    
+    warpgate::ChunkHeader header = chunk.header();
+    if(std::strncmp(header.magic, "CNK0", 4) == 0) {
+        warpgate::CNK0 chunk0(std::span<uint8_t>(decompressed.get(), sizeof(warpgate::ChunkHeader) + chunk.decompressed_size()));
+        logger::info("Chunk has {} indices and {} vertices", chunk0.index_count(), chunk0.vertex_count());
+    }
+    
+    std::ofstream output("export/cnk/Nexus_0_0_dec.cnk0", std::ios::binary);
+    if(output.fail()) {
+        logger::error("Failed to open file '{}' for writing", "export/cnk/Nexus_0_0_dec.cnk0");
+        std::exit(2);
+    }
+    output.write((char*)decompressed.get(), chunk.decompressed_size() + sizeof(warpgate::ChunkHeader));
+    output.close();
     return 0;
 }

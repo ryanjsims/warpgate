@@ -3,40 +3,42 @@
 #include <spdlog/spdlog.h>
 
 constexpr auto operator""_MB( unsigned long long const x )
-    -> long
-{ return 1024L*1024L*x; }
+    -> uint64_t
+{ return 1024L * 1024L * x; }
 
-constexpr long BUF_SIZE = 1_MB;
+constexpr uint64_t BUF_SIZE = 1_MB;
 constexpr uint32_t window_bits = 20;
 
 #define LZHAM_DEFINE_ZLIB_API
 #include "lzham.h"
 
+using namespace warpgate;
+
 Chunk::Chunk(std::span<uint8_t> subspan): buf_(subspan) {}
 
-Chunk::ref<Header> Chunk::header() const {
-    return get<Header>(0);
+Chunk::ref<ChunkHeader> Chunk::header() const {
+    return get<ChunkHeader>(0);
 }
 
 Chunk::ref<uint32_t> Chunk::decompressed_size() const {
-    return get<uint32_t>(sizeof(Header));
+    return get<uint32_t>(sizeof(ChunkHeader));
 }
 
 Chunk::ref<uint32_t> Chunk::compressed_size() const {
-    return get<uint32_t>(sizeof(Header) + sizeof(uint32_t));
+    return get<uint32_t>(sizeof(ChunkHeader) + sizeof(uint32_t));
 }
 
 std::span<uint8_t> Chunk::compressed_data() const {
-    return buf_.subspan(sizeof(Header) + 2 * sizeof(uint32_t));
+    return buf_.subspan(sizeof(ChunkHeader) + 2 * sizeof(uint32_t));
 }
 
 std::unique_ptr<uint8_t[]> Chunk::decompress() const {
     z_stream stream{};
-    std::unique_ptr<uint8_t[]> output = std::make_unique<uint8_t[]>(sizeof(Header) + decompressed_size());
+    std::unique_ptr<uint8_t[]> output = std::make_unique<uint8_t[]>(sizeof(ChunkHeader) + decompressed_size());
     std::shared_ptr<uint8_t[]> input_buffer = std::make_shared<uint8_t[]>(BUF_SIZE);
     std::shared_ptr<uint8_t[]> output_buffer = std::make_shared<uint8_t[]>(BUF_SIZE);
 
-    std::memcpy(output.get(), buf_.data(), sizeof(Header));
+    std::memcpy(output.get(), buf_.data(), sizeof(ChunkHeader));
 
     stream.next_in = input_buffer.get();
     stream.avail_in = 0;
@@ -49,7 +51,7 @@ std::unique_ptr<uint8_t[]> Chunk::decompress() const {
         std::exit(status);
     }
 
-    uint32_t remaining = compressed_size() - 4, index = 0, output_index = sizeof(Header);
+    uint32_t remaining = compressed_size() - 4, index = 0, output_index = sizeof(ChunkHeader);
     while(true) {
         if(!stream.avail_in) {
             uint32_t count = std::min((uint32_t)BUF_SIZE, remaining);

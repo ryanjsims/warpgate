@@ -7,10 +7,10 @@
 #include "structs.h"
 
 namespace warpgate {
-    struct Chunk {
+    struct Flora {
         mutable std::span<uint8_t> buf_;
 
-        Chunk(std::span<uint8_t> subspan);
+        Flora(std::span<uint8_t> subspan);
 
         template <typename T>
         struct ref {
@@ -22,7 +22,7 @@ namespace warpgate {
 
         template <typename T>
         ref<T> get (size_t offset) const {
-            if (offset + sizeof(T) > buf_.size()) throw std::out_of_range("Chunk: Offset out of range");
+            if (offset + sizeof(T) > buf_.size()) throw std::out_of_range("Flora: Offset out of range");
             return ref<T>(&buf_[0] + offset);
         }
 
@@ -30,11 +30,7 @@ namespace warpgate {
             return buf_.size();
         }
 
-        ref<ChunkHeader> header() const;
-        ref<uint32_t> decompressed_size() const;
-        ref<uint32_t> compressed_size() const;
-
-        std::span<uint8_t> compressed_data() const;
-        std::unique_ptr<uint8_t[]> decompress() const;
+        ref<uint32_t> layer_count() const;
+        std::span<Layer> layers() const;
     };
 }
