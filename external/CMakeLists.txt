@@ -5,4 +5,4 @@ option(TINYGLTF_INSTALL OFF)
 option(TINYGLTF_BUILD_LOADER_EXAMPLE OFF)
 add_subdirectory(tinygltf)
 
-add_subdirectory(lzham_build)
+add_subdirectory(lzham_alpha)

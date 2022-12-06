@@ -15,7 +15,4 @@
 	url = https://github.com/g-truc/gli
 [submodule "external/lzham_alpha"]
 	path = external/lzham_alpha
-	url = https://github.com/richgel999/lzham_alpha
-[submodule "external/lzham_codec"]
-	path = external/lzham_codec
-	url = https://github.com/richgel999/lzham_codec
+	url = https://github.com/ryanjsims/lzham_alpha
