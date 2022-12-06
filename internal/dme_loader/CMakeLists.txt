@@ -18,4 +18,4 @@ add_custom_command(
         COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_CURRENT_SOURCE_DIR}/data/materials.json
                 ${CMAKE_BINARY_DIR}/data/materials.json)
-set(MATERIALS_JSON_LOCATION "${CMAKE_BINARY_DIR}/data/materials.json" PARENT_SCOPE)
+set(MATERIALS_JSON_LOCATION_INTERNAL "${CMAKE_BINARY_DIR}/data/materials.json" PARENT_SCOPE)
