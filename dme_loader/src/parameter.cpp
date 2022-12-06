@@ -1,6 +1,8 @@
 #include "parameter.h"
 #include <string>
 
+using namespace warpgate;
+
 Parameter::Parameter(std::span<uint8_t> subspan): buf_(subspan) {
     buf_ = buf_.first(16 + length());
 }

@@ -6,6 +6,7 @@
 #include "stb_image_write.h"
 
 namespace logger = spdlog;
+using namespace warpgate;
 
 std::string utils::textures::relabel_texture(std::string texture_name, std::string label) {
     size_t index = texture_name.find_last_of('_') + 1;

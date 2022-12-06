@@ -14,6 +14,7 @@
 #include <synthium/synthium.h>
 
 namespace logger = spdlog;
+using namespace warpgate;
 
 int main() {
     logger::info("test_dme using dme_loader version {}", CPPDMOD_VERSION);
@@ -39,7 +40,7 @@ int main() {
     std::vector<uint8_t> data_vector;
     data_vector = manager.get("Vehicle_TR_Mosquito_Base_Chassis_LOD0.dme").get_data();
 
-    DME mosquito(std::span<uint8_t>(data_vector.data(), data_vector.size()));
+    DME mosquito(std::span<uint8_t>(data_vector.data(), data_vector.size()), "mosquito");
     uint32_t magic = mosquito.magic();
 
     std::cout << std::hex << magic << std::endl;

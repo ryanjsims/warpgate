@@ -1,6 +1,6 @@
 #pragma once
 #include <glm/fwd.hpp>
 
-namespace utils {
+namespace warpgate::utils {
     double sign(glm::dquat quaternion);
 }

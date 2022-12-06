@@ -8,7 +8,7 @@
 #include "tiny_gltf.h"
 #include "json.hpp"
 
-namespace utils::materials3 {
+namespace warpgate::utils::materials3 {
     extern std::vector<std::string> detailcube_faces;
 
     extern std::unordered_map<std::string, std::string> usages;

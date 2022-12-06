@@ -12,7 +12,7 @@
 #include "version.h"
 
 
-namespace utils::gltf {
+namespace warpgate::utils::gltf {
     int add_material_to_gltf(
         tinygltf::Model &gltf, 
         const DME &dme, 
@@ -20,7 +20,7 @@ namespace utils::gltf {
         bool export_textures,
         std::unordered_map<uint32_t, uint32_t> &texture_indices,
         std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
-        utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
         std::filesystem::path output_directory
     );
 
@@ -37,7 +37,7 @@ namespace utils::gltf {
 
     tinygltf::Model build_gltf_from_dme(
         const DME &dme, 
-        utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue, 
+        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue, 
         std::filesystem::path output_directory, 
         bool export_textures, 
         bool include_skeleton
@@ -49,7 +49,7 @@ namespace utils::gltf {
         const DME &dme, 
         uint32_t material_index, 
         std::unordered_map<uint32_t, uint32_t> &texture_indices,
-        utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
         std::filesystem::path output_directory
     );
 
@@ -58,7 +58,7 @@ namespace utils::gltf {
         const DME &dme, 
         uint32_t i, 
         std::unordered_map<uint32_t, uint32_t> &texture_indices, 
-        utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
         std::filesystem::path output_filename,
         Parameter::Semantic semantic
     );
@@ -68,7 +68,7 @@ namespace utils::gltf {
         const DME &dme, 
         uint32_t i, 
         std::unordered_map<uint32_t, uint32_t> &texture_indices, 
-        utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
         std::filesystem::path output_filename,
         Parameter::Semantic semantic
     );

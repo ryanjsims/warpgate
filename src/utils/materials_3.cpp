@@ -1,5 +1,7 @@
 #include "utils/materials_3.h"
 
+using namespace warpgate;
+
 std::vector<std::string> utils::materials3::detailcube_faces = {"+x", "-x", "+y", "-y", "+z", "-z"};
 
 std::unordered_map<std::string, std::string> utils::materials3::usages = {

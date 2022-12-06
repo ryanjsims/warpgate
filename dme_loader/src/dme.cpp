@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 
 namespace logger = spdlog;
+using namespace warpgate;
 
 DME::DME(std::span<uint8_t> subspan, std::string name_): buf_(subspan), name(name_) {
     logger::info("Parsing DME file...");

@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <cmath>
 
+using namespace warpgate;
+
 std::string utils::uppercase(const std::string input) {
     std::string temp = input;
     std::transform(temp.begin(), temp.end(), temp.begin(), [](const char value) -> char {

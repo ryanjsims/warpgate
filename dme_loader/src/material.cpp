@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 
 namespace logger = spdlog;
+using namespace warpgate;
 
 Material::Material(std::span<uint8_t> subspan): buf_(subspan) {
     buf_ = buf_.first(length() + 8);

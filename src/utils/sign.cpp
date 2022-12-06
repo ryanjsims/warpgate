@@ -3,6 +3,8 @@
 #include <cmath>
 #include <glm/gtx/quaternion.hpp>
 
+using namespace warpgate;
+
 double utils::sign(glm::dquat quaternion) {
     return (std::signbit(quaternion.x) ? -1.0 : 1.0)
             * (std::signbit(quaternion.y) ? -1.0 : 1.0)

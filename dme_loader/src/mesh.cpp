@@ -1,6 +1,8 @@
 #include "mesh.h"
 #include <spdlog/spdlog.h>
 
+using namespace warpgate;
+
 Mesh::Mesh(std::span<uint8_t> subspan): buf_(subspan) {
     vertex_data_size = 0;
     uint32_t vertex_stream_count = this->vertex_stream_count();

@@ -20,6 +20,7 @@
 #include "version.h"
 
 namespace logger = spdlog;
+using namespace warpgate;
 
 void process_images(
     const synthium::Manager& manager, 

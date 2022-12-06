@@ -21,6 +21,8 @@
 namespace logger = spdlog;
 using half_float::half;
 
+using namespace warpgate;
+
 std::vector<Parameter::Semantic> semantics = {
     Parameter::Semantic::BASE_COLOR,
     Parameter::Semantic::NORMAL_MAP,

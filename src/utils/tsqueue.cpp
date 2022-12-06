@@ -1,6 +1,8 @@
 #include "utils/tsqueue.h"
 #include "parameter.h"
 
+using namespace warpgate;
+
 template <class T>
 utils::tsqueue<T>::tsqueue(void): q(), m(), c(), closed(false) {}
 

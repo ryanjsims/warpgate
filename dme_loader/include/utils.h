@@ -2,7 +2,7 @@
 #include <string>
 #include "vertexstream.h"
 
-namespace utils {
+namespace warpgate::utils {
     std::string uppercase(const std::string input);
 
     void normalize(float vector[3]);

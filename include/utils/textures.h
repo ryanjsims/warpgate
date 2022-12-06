@@ -4,7 +4,7 @@
 
 #include "gli/gli.hpp"
 
-namespace utils::textures {
+namespace warpgate::utils::textures {
     std::string relabel_texture(std::string texture_name, std::string label);
 
     bool write_texture(std::span<uint32_t> data, std::filesystem::path texture_path, gli::texture2d::extent_type extent);

@@ -1,6 +1,8 @@
 #include "dmat.h"
 #include <spdlog/spdlog.h>
 
+using namespace warpgate;
+
 DMAT::DMAT(std::span<uint8_t> subspan): buf_(subspan) {
     parse_filenames();
     parse_materials();

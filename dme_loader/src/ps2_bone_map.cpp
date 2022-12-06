@@ -1,5 +1,7 @@
 #include "ps2_bone_map.h"
 
+using namespace warpgate;
+
 std::unordered_map<uint32_t, std::string> utils::bone_hashmap = {
     {4099058003u, "ACTION"},
     {2859017764u, "ACTION1"},

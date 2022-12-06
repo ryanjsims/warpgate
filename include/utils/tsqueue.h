@@ -3,7 +3,7 @@
 #include <mutex>
 #include <condition_variable>
 
-namespace utils {
+namespace warpgate::utils {
     // A threadsafe-queue.
     template <class T>
     class tsqueue
