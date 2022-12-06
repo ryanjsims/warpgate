@@ -32,9 +32,11 @@ std::span<uint8_t> Chunk::compressed_data() const {
 
 std::unique_ptr<uint8_t[]> Chunk::decompress() const {
     z_stream stream{};
-    std::unique_ptr<uint8_t[]> output = std::make_unique<uint8_t[]>(decompressed_size());
+    std::unique_ptr<uint8_t[]> output = std::make_unique<uint8_t[]>(sizeof(Header) + decompressed_size());
     std::shared_ptr<uint8_t[]> input_buffer = std::make_shared<uint8_t[]>(BUF_SIZE);
     std::shared_ptr<uint8_t[]> output_buffer = std::make_shared<uint8_t[]>(BUF_SIZE);
+
+    std::memcpy(output.get(), buf_.data(), sizeof(Header));
 
     stream.next_in = input_buffer.get();
     stream.avail_in = 0;
@@ -47,7 +49,7 @@ std::unique_ptr<uint8_t[]> Chunk::decompress() const {
         std::exit(status);
     }
 
-    uint32_t remaining = compressed_size() - 4, index = 0, output_index = 0;
+    uint32_t remaining = compressed_size() - 4, index = 0, output_index = sizeof(Header);
     while(true) {
         if(!stream.avail_in) {
             uint32_t count = std::min((uint32_t)BUF_SIZE, remaining);
