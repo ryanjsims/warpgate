@@ -72,3 +72,4 @@ add_custom_target(version
                    -P ${CMAKE_SOURCE_DIR}/external/cmake-git-versioning/GenerateVersionHeader.cmake
   )
 add_dependencies(dme_converter version)
+add_dependencies(chunk_converter version)

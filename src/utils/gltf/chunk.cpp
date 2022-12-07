@@ -32,8 +32,6 @@ int utils::gltf::chunk::add_mesh_to_gltf(
     std::span<RenderBatch> render_batches = chunk.render_batches();
     tinygltf::Node parent;
     parent.name = name;
-    //glm::dquat quat(glm::dvec3(M_PI / 2, 0.0, M_PI));
-    //parent.rotation = {quat.x, quat.y, quat.z, quat.w};
     int parent_index = (int)gltf.nodes.size();
     gltf.scenes.at(gltf.defaultScene).nodes.push_back((int)gltf.nodes.size());
     gltf.nodes.push_back(parent);
@@ -147,7 +145,7 @@ int utils::gltf::chunk::add_mesh_to_gltf(
 
         primitive.mode = TINYGLTF_MODE_TRIANGLES;
         if(material_base_index >= 0) {
-            primitive.material = material_base_index + ((i >> 1) & 1) + ((i >> 2) & 2);
+            primitive.material = material_base_index + (i & 2) + ((i >> 3) & 1);
         }
         mesh.primitives.push_back(primitive);
 
@@ -174,8 +172,8 @@ int utils::gltf::chunk::add_mesh_to_gltf(
         }
         Vertex raw_vertex = raw_vertices[i];
         Float2 texcoord;
-        texcoord.u = (float)raw_vertex.x / 128.0f + ((vertex_mesh & 1) * 0.5f);
-        texcoord.v = (float)raw_vertex.y / 128.0f + (((vertex_mesh >> 2) & 1) * 0.5f);
+        texcoord.u = (float)raw_vertex.y / 128.0f + (((vertex_mesh >> 2) & 1) * 0.5f);
+        texcoord.v = (float)raw_vertex.x / 128.0f + ((vertex_mesh & 1) * 0.5f);
         texcoords.push_back(texcoord);
 
         Float3 vertex;
@@ -250,6 +248,7 @@ int utils::gltf::chunk::add_materials_to_gltf(
         material.pbrMetallicRoughness.baseColorTexture.index = utils::gltf::add_texture_to_gltf(gltf, output_directory / "textures" / (texture_basename + "_C.png"), output_directory, sampler_index);
         material.pbrMetallicRoughness.metallicRoughnessTexture.index = utils::gltf::add_texture_to_gltf(gltf, output_directory / "textures" / (texture_basename + "_S.png"), output_directory, sampler_index);
         material.normalTexture.index = utils::gltf::add_texture_to_gltf(gltf, output_directory / "textures" / (texture_basename + "_N.png"), output_directory, sampler_index);
+        material.doubleSided = true;
         gltf.materials.push_back(material);
     }
     return material_start_index;

@@ -231,18 +231,18 @@ void utils::textures::process_cnx_sny(std::string texture_name, std::vector<uint
     texture_path = output_directory / "textures" / texture_path;
     auto extent = color_nx.extent();
     if(write_texture(cnx_span, texture_path, extent)){
-        logger::info("Saved texture to {}", texture_path.lexically_relative(output_directory).string());
+        logger::info("Saved albedo texture to {}", texture_path.lexically_relative(output_directory).string());
     }
 
     texture_path = texture_path.parent_path() / (texture_name + "_S");
     texture_path.replace_extension(".png");
     if(write_texture(sny_span, texture_path, extent)){
-        logger::info("Saved texture to {}", texture_path.lexically_relative(output_directory).string());
+        logger::info("Saved metallic roughness texture to {}", texture_path.lexically_relative(output_directory).string());
     }
 
     texture_path = texture_path.parent_path() / (texture_name + "_N");
     texture_path.replace_extension(".png");
     if(write_texture(normal_map, texture_path, extent)){
-        logger::info("Saved texture to {}", texture_path.lexically_relative(output_directory).string());
+        logger::info("Saved normal map to {}", texture_path.lexically_relative(output_directory).string());
     }
 }
