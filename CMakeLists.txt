@@ -24,7 +24,8 @@ add_executable(test_cnk
 target_link_libraries(test_cnk PRIVATE cnk_loader spdlog::spdlog)
 
 add_executable(dme_converter 
-    src/dme_converter.cpp 
+    src/dme_converter.cpp
+    src/utils/gltf/common.cpp
     src/utils/gltf.cpp
     src/utils/materials_3.cpp 
     src/utils/sign.cpp 
@@ -37,6 +38,7 @@ target_link_libraries(dme_converter PRIVATE dme_loader spdlog::spdlog tinygltf a
 add_executable(chunk_converter
     src/chunk_converter.cpp
     src/utils/gltf/chunk.cpp
+    src/utils/gltf/common.cpp
     src/utils/materials_3.cpp 
     src/utils/sign.cpp 
     src/utils/textures.cpp
@@ -46,7 +48,7 @@ target_include_directories(chunk_converter
   PUBLIC 
     include/ 
     ${CMAKE_BINARY_DIR}/include/ 
-    internal/cnk_loader/include/ 
+    internal/cnk_loader/include/
     external/argparse/include/ 
     external/half/include/ 
     external/synthium/include

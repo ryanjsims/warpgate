@@ -12,7 +12,8 @@ namespace warpgate::utils::gltf {
     int add_texture_to_gltf(
         tinygltf::Model &gltf, 
         std::filesystem::path texture_path, 
-        std::filesystem::path output_filename, 
+        std::filesystem::path output_directory,
+        int sampler,
         std::optional<std::string> label = {}
     );
 

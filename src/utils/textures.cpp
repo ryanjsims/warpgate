@@ -165,6 +165,7 @@ void utils::textures::save_texture(std::string texture_name, std::vector<uint8_t
     gli::texture2d texture(gli::load_dds((char*)texture_data.data(), texture_data.size()));
     if(texture.format() == gli::format::FORMAT_UNDEFINED) {
         logger::error("Failed to load {} from memory", texture_name);
+        return;
     }
     if(gli::is_compressed(texture.format())) {
         logger::debug("Compressed texture (format {})", (int)texture.format());
@@ -176,6 +177,72 @@ void utils::textures::save_texture(std::string texture_name, std::vector<uint8_t
     auto extent = texture.extent();
     logger::debug("Writing image of size ({}, {}) to {}", extent.x, extent.y, texture_path.lexically_relative(output_directory).string());
     if(write_texture(std::span<uint32_t>(texture.data<uint32_t>(), texture.size<uint32_t>()), texture_path, extent)){
+        logger::info("Saved texture to {}", texture_path.lexically_relative(output_directory).string());
+    }
+}
+
+void utils::textures::process_cnx_sny(std::string texture_name, std::vector<uint8_t> cnx_data, std::vector<uint8_t> sny_data, std::filesystem::path output_directory) {
+    logger::info("Processing color_nx/specular_ny maps for {}...", texture_name);
+    gli::texture2d color_nx(gli::load_dds((char*)cnx_data.data(), cnx_data.size()));
+    if(color_nx.format() == gli::format::FORMAT_UNDEFINED) {
+        logger::error("Failed to load {} color nx map from memory", texture_name);
+        return;
+    }
+    
+    gli::texture2d specular_ny(gli::load_dds((char*)sny_data.data(), sny_data.size()));
+    if(specular_ny.format() == gli::format::FORMAT_UNDEFINED) {
+        logger::error("Failed to load {} specular ny map from memory", texture_name);
+        return;
+    }
+
+    if(gli::is_compressed(color_nx.format())) {
+        logger::debug("Decompressing color nx map...");
+        color_nx = gli::convert(color_nx, gli::format::FORMAT_RGBA8_UNORM_PACK8);
+    }
+
+    if(gli::is_compressed(specular_ny.format())) {
+        logger::debug("Decompressing specular ny map...");
+        specular_ny = gli::convert(specular_ny, gli::format::FORMAT_RGBA8_UNORM_PACK8);
+    }
+
+    if(!(color_nx.extent().x == specular_ny.extent().x && color_nx.extent().y == specular_ny.extent().y)) {
+        logger::error(
+            "color_nx and specular_ny maps *must* have matching dimentions: ({}, {}) != ({}, {})", 
+            color_nx.extent().x,
+            color_nx.extent().y,
+            specular_ny.extent().x,
+            specular_ny.extent().y
+        );
+        return;
+    }
+
+    std::vector<uint32_t> normal_map;
+    std::span<uint32_t> cnx_span(color_nx.data<uint32_t>(), color_nx.size<uint32_t>());
+    std::span<uint32_t> sny_span(specular_ny.data<uint32_t>(), specular_ny.size<uint32_t>());
+    for(uint32_t i = 0; i < cnx_span.size(); i++) {
+        normal_map.push_back(0xFFFF0000 | ((sny_span[i] >> 16) & 0x0000FF00) | (cnx_span[i] >> 24));
+        sny_span[i] |= 0xFF000000;
+        sny_span[i] ^= 0x00FFFF00;
+        cnx_span[i] |= 0xFF000000;
+    }
+
+    std::filesystem::path texture_path(texture_name + "_C");
+    texture_path.replace_extension(".png");
+    texture_path = output_directory / "textures" / texture_path;
+    auto extent = color_nx.extent();
+    if(write_texture(cnx_span, texture_path, extent)){
+        logger::info("Saved texture to {}", texture_path.lexically_relative(output_directory).string());
+    }
+
+    texture_path = texture_path.parent_path() / (texture_name + "_S");
+    texture_path.replace_extension(".png");
+    if(write_texture(sny_span, texture_path, extent)){
+        logger::info("Saved texture to {}", texture_path.lexically_relative(output_directory).string());
+    }
+
+    texture_path = texture_path.parent_path() / (texture_name + "_N");
+    texture_path.replace_extension(".png");
+    if(write_texture(normal_map, texture_path, extent)){
         logger::info("Saved texture to {}", texture_path.lexically_relative(output_directory).string());
     }
 }

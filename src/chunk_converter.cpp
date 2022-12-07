@@ -147,55 +147,10 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<uint8_t[]> decompressed_chunk1 = compressed_chunk1.decompress();
 
     warpgate::CNK1 chunk1({decompressed_chunk1.get(), compressed_chunk1.decompressed_size()});
-    for(uint32_t i = 0; i < chunk1.textures_count(); i++) {
-        std::filesystem::path texture = output_directory / "textures" / ("color_nx_" + std::to_string(i) + ".dds");
-        std::ofstream output(texture, std::ios::binary);
-        if(output.fail()) {
-            logger::error("Failed to open file '{}'", texture.string());
-            break;
-        }
-        output.write((char*)chunk1.textures()[i].color_nx_map().data(), chunk1.textures()[i].color_length());
-        output.close();
-        logger::info("Wrote {}", texture.string());
 
-        texture = output_directory / "textures" / ("spec_ny_" + std::to_string(i) + ".dds");
-        output.open(texture, std::ios::binary);
-        if(output.fail()) {
-            logger::error("Failed to open file '{}'", texture.string());
-            break;
-        }
-        output.write((char*)chunk1.textures()[i].specular_ny_map().data(), chunk1.textures()[i].specular_length());
-        output.close();
-        logger::info("Wrote {}", texture.string());
-
-        logger::info("Extra1 has length {}", chunk1.textures()[i].extra1_length());
-        logger::info("Extra2 has length {}", chunk1.textures()[i].extra2_length());
-        logger::info("Extra3 has length {}", chunk1.textures()[i].extra3_length());
-        logger::info("Extra4 has length {}", chunk1.textures()[i].extra4_length());
-    }
-
-    tinygltf::Model gltf;
-    gltf.defaultScene = (int)gltf.scenes.size();
-    gltf.scenes.push_back({});
     logger::info("Adding chunk to gltf...");
-    warpgate::utils::gltf::chunk::add_mesh_to_gltf(gltf, chunk0, (int)gltf.materials.size(), input_filename.stem().string());
+    tinygltf::Model gltf = warpgate::utils::gltf::chunk::build_gltf_from_chunks(chunk0, chunk1, output_directory, export_textures, input_filename.stem().string());
     logger::info("Added chunk to gltf");
-
-    for(uint32_t i = 0; i < chunk0.tile_count(); i++) {
-        if(chunk0.tiles().at(i).has_image()) {
-            std::filesystem::path texture = output_directory / "textures" / ("tile_" + std::to_string(i) + ".dds");
-            std::ofstream output(texture, std::ios::binary);
-            if(output.fail()) {
-                logger::error("Failed to open file '{}'", texture.string());
-                break;
-            }
-            output.write((char*)chunk0.tiles().at(i).image_data().data(), chunk0.tiles().at(i).image_length());
-            output.close();
-            logger::info("Wrote {}", texture.string());
-        }
-    }
-
-    logger::info("{} has {} textures", input_filename.filename().replace_extension("cnk1").string(), chunk1.textures_count());
 
     logger::info("Writing gltf file...");
     tinygltf::TinyGLTF writer;
