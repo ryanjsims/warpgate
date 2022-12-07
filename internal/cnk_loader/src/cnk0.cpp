@@ -21,6 +21,47 @@ CNK0::CNK0(std::span<uint8_t> subspan): buf_(subspan) {
         offset += (uint32_t)tile.size();
     }
     tiles_size = offset - (tiles_offset() + sizeof(uint32_t));
+
+    std::span<Vertex> vertices = this->vertices();
+    std::span<RenderBatch> render_batches = this->render_batches();
+    for(uint32_t batch = 0; batch < render_batches.size(); batch++){
+        Vertex minimum, maximum;
+        for(uint32_t i = render_batches[batch].vertex_offset; i < render_batches[batch].vertex_offset + render_batches[batch].vertex_count; i++) {
+            Vertex vertex = vertices[i];
+            if(i == render_batches[batch].vertex_offset) {
+                minimum = vertex;
+            }
+            if(vertex.x < minimum.x) {
+                minimum.x = vertex.x;
+            }
+            if(vertex.y < minimum.y) {
+                minimum.y = vertex.y;
+            }
+            if(vertex.height_far < minimum.height_far) {
+                minimum.height_far = vertex.height_far;
+            }
+            if(vertex.height_near < minimum.height_near) {
+                minimum.height_near = vertex.height_near;
+            }
+
+            if(i == render_batches[batch].vertex_offset) {
+                maximum = vertex;
+            }
+            if(vertex.x > maximum.x) {
+                maximum.x = vertex.x;
+            }
+            if(vertex.y > maximum.y) {
+                maximum.y = vertex.y;
+            }
+            if(vertex.height_far > maximum.height_far) {
+                maximum.height_far = vertex.height_far;
+            }
+            if(vertex.height_near > maximum.height_near) {
+                maximum.height_near = vertex.height_near;
+            }
+        }
+        aabbs_.push_back({minimum, maximum});
+    }
 }
 
 CNK0::ref<ChunkHeader> CNK0::header() const {
@@ -82,6 +123,10 @@ std::span<RenderBatch> CNK0::render_batches() const {
         reinterpret_cast<RenderBatch*>(buf_.subspan(render_batches_offset() + sizeof(uint32_t)).data()),
         render_batch_count()
     );
+}
+
+std::pair<Vertex, Vertex> CNK0::aabb(uint32_t render_batch) const {
+    return aabbs_.at(render_batch);
 }
 
 CNK0::ref<uint32_t> CNK0::optimized_draw_count() const {

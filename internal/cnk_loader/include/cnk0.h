@@ -48,6 +48,8 @@ namespace warpgate {
         ref<uint32_t> render_batch_count() const;
         std::span<RenderBatch> render_batches() const;
 
+        std::pair<Vertex, Vertex> aabb(uint32_t render_batch) const;
+
         ref<uint32_t> optimized_draw_count() const;
         std::span<OptimizedDraw> optimized_draws() const;
 
@@ -74,5 +76,6 @@ namespace warpgate {
 
         uint32_t tiles_size;
         std::vector<Tile> tiles_;
+        std::vector<std::pair<Vertex, Vertex>> aabbs_;
     };
 }

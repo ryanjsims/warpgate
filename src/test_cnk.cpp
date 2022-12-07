@@ -31,6 +31,13 @@ int main() {
     if(std::strncmp(header.magic, "CNK0", 4) == 0) {
         warpgate::CNK0 chunk0(std::span<uint8_t>(decompressed.get(), sizeof(warpgate::ChunkHeader) + chunk.decompressed_size()));
         logger::info("Chunk has {} indices and {} vertices", chunk0.index_count(), chunk0.vertex_count());
+
+        std::span<warpgate::Vertex> vertices = chunk0.vertices();
+        std::span<warpgate::RenderBatch> render_batches = chunk0.render_batches();
+        for(uint32_t batch = 0; batch < render_batches.size(); batch++){
+            auto[minimum, maximum] = chunk0.aabb(batch);
+            logger::info("AABB of render batch {}: ({}, {}, {}) to ({}, {}, {})", batch, minimum.x, minimum.y, (float)minimum.height_far / 32.0f, maximum.x, maximum.y, (float)maximum.height_far / 32.0f);
+        }
     }
     
     std::ofstream output("export/cnk/Nexus_0_0_dec.cnk0", std::ios::binary);

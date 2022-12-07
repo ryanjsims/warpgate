@@ -17,6 +17,11 @@ target_link_libraries(test_dme PUBLIC dme_loader)
 target_link_libraries(test_dme PRIVATE spdlog::spdlog)
 target_link_libraries(test_dme PRIVATE synthium::synthium)
 
+add_executable(test_cnk
+  src/test_cnk.cpp
+)
+
+target_link_libraries(test_cnk PRIVATE cnk_loader spdlog::spdlog)
 
 add_executable(dme_converter 
     src/dme_converter.cpp 
@@ -26,20 +31,36 @@ add_executable(dme_converter
     src/utils/textures.cpp
     src/utils/tsqueue.cpp 
   )
-target_include_directories(dme_converter PUBLIC include/ ${CMAKE_BINARY_DIR}/include/ dme_loader/include/ external/argparse/include/ external/half/include/ external/tinygltf/ external/synthium/include)
-target_link_libraries(dme_converter PRIVATE dme_loader)
-target_link_libraries(dme_converter PRIVATE spdlog::spdlog)
-target_link_libraries(dme_converter PRIVATE tinygltf)
-target_link_libraries(dme_converter PRIVATE argparse)
-target_link_libraries(dme_converter PRIVATE synthium::synthium)
-target_link_libraries(dme_converter PRIVATE gli)
+target_include_directories(dme_converter PUBLIC include/ ${CMAKE_BINARY_DIR}/include/ internal/dme_loader/include/ external/argparse/include/ external/half/include/ external/tinygltf/ external/synthium/include)
+target_link_libraries(dme_converter PRIVATE dme_loader spdlog::spdlog tinygltf argparse synthium::synthium gli)
 
-add_executable(test_cnk
-  src/test_cnk.cpp
+add_executable(chunk_converter
+    src/chunk_converter.cpp
+    src/utils/gltf/chunk.cpp
+    src/utils/materials_3.cpp 
+    src/utils/sign.cpp 
+    src/utils/textures.cpp
+  )
+
+target_include_directories(chunk_converter 
+  PUBLIC 
+    include/ 
+    ${CMAKE_BINARY_DIR}/include/ 
+    internal/cnk_loader/include/ 
+    external/argparse/include/ 
+    external/half/include/ 
+    external/synthium/include
+    external/tinygltf/ 
 )
-
-target_link_libraries(test_cnk PRIVATE cnk_loader spdlog::spdlog)
-
+target_link_libraries(chunk_converter 
+  PRIVATE 
+    argparse 
+    cnk_loader 
+    gli
+    spdlog::spdlog 
+    synthium::synthium 
+    tinygltf 
+)
 
 find_package(Git)
 add_custom_target(version

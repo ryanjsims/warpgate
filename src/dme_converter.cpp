@@ -11,7 +11,7 @@
 
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
-#include "utils/gltf.h"
+#include "utils/gltf/dme.h"
 #include "utils/materials_3.h"
 #include "utils/textures.h"
 #include "utils/tsqueue.h"
@@ -71,7 +71,7 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
     parser.add_argument("input_file");
     parser.add_argument("output_file");
     parser.add_argument("--format", "-f")
-        .help("Select the format in which to save the file {glb, gltf}")
+        .help("Select the output file format {glb, gltf}")
         .required()
         .action([](const std::string& value) {
             static const std::vector<std::string> choices = { "gltf", "glb" };
@@ -209,7 +209,7 @@ int main(int argc, const char* argv[]) {
     }
 
     DME dme(data_span, output_filename.stem().string());
-    tinygltf::Model gltf = utils::gltf::build_gltf_from_dme(dme, image_queue, output_directory, export_textures, include_skeleton);
+    tinygltf::Model gltf = utils::gltf::dme::build_gltf_from_dme(dme, image_queue, output_directory, export_textures, include_skeleton);
     
     logger::info("Writing GLTF2 file {}...", output_filename.filename().string());
     tinygltf::TinyGLTF writer;

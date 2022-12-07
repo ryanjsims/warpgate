@@ -18,7 +18,7 @@ std::span<uint8_t> Texture::color_nx_map() const {
 }
 
 Texture::ref<uint32_t> Texture::specular_length() const {
-    return get<uint32_t>(specular_offset() + sizeof(uint32_t));
+    return get<uint32_t>(specular_offset());
 }
 
 std::span<uint8_t> Texture::specular_ny_map() const {
@@ -26,7 +26,7 @@ std::span<uint8_t> Texture::specular_ny_map() const {
 }
 
 Texture::ref<uint32_t> Texture::extra1_length() const {
-    return get<uint32_t>(extra1_offset() + sizeof(uint32_t));
+    return get<uint32_t>(extra1_offset());
 }
 
 std::span<uint8_t> Texture::extra1() const {
@@ -34,7 +34,7 @@ std::span<uint8_t> Texture::extra1() const {
 }
 
 Texture::ref<uint32_t> Texture::extra2_length() const {
-    return get<uint32_t>(extra2_offset() + sizeof(uint32_t));
+    return get<uint32_t>(extra2_offset());
 }
 
 std::span<uint8_t> Texture::extra2() const {
@@ -42,7 +42,7 @@ std::span<uint8_t> Texture::extra2() const {
 }
 
 Texture::ref<uint32_t> Texture::extra3_length() const {
-    return get<uint32_t>(extra3_offset() + sizeof(uint32_t));
+    return get<uint32_t>(extra3_offset());
 }
 
 std::span<uint8_t> Texture::extra3() const {
@@ -50,7 +50,7 @@ std::span<uint8_t> Texture::extra3() const {
 }
 
 Texture::ref<uint32_t> Texture::extra4_length() const {
-    return get<uint32_t>(extra4_offset() + sizeof(uint32_t));
+    return get<uint32_t>(extra4_offset());
 }
 
 std::span<uint8_t> Texture::extra4() const {

@@ -1,4 +1,6 @@
-#include "utils/gltf.h"
+#include "utils/gltf/common.h"
+#include "utils/gltf/dme.h"
+#include "utils/gltf/dmat.h"
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -34,24 +36,25 @@ std::vector<Parameter::Semantic> semantics = {
     Parameter::Semantic::BASE_CAMO,
 };
 
-int utils::gltf::add_material_to_gltf(
+int utils::gltf::dmat::add_material_to_gltf(
     tinygltf::Model &gltf, 
-    const DME &dme, 
+    const DMAT &dmat, 
     uint32_t material_index, 
     bool export_textures,
     std::unordered_map<uint32_t, uint32_t> &texture_indices,
     std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
-    std::filesystem::path output_directory
+    std::filesystem::path output_directory,
+    std::string dme_name
 ) {
     tinygltf::Material material;
     if(export_textures) {
-        build_material(gltf, material, dme, material_index, texture_indices, image_queue, output_directory);
+        build_material(gltf, material, dmat, material_index, texture_indices, image_queue, output_directory);
     } else {
         material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133, 1.0 }; // Forest Green
     }
     std::unordered_map<uint32_t, std::vector<uint32_t>>::iterator value;
-    uint32_t material_namehash = dme.dmat()->material(material_index)->definition();
+    uint32_t material_namehash = dmat.material(material_index)->definition();
     if((value = material_indices.find(material_namehash)) != material_indices.end()) {
         for(uint32_t index : value->second) {
             if(gltf.materials.at(index) == material) {
@@ -63,7 +66,7 @@ int utils::gltf::add_material_to_gltf(
     }
     material_indices[material_namehash].push_back((uint32_t)gltf.materials.size());
     material.doubleSided = true;
-    material.name = dme.get_name() + "::" + utils::materials3::materials.at("materialDefinitions").at(std::to_string(material_namehash)).at("name").get<std::string>();
+    material.name = dme_name + "::" + utils::materials3::materials.at("materialDefinitions").at(std::to_string(material_namehash)).at("name").get<std::string>();
     int to_return = (int)gltf.materials.size();
     gltf.materials.push_back(material);
     return to_return;
@@ -88,7 +91,7 @@ int utils::gltf::add_texture_to_gltf(
     return index;
 }
 
-int utils::gltf::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index, uint32_t material_index) {
+int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index, uint32_t material_index) {
     int texcoord = 0;
     int color = 0;
     tinygltf::Mesh gltf_mesh;
@@ -195,7 +198,7 @@ int utils::gltf::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_
     return node_index;
 }
 
-void utils::gltf::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes) {
+void utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes) {
     for(int node_index : mesh_nodes) {
         gltf.nodes.at(node_index).skin = (int)gltf.skins.size();
     }
@@ -232,7 +235,11 @@ void utils::gltf::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, st
         bind_matrix[2] /= glm::length(bind_matrix[2]);
         glm::quat quat(bind_matrix);
         bone_node.rotation = {quat.x, quat.y, quat.z, quat.w};
-        bone_node.name = utils::bone_hashmap.at(bone.namehash);
+        std::unordered_map<uint32_t, std::string>::iterator name_iter;
+        if((name_iter = utils::bone_hashmap.find(namehash)) != utils::bone_hashmap.end()) {
+            bone_node.name = name_iter->second;
+        }
+        
         skeleton_map[bone.namehash] = gltf.nodes.size();
         skin.joints.push_back((int)gltf.nodes.size());
 
@@ -248,7 +255,11 @@ void utils::gltf::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, st
     for(auto iter = skeleton_map.begin(); iter != skeleton_map.end(); iter++) {
         uint32_t curr_hash = iter->first;
         size_t curr_index = iter->second;
-        uint32_t parent = utils::bone_hierarchy.at(curr_hash);
+        uint32_t parent = 0;
+        std::unordered_map<uint32_t, uint32_t>::iterator parent_iter;
+        if((parent_iter = utils::bone_hierarchy.find(curr_hash)) != utils::bone_hierarchy.end()) {
+            parent = parent_iter->second;
+        }
         std::unordered_map<uint32_t, size_t>::iterator parent_index;
         while(parent != 0 && (parent_index = skeleton_map.find(parent)) == skeleton_map.end()) {
             parent = utils::bone_hierarchy.at(parent);
@@ -284,7 +295,7 @@ void utils::gltf::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, st
     gltf.skins.push_back(skin);
 }
 
-tinygltf::Model utils::gltf::build_gltf_from_dme(
+tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
     const DME &dme, 
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue, 
     std::filesystem::path output_directory, 
@@ -307,15 +318,15 @@ tinygltf::Model utils::gltf::build_gltf_from_dme(
     std::vector<int> mesh_nodes;
 
     for(uint32_t i = 0; i < dme.mesh_count(); i++) {
-        int material_index = utils::gltf::add_material_to_gltf(gltf, dme, i, export_textures, texture_indices, material_indices, image_queue, output_directory);
-        int node_index = utils::gltf::add_mesh_to_gltf(gltf, dme, i, material_index);
+        int material_index = dmat::add_material_to_gltf(gltf, *dme.dmat(), i, export_textures, texture_indices, material_indices, image_queue, output_directory, dme.get_name());
+        int node_index = add_mesh_to_gltf(gltf, dme, i, material_index);
         mesh_nodes.push_back(node_index);
         
         logger::info("Added mesh {} to gltf", i);
     }
 
     if(dme.bone_count() > 0 && include_skeleton) {
-        utils::gltf::add_skeleton_to_gltf(gltf, dme, mesh_nodes);
+        add_skeleton_to_gltf(gltf, dme, mesh_nodes);
     }
     
     gltf.asset.version = "2.0";
@@ -323,10 +334,10 @@ tinygltf::Model utils::gltf::build_gltf_from_dme(
     return gltf;
 }
 
-void utils::gltf::build_material(
+void utils::gltf::dmat::build_material(
     tinygltf::Model &gltf, 
     tinygltf::Material &material,
-    const DME &dme, 
+    const DMAT &dmat, 
     uint32_t i, 
     std::unordered_map<uint32_t, uint32_t> &texture_indices,
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
@@ -339,20 +350,20 @@ void utils::gltf::build_material(
     for(Parameter::Semantic semantic : semantics) {
         switch(semantic) {
         case Parameter::Semantic::NORMAL_MAP:
-            info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_directory, semantic);
+            info = load_texture_info(gltf, dmat, i, texture_indices, image_queue, output_directory, semantic);
             if(!info)
                 break;
             material.normalTexture.index = info->index;
             break;
         case Parameter::Semantic::BASE_COLOR:
-            info = load_texture_info(gltf, dme, i, texture_indices, image_queue, output_directory, semantic);
+            info = load_texture_info(gltf, dmat, i, texture_indices, image_queue, output_directory, semantic);
             if(!info)
                 break;
             material.pbrMetallicRoughness.baseColorTexture = *info;
             break;
         case Parameter::Semantic::SPECULAR:
             info_pair = load_specular_info(
-                gltf, dme, i, texture_indices, image_queue, output_directory, semantic
+                gltf, dmat, i, texture_indices, image_queue, output_directory, semantic
             );
             if(!info_pair)
                 break;
@@ -363,7 +374,7 @@ void utils::gltf::build_material(
         default:
             // Just export the texture
             label = Parameter::semantic_name(semantic);
-            texture_name = dme.dmat()->material(i)->texture(semantic);
+            texture_name = dmat.material(i)->texture(semantic);
             if(texture_name) {
                 uint32_t hash = jenkins::oaat(*texture_name);
                 if(texture_indices.find(hash) != texture_indices.end()) {
@@ -390,16 +401,16 @@ void utils::gltf::build_material(
     }
 }
 
-std::optional<tinygltf::TextureInfo> utils::gltf::load_texture_info(
+std::optional<tinygltf::TextureInfo> utils::gltf::dmat::load_texture_info(
     tinygltf::Model &gltf,
-    const DME &dme, 
+    const DMAT &dmat, 
     uint32_t i, 
     std::unordered_map<uint32_t, uint32_t> &texture_indices, 
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
     std::filesystem::path output_directory,
     Parameter::Semantic semantic
 ) {
-    std::optional<std::string> texture_name = dme.dmat()->material(i)->texture(semantic);
+    std::optional<std::string> texture_name = dmat.material(i)->texture(semantic);
     if(!texture_name) {
         return {};
     }
@@ -422,9 +433,9 @@ std::optional<tinygltf::TextureInfo> utils::gltf::load_texture_info(
     return info;
 }
 
-std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> utils::gltf::load_specular_info(
+std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> utils::gltf::dmat::load_specular_info(
     tinygltf::Model &gltf,
-    const DME &dme, 
+    const DMAT &dmat, 
     uint32_t i, 
     std::unordered_map<uint32_t, uint32_t> &texture_indices, 
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
@@ -432,7 +443,7 @@ std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> utils::gl
     Parameter::Semantic semantic
 ) {
     tinygltf::TextureInfo metallic_roughness_info, emissive_info;
-    std::optional<std::string> texture_name = dme.dmat()->material(i)->texture(semantic);
+    std::optional<std::string> texture_name = dmat.material(i)->texture(semantic);
     if(!texture_name) {
         return {};
     }
@@ -465,7 +476,13 @@ std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> utils::gl
     return std::make_pair(metallic_roughness_info, emissive_info);
 }
 
-std::vector<uint8_t> utils::gltf::expand_vertex_stream(nlohmann::json &layout, std::span<uint8_t> data, uint32_t stream, bool is_rigid, const DME &dme) {
+std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
+    nlohmann::json &layout, 
+    std::span<uint8_t> data, 
+    uint32_t stream, 
+    bool is_rigid, 
+    const DME &dme
+) {
     VertexStream vertices(data);
     logger::debug("{}['{}']", layout.at("sizes").dump(), std::to_string(stream));
     uint32_t stride = layout.at("sizes")
