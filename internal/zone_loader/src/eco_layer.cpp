@@ -52,5 +52,5 @@ std::span<EcoTint> EcoLayer::tints() const {
 }
 
 uint32_t EcoLayer::tints_offset() const {
-    return sizeof(float) * 7 + flora_name_.size() + 2;
+    return (uint32_t)(sizeof(float) * 7 + flora_name_.size() + 2);
 }

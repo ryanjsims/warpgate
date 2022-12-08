@@ -51,5 +51,5 @@ std::string TextureInfo::physics_material_name() const {
 }
 
 uint32_t TextureInfo::detail_repeat_offset() const {
-    return name_.size() + cnx_map_name_.size() + sbny_map_name_.size() + 3;
+    return (uint32_t)(name_.size() + cnx_map_name_.size() + sbny_map_name_.size() + 3);
 }

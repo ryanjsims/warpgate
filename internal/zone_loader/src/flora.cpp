@@ -41,5 +41,5 @@ std::string Flora::model() const {
 }
 
 uint32_t Flora::bool_offset() const {
-    return name_.size() + texture_.size() + model_.size() + 3;
+    return (uint32_t)(name_.size() + texture_.size() + model_.size() + 3);
 }

@@ -18,15 +18,15 @@ Zone::Zone(std::span<uint8_t> subspan): buf_(subspan) {
     for(uint32_t i = 0; i < count; i++) {
         std::shared_ptr<Eco> eco = std::make_shared<Eco>(buf_.subspan(offset));
         ecos.push_back(eco);
-        offset += eco->size();
+        offset += (uint32_t)eco->size();
     }
 
     offset = floras_offset() + sizeof(uint32_t);
     count = flora_count();
     for(uint32_t i = 0; i < count; i++) {
-        std::shared_ptr<Flora> flora = std::make_shared<Flora>(buf_.subspan(offset));
+        std::shared_ptr<Flora> flora = std::make_shared<Flora>(buf_.subspan(offset), version);
         floras.push_back(flora);
-        offset += flora->size();
+        offset += (uint32_t)flora->size();
     }
 
     offset = invis_walls_offset() + sizeof(uint32_t);
@@ -42,9 +42,9 @@ Zone::Zone(std::span<uint8_t> subspan): buf_(subspan) {
     offset = objects_offset() + sizeof(uint32_t);
     count = objects_count();
     for(uint32_t i = 0; i < count; i++) {
-        std::shared_ptr<RuntimeObject> object = std::make_shared<RuntimeObject>(buf_.subspan(offset));
+        std::shared_ptr<RuntimeObject> object = std::make_shared<RuntimeObject>(buf_.subspan(offset), version);
         objects.push_back(object);
-        offset += object->size();
+        offset += (uint32_t)object->size();
     }
 
     offset = lights_offset() + sizeof(uint32_t);
@@ -52,7 +52,7 @@ Zone::Zone(std::span<uint8_t> subspan): buf_(subspan) {
     for(uint32_t i = 0; i < count; i++) {
         std::shared_ptr<Light> light = std::make_shared<Light>(buf_.subspan(offset));
         lights.push_back(light);
-        offset += light->size();
+        offset += (uint32_t)light->size();
     }
 }
 
@@ -75,7 +75,7 @@ Zone::ref<uint32_t> Zone::eco_count() const {
 }
 
 std::shared_ptr<Eco> Zone::eco(uint32_t index) const {
-
+    return ecos.at(index);
 }
 
 
@@ -84,7 +84,7 @@ Zone::ref<uint32_t> Zone::flora_count() const {
 }
 
 std::shared_ptr<Flora> Zone::flora(uint32_t index) const {
-
+    return floras.at(index);
 }
 
 
@@ -93,7 +93,7 @@ Zone::ref<uint32_t> Zone::invis_walls_count() const {
 }
 
 std::shared_ptr<InvisWall> Zone::invis_wall(uint32_t index) const {
-
+    return invis_walls.at(index);
 }
 
 
@@ -102,7 +102,7 @@ Zone::ref<uint32_t> Zone::objects_count() const {
 }
 
 std::shared_ptr<RuntimeObject> Zone::object(uint32_t index) const {
-
+    return objects.at(index);
 }
 
 
@@ -111,7 +111,7 @@ Zone::ref<uint32_t> Zone::lights_count() const {
 }
 
 std::shared_ptr<Light> Zone::light(uint32_t index) const {
-
+    return lights.at(index);
 }
 
 
@@ -120,7 +120,7 @@ Zone::ref<uint32_t> Zone::unknowns_count() const {
 }
 
 std::span<uint8_t> Zone::unknown_data() const {
-
+    return buf_.subspan(unknowns_offset() + sizeof(uint32_t));
 }
 
 Zone::ref<uint32_t> Zone::decals_count() const {
