@@ -11,16 +11,12 @@ add_subdirectory(internal)
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}")
 
 add_executable(test_dme src/test_dme.cpp)
-target_include_directories(test_dme PUBLIC include/)
-target_include_directories(test_dme PUBLIC dme_loader/include/)
-target_link_libraries(test_dme PUBLIC dme_loader)
-target_link_libraries(test_dme PRIVATE spdlog::spdlog)
-target_link_libraries(test_dme PRIVATE synthium::synthium)
+target_include_directories(test_dme PUBLIC include/ dme_loader/include/)
+target_link_libraries(test_dme PRIVATE dme_loader spdlog::spdlog synthium::synthium)
 
 add_executable(test_cnk
   src/test_cnk.cpp
 )
-
 target_link_libraries(test_cnk PRIVATE cnk_loader spdlog::spdlog)
 
 add_executable(dme_converter 
@@ -72,6 +68,10 @@ add_custom_target(version
                    -D DST=${CMAKE_SOURCE_DIR}/include/version.h
                    -D GIT_EXECUTABLE=${GIT_EXECUTABLE}
                    -P ${CMAKE_SOURCE_DIR}/external/cmake-git-versioning/GenerateVersionHeader.cmake
-  )
-add_dependencies(dme_converter version)
+)
+
 add_dependencies(chunk_converter version)
+add_dependencies(dme_converter version)
+
+add_dependencies(test_cnk version)
+add_dependencies(test_dme version)

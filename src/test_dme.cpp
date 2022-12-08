@@ -1,4 +1,3 @@
-#include <iostream>
 #include <fstream>
 #include <iomanip>
 #include <cassert>
@@ -17,12 +16,12 @@ namespace logger = spdlog;
 using namespace warpgate;
 
 int main() {
-    logger::info("test_dme using dme_loader version {}", CPPDMOD_VERSION);
+    logger::info("test_dme using dme_loader version {}", WARPGATE_VERSION);
     //assert(jenkins::oaat("somefilename") == 0xe9eb0404 && "OAAT returned incorrect value.");
     int i = 0;
     for(auto iter = BONE_HASHMAP.begin(); iter != BONE_HASHMAP.end(); iter++) {
         if(jenkins::oaat(iter->first) != iter->second) {
-            std::cerr << i << " jenkins::oaat('" << iter->first << "') != 0x" << std::hex << std::setw(8) << std::setfill('0') << iter->second << std::endl;
+            logger::error("{} jenkins::oaat('{}') != 0x{:08x}", i, iter->first, iter->second);
             std::abort();
         }
         i++;
@@ -37,19 +36,17 @@ int main() {
     synthium::Manager manager(assets);
     logger::info("Manager loaded.");
 
-    std::vector<uint8_t> data_vector;
-    data_vector = manager.get("Vehicle_TR_Mosquito_Base_Chassis_LOD0.dme").get_data();
+    std::vector<uint8_t> data_vector = manager.get("Vehicle_TR_Mosquito_Base_Chassis_LOD0.dme").get_data();
 
-    DME mosquito(std::span<uint8_t>(data_vector.data(), data_vector.size()), "mosquito");
+    DME mosquito(data_vector, "mosquito");
     uint32_t magic = mosquito.magic();
 
-    std::cout << std::hex << magic << std::endl;
+    logger::info("0x{:08x}", magic);
     for(int i = 0; i < 4; i++) {
-        std::cout << (char)(magic >> (8 * i));
+        logger::info("{:4s}", (char*)&magic);
     }
-    std::cout << std::endl;
 
-    std::cout << "Textures:" << std::endl;
+    logger::info("Textures:");
     std::unordered_map<uint32_t, std::string> hashes_to_names;
     
     for(std::string texture : mosquito.dmat()->textures()) {
@@ -57,22 +54,21 @@ int main() {
         
         uint32_t namehash = jenkins::oaat(temp.c_str());
         hashes_to_names[namehash] = texture;
-        std::cout << "    " << texture << std::hex << ": 0x" << std::setw(8) << std::setfill('0') << namehash << std::endl;
+        logger::info("    {}: 0x{:08x}", texture, namehash);
     }
 
     for(uint32_t i = 0; i < mosquito.dmat()->material_count(); i++) {
-        std::cout << "Namehash " << i << ": " << std::hex << mosquito.dmat()->material(i)->namehash() << std::dec << " " << mosquito.dmat()->material(i)->namehash() << std::endl;
+        logger::info("Namehash {}: {:08x} {:d}", i, (uint32_t)mosquito.dmat()->material(i)->namehash(), (uint32_t)mosquito.dmat()->material(i)->namehash());
         for(uint32_t j = 0; j < mosquito.dmat()->material(i)->param_count(); j++) {
             if(mosquito.dmat()->material(i)->parameter(j).type() == Parameter::D3DXParamType::TEXTURE) {
-                std::cout 
-                        << std::dec 
-                        << mosquito.dmat()->material(i)->parameter(j).semantic_hash() << ": " 
-                        << hashes_to_names.at(mosquito.dmat()->material(i)->parameter(j).get<uint32_t>(16)) 
-                        << std::endl;
+                logger::info("{:d}: {}",
+                    mosquito.dmat()->material(i)->parameter(j).semantic_hash(), 
+                    hashes_to_names.at(mosquito.dmat()->material(i)->parameter(j).get<uint32_t>(16))
+                ); 
             }
         }
     }
     
-    std::cout << "All assertions passed" << std::endl;
+    logger::info("All assertions passed");
     return 0;
 }

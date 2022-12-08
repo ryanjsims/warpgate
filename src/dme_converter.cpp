@@ -117,7 +117,7 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
 }
 
 int main(int argc, const char* argv[]) {
-    argparse::ArgumentParser parser("dme_converter", CPPDMOD_VERSION);
+    argparse::ArgumentParser parser("dme_converter", WARPGATE_VERSION);
     int log_level = logger::level::warn;
 
     build_argument_parser(parser, log_level);
@@ -133,7 +133,7 @@ int main(int argc, const char* argv[]) {
 
     std::string input_str = parser.get<std::string>("input_file");
     
-    logger::info("Converting file {} using dme_converter {}", input_str, CPPDMOD_VERSION);
+    logger::info("Converting file {} using dme_converter {}", input_str, WARPGATE_VERSION);
     uint32_t image_processor_thread_count = parser.get<uint32_t>("--threads");
     std::string path = parser.get<std::string>("--assets-directory");
     std::filesystem::path server(path);
