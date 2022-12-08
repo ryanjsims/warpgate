@@ -7,11 +7,11 @@ using namespace warpgate;
 
 Zone::Zone(std::span<uint8_t> subspan): buf_(subspan) {
     ZoneVersionHeader header = get<ZoneVersionHeader>(0);
-    if(std::strncmp(header.magic, "ZONE", 4) != 0) {
-        logger::error("Not a Zone file (got magic {})", header.magic);
+    if(header.magic() != "ZONE") {
+        logger::error("Not a Zone file (got magic {})", header.magic());
         throw std::invalid_argument("Not a Zone file");
     }
-    version = header.version;
+    version_ = header.version;
 
     uint32_t offset = ecos_offset() + sizeof(uint32_t);
     uint32_t count = eco_count();
@@ -24,7 +24,7 @@ Zone::Zone(std::span<uint8_t> subspan): buf_(subspan) {
     offset = floras_offset() + sizeof(uint32_t);
     count = flora_count();
     for(uint32_t i = 0; i < count; i++) {
-        std::shared_ptr<Flora> flora = std::make_shared<Flora>(buf_.subspan(offset), version);
+        std::shared_ptr<Flora> flora = std::make_shared<Flora>(buf_.subspan(offset), version_);
         floras.push_back(flora);
         offset += (uint32_t)flora->size();
     }
@@ -42,7 +42,7 @@ Zone::Zone(std::span<uint8_t> subspan): buf_(subspan) {
     offset = objects_offset() + sizeof(uint32_t);
     count = objects_count();
     for(uint32_t i = 0; i < count; i++) {
-        std::shared_ptr<RuntimeObject> object = std::make_shared<RuntimeObject>(buf_.subspan(offset), version);
+        std::shared_ptr<RuntimeObject> object = std::make_shared<RuntimeObject>(buf_.subspan(offset), version_);
         objects.push_back(object);
         offset += (uint32_t)object->size();
     }
@@ -57,15 +57,15 @@ Zone::Zone(std::span<uint8_t> subspan): buf_(subspan) {
 }
 
 Zone::ref<ZoneHeader> Zone::header() const {
-    if(version > 3) {
-        logger::warn("Zone::header called on Zone v{} file", version);
+    if(version_ > 3) {
+        logger::warn("Zone::header called on Zone v{} file", version_);
     }
     return get<ZoneHeader>(0);
 }
 
 Zone::ref<ZoneHeaderv45> Zone::header_v45() const {
-    if(version < 4) {
-        logger::warn("Zone::header_v45 called on Zone v{} file", version);
+    if(version_ < 4) {
+        logger::warn("Zone::header_v45 called on Zone v{} file", version_);
     }
     return get<ZoneHeaderv45>(0);
 }
@@ -128,7 +128,7 @@ Zone::ref<uint32_t> Zone::decals_count() const {
 }
 
 uint32_t Zone::ecos_offset() const {
-    if(version > 3) {
+    if(version_ > 3) {
         ZoneHeaderv45 header = header_v45();
         return header.offsets.ecos;
     }
@@ -137,7 +137,7 @@ uint32_t Zone::ecos_offset() const {
 }
 
 uint32_t Zone::floras_offset() const {
-    if(version > 3) {
+    if(version_ > 3) {
         ZoneHeaderv45 header = header_v45();
         return header.offsets.floras;
     }
@@ -146,7 +146,7 @@ uint32_t Zone::floras_offset() const {
 }
 
 uint32_t Zone::invis_walls_offset() const {
-    if(version > 3) {
+    if(version_ > 3) {
         ZoneHeaderv45 header = header_v45();
         return header.offsets.invis_walls;
     }
@@ -155,7 +155,7 @@ uint32_t Zone::invis_walls_offset() const {
 }
 
 uint32_t Zone::objects_offset() const {
-    if(version > 3) {
+    if(version_ > 3) {
         ZoneHeaderv45 header = header_v45();
         return header.offsets.objects;
     }
@@ -164,7 +164,7 @@ uint32_t Zone::objects_offset() const {
 }
 
 uint32_t Zone::lights_offset() const {
-    if(version > 3) {
+    if(version_ > 3) {
         ZoneHeaderv45 header = header_v45();
         return header.offsets.lights;
     }
@@ -173,7 +173,7 @@ uint32_t Zone::lights_offset() const {
 }
 
 uint32_t Zone::unknowns_offset() const {
-    if(version > 3) {
+    if(version_ > 3) {
         ZoneHeaderv45 header = header_v45();
         return header.offsets.unknown;
     }
@@ -182,8 +182,8 @@ uint32_t Zone::unknowns_offset() const {
 }
 
 uint32_t Zone::decals_offset() const {
-    if(version < 4) {
-        throw std::out_of_range(std::string("Zone v") + std::to_string(version) + " does not have decals");
+    if(version_ < 4) {
+        throw std::out_of_range(std::string("Zone v") + std::to_string(version_) + " does not have decals");
     }
     ZoneHeaderv45 header = header_v45();
     return header.offsets.decals;

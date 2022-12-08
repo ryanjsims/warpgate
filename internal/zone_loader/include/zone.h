@@ -33,6 +33,10 @@ namespace warpgate {
             return buf_.size();
         }
 
+        uint32_t version() const {
+            return version_;
+        }
+
         ref<ZoneHeader> header() const;
         ref<ZoneHeaderv45> header_v45() const;
         ref<uint32_t> eco_count() const;
@@ -64,7 +68,7 @@ namespace warpgate {
         std::vector<std::shared_ptr<InvisWall>> invis_walls;
         std::vector<std::shared_ptr<RuntimeObject>> objects;
         std::vector<std::shared_ptr<Light>> lights;
-        uint32_t version;
+        uint32_t version_;
 
         uint32_t ecos_offset() const;
         uint32_t floras_offset() const;

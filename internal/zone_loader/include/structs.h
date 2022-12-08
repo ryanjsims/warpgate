@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string_view>
 
 namespace warpgate {
     struct ChunkInfo {
@@ -67,23 +68,35 @@ namespace warpgate {
     };
 
     struct ZoneVersionHeader {
-        char magic[4];
+        char magic_[4];
         uint32_t version;
+
+        std::string_view magic() {
+            return std::string_view(magic_, 4);
+        }
     };
 
     struct ZoneHeader {
-        char magic[4];
+        char magic_[4];
         uint32_t version;
         Offsets offsets;
         PerTileInfo per_tile;
         ChunkInfo chunk_info;
+
+        std::string_view magic() {
+            return std::string_view(magic_, 4);
+        }
     };
 
     struct ZoneHeaderv45 {
-        char magic[4];
+        char magic_[4];
         uint32_t version, unknown;
         Offsetsv45 offsets;
         PerTileInfo per_tile;
         ChunkInfo chunk_info;
+
+        std::string_view magic() {
+            return std::string_view(magic_, 4);
+        }
     };
 }
