@@ -19,6 +19,12 @@ add_executable(test_cnk
 )
 target_link_libraries(test_cnk PRIVATE cnk_loader spdlog::spdlog)
 
+add_executable(test_zone
+  src/test_zone.cpp
+)
+target_include_directories(test_zone PUBLIC include/)
+target_link_libraries(test_zone PRIVATE zone_loader spdlog::spdlog synthium::synthium)
+
 add_executable(dme_converter 
     src/dme_converter.cpp
     src/utils/gltf/common.cpp
@@ -75,3 +81,4 @@ add_dependencies(dme_converter version)
 
 add_dependencies(test_cnk version)
 add_dependencies(test_dme version)
+add_dependencies(test_zone version)
