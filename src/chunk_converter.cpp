@@ -1,10 +1,13 @@
 #include <fstream>
 #include <filesystem>
 #include <memory>
+#include <thread>
 
 #include "argparse/argparse.hpp"
 #include "cnk_loader.h"
 #include "utils/gltf/chunk.h"
+#include "utils/textures.h"
+#include "utils/tsqueue.h"
 #include "synthium/synthium.h"
 #include "tiny_gltf.h"
 #include "version.h"
@@ -12,6 +15,29 @@
 #include <spdlog/spdlog.h>
 
 namespace logger = spdlog;
+
+void process_images(
+    warpgate::utils::tsqueue<
+        std::tuple<
+            std::string, 
+            std::shared_ptr<uint8_t[]>, uint32_t, 
+            std::shared_ptr<uint8_t[]>, uint32_t
+        >
+    >& queue, 
+    std::filesystem::path output_directory
+) {
+    logger::debug("Got output directory {}", output_directory.string());
+    while(!queue.is_closed()) {
+        auto[texture_basename, cnx_data, cnx_length, sny_data, sny_length] = queue.try_dequeue({"", {}, 0, {}, 0});
+        if(texture_basename == "") {
+            logger::info("Got default value from try_dequeue, stopping thread.");
+            break;
+        }
+        std::span<uint8_t> cnx_map(cnx_data.get(), cnx_length);
+        std::span<uint8_t> sny_map(sny_data.get(), sny_length);
+        warpgate::utils::textures::process_cnx_sny(texture_basename, cnx_map, sny_map, output_directory);
+    }
+}
 
 void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
     parser.add_description("C++ Forgelight Chunk to GLTF2 model conversion tool");
@@ -40,17 +66,11 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         .default_value(false)
         .implicit_value(true);
     
-    // parser.add_argument("--threads", "-t")
-    //     .help("The number of threads to use for image processing")
-    //     .default_value(4u)
-    //     .scan<'u', uint32_t>();
+    parser.add_argument("--threads", "-t")
+        .help("The number of threads to use for image processing")
+        .default_value(4u)
+        .scan<'u', uint32_t>();
 
-    // parser.add_argument("--no-skeleton", "-s")
-    //     .help("Exclude the skeleton from the output")
-    //     .default_value(false)
-    //     .implicit_value(true)
-    //     .nargs(0);
-    
     parser.add_argument("--no-textures", "-i")
         .help("Exclude the skeleton from the output")
         .default_value(false)
@@ -82,6 +102,8 @@ int main(int argc, char* argv[]) {
     std::string input_str = parser.get<std::string>("input_file");
     
     logger::info("Converting file {} using dme_converter {}", input_str, CPPDMOD_VERSION);
+   
+
     std::string path = parser.get<std::string>("--assets-directory");
     std::filesystem::path server(path);
     std::vector<std::filesystem::path> assets;
@@ -137,6 +159,29 @@ int main(int argc, char* argv[]) {
 
     std::string format = parser.get<std::string>("--format");
     bool export_textures = !parser.get<bool>("--no-textures");
+    uint32_t image_processor_thread_count = parser.get<uint32_t>("--threads");
+    // hmm
+    warpgate::utils::tsqueue<
+        std::tuple<
+            std::string, 
+            std::shared_ptr<uint8_t[]>, uint32_t, 
+            std::shared_ptr<uint8_t[]>, uint32_t
+        >
+    > image_queue;
+
+    std::vector<std::thread> image_processor_pool;
+    if(export_textures) {
+        logger::info("Using {} image processing thread{}", image_processor_thread_count, image_processor_thread_count == 1 ? "" : "s");
+        for(uint32_t i = 0; i < image_processor_thread_count; i++) {
+            image_processor_pool.push_back(std::thread{
+                process_images, 
+                std::ref(image_queue), 
+                output_directory
+            });
+        }
+    } else {
+        logger::info("Not exporting textures by user request.");
+    }
 
     warpgate::Chunk compressed_chunk0(data_span);
     std::unique_ptr<uint8_t[]> decompressed_chunk0 = compressed_chunk0.decompress();
@@ -149,12 +194,19 @@ int main(int argc, char* argv[]) {
     warpgate::CNK1 chunk1({decompressed_chunk1.get(), compressed_chunk1.decompressed_size()});
 
     logger::info("Adding chunk to gltf...");
-    tinygltf::Model gltf = warpgate::utils::gltf::chunk::build_gltf_from_chunks(chunk0, chunk1, output_directory, export_textures, input_filename.stem().string());
+    tinygltf::Model gltf = warpgate::utils::gltf::chunk::build_gltf_from_chunks(chunk0, chunk1, output_directory, export_textures, image_queue, input_filename.stem().string());
     logger::info("Added chunk to gltf");
 
     logger::info("Writing gltf file...");
     tinygltf::TinyGLTF writer;
     writer.WriteGltfSceneToFile(&gltf, output_filename.string(), false, format == "glb", format == "gltf", format == "glb");
     logger::info("Successfully wrote gltf file!");
+
+    image_queue.close();
+    logger::info("Joining image processing thread{}...", image_processor_pool.size() == 1 ? "" : "s");
+    for(uint32_t i = 0; i < image_processor_pool.size(); i++) {
+        image_processor_pool.at(i).join();
+    }
+    logger::info("Done.");
     return 0;
 }

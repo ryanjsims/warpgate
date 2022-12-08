@@ -1,5 +1,6 @@
 #include "utils/tsqueue.h"
 #include "parameter.h"
+#include <filesystem>
 
 using namespace warpgate;
 
@@ -60,3 +61,4 @@ void utils::tsqueue<T>::close(void) {
 }
 
 template class utils::tsqueue<std::pair<std::string, Parameter::Semantic>>;
+template class utils::tsqueue<std::tuple<std::string, std::shared_ptr<uint8_t[]>, uint32_t, std::shared_ptr<uint8_t[]>, uint32_t>>;

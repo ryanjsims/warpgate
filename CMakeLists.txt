@@ -42,6 +42,7 @@ add_executable(chunk_converter
     src/utils/materials_3.cpp 
     src/utils/sign.cpp 
     src/utils/textures.cpp
+    src/utils/tsqueue.cpp
   )
 
 target_include_directories(chunk_converter 
@@ -49,6 +50,7 @@ target_include_directories(chunk_converter
     include/ 
     ${CMAKE_BINARY_DIR}/include/ 
     internal/cnk_loader/include/
+    internal/dme_loader/include/
     external/argparse/include/ 
     external/half/include/ 
     external/synthium/include

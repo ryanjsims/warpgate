@@ -181,7 +181,7 @@ void utils::textures::save_texture(std::string texture_name, std::vector<uint8_t
     }
 }
 
-void utils::textures::process_cnx_sny(std::string texture_name, std::vector<uint8_t> cnx_data, std::vector<uint8_t> sny_data, std::filesystem::path output_directory) {
+void utils::textures::process_cnx_sny(std::string texture_name, std::span<uint8_t> cnx_data, std::span<uint8_t> sny_data, std::filesystem::path output_directory) {
     logger::info("Processing color_nx/specular_ny maps for {}...", texture_name);
     gli::texture2d color_nx(gli::load_dds((char*)cnx_data.data(), cnx_data.size()));
     if(color_nx.format() == gli::format::FORMAT_UNDEFINED) {

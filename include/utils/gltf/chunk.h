@@ -7,6 +7,7 @@
 #include <cnk0.h>
 #include <cnk1.h>
 #include "tiny_gltf.h"
+#include "utils/tsqueue.h"
 
 namespace warpgate::utils::gltf::chunk {
     int add_mesh_to_gltf(
@@ -20,6 +21,7 @@ namespace warpgate::utils::gltf::chunk {
     int add_materials_to_gltf(
         tinygltf::Model &gltf,
         const CNK1 &chunk,
+        utils::tsqueue<std::tuple<std::string, std::shared_ptr<uint8_t[]>, uint32_t, std::shared_ptr<uint8_t[]>, uint32_t>> &image_queue,
         std::filesystem::path output_directory,
         std::string name,
         int sampler_index
@@ -30,6 +32,7 @@ namespace warpgate::utils::gltf::chunk {
         const CNK1 &chunk1,
         std::filesystem::path output_directory, 
         bool export_textures,
+        utils::tsqueue<std::tuple<std::string, std::shared_ptr<uint8_t[]>, uint32_t, std::shared_ptr<uint8_t[]>, uint32_t>> &image_queue,
         std::string name
     );
 }

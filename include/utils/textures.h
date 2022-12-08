@@ -17,5 +17,5 @@ namespace warpgate::utils::textures {
 
     void save_texture(std::string texture_name, std::vector<uint8_t> texture_data, std::filesystem::path output_directory);
 
-    void process_cnx_sny(std::string texture_name, std::vector<uint8_t> cnx_data, std::vector<uint8_t> sny_data, std::filesystem::path output_directory);
+    void process_cnx_sny(std::string texture_name, std::span<uint8_t> cnx_data, std::span<uint8_t> sny_data, std::filesystem::path output_directory);
 }

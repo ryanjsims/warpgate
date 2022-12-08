@@ -6,6 +6,7 @@
 
 #include "utils/textures.h"
 #include "utils/gltf/common.h"
+#include "utils/tsqueue.h"
 
 using namespace warpgate;
 
@@ -228,6 +229,7 @@ int utils::gltf::chunk::add_mesh_to_gltf(
 int utils::gltf::chunk::add_materials_to_gltf(
     tinygltf::Model &gltf,
     const CNK1 &chunk,
+    utils::tsqueue<std::tuple<std::string, std::shared_ptr<uint8_t[]>, uint32_t, std::shared_ptr<uint8_t[]>, uint32_t>> &image_queue,
     std::filesystem::path output_directory,
     std::string name,
     int sampler_index
@@ -237,13 +239,13 @@ int utils::gltf::chunk::add_materials_to_gltf(
         tinygltf::Material material;
         std::span<uint8_t> cnx_map = chunk.textures()[texture].color_nx_map();
         std::span<uint8_t> sny_map = chunk.textures()[texture].specular_ny_map();
+        std::shared_ptr<uint8_t[]> cnx_data = std::make_shared<uint8_t[]>(cnx_map.size());
+        std::shared_ptr<uint8_t[]> sny_data = std::make_shared<uint8_t[]>(sny_map.size());
+        std::memcpy(cnx_data.get(), cnx_map.data(), cnx_map.size());
+        std::memcpy(sny_data.get(), sny_map.data(), sny_map.size());
         std::string texture_basename = name + "_" + std::to_string(texture);
-        utils::textures::process_cnx_sny(
-            texture_basename,
-            std::vector<uint8_t>(cnx_map.begin(), cnx_map.end()),
-            std::vector<uint8_t>(sny_map.begin(), sny_map.end()),
-            output_directory
-        );
+
+        image_queue.enqueue({texture_basename, cnx_data, (uint32_t)cnx_map.size(), sny_data, (uint32_t)sny_map.size()});
 
         material.pbrMetallicRoughness.baseColorTexture.index = utils::gltf::add_texture_to_gltf(gltf, output_directory / "textures" / (texture_basename + "_C.png"), output_directory, sampler_index);
         material.pbrMetallicRoughness.metallicRoughnessTexture.index = utils::gltf::add_texture_to_gltf(gltf, output_directory / "textures" / (texture_basename + "_S.png"), output_directory, sampler_index);
@@ -259,6 +261,7 @@ tinygltf::Model utils::gltf::chunk::build_gltf_from_chunks(
     const CNK1 &chunk1,
     std::filesystem::path output_directory,
     bool export_textures,
+    utils::tsqueue<std::tuple<std::string, std::shared_ptr<uint8_t[]>, uint32_t, std::shared_ptr<uint8_t[]>, uint32_t>> &image_queue,
     std::string name
 ) {
     tinygltf::Model gltf;
@@ -275,7 +278,7 @@ tinygltf::Model utils::gltf::chunk::build_gltf_from_chunks(
 
     int base_index = -1;
     if(export_textures) {
-        base_index = add_materials_to_gltf(gltf, chunk1, output_directory, name, sampler_index);
+        base_index = add_materials_to_gltf(gltf, chunk1, image_queue, output_directory, name, sampler_index);
     }
     add_mesh_to_gltf(gltf, chunk0, base_index, name);
 
