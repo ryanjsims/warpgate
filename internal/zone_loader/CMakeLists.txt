@@ -9,6 +9,7 @@ add_library(
         src/runtime_object.cpp
         src/texture_info.cpp
         src/zone.cpp
+        include/zone_loader.h
 )
 target_include_directories(zone_loader PUBLIC include)
 target_link_libraries(zone_loader PRIVATE spdlog::spdlog)

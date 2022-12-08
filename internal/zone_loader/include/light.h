@@ -37,9 +37,19 @@ namespace warpgate {
         ref<Color4ARGB> color() const;
 
         std::span<uint8_t> unk_data() const;
+        std::string name() const;
+        std::string color_name() const;
 
 
     private:
-        std::string name, color_name;
+        std::string name_, color_name_;
+
+        uint32_t type_offset() const;
+        uint32_t bool_offset() const;
+        uint32_t translation_offset() const;
+        uint32_t rotation_offset() const;
+        uint32_t floats_offset() const;
+        uint32_t color_offset() const;
+        uint32_t data_offset() const;
     };
 }

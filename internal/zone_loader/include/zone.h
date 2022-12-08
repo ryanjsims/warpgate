@@ -7,7 +7,7 @@
 #include "eco.h"
 #include "flora.h"
 #include "runtime_object.h"
-
+#include "light.h"
 
 namespace warpgate {
     struct Zone {
@@ -34,6 +34,7 @@ namespace warpgate {
         }
 
         ref<ZoneHeader> header() const;
+        ref<ZoneHeaderv45> header_v45() const;
         ref<uint32_t> eco_count() const;
         std::shared_ptr<Eco> eco(uint32_t index) const;
 
@@ -44,13 +45,33 @@ namespace warpgate {
         std::shared_ptr<InvisWall> invis_wall(uint32_t index) const;
 
         ref<uint32_t> objects_count() const;
+        std::shared_ptr<RuntimeObject> object(uint32_t index) const;
 
+        ref<uint32_t> lights_count() const;
+        std::shared_ptr<Light> light(uint32_t index) const;
+
+        ref<uint32_t> unknowns_count() const;
+        std::span<uint8_t> unknown_data() const;
+
+        /**
+         * Warning: Zone version 4 or 5 only. Will throw if called on zone file version 3 or less.
+         */
+        ref<uint32_t> decals_count() const;
     
     private:
         std::vector<std::shared_ptr<Eco>> ecos;
         std::vector<std::shared_ptr<Flora>> floras;
         std::vector<std::shared_ptr<InvisWall>> invis_walls;
         std::vector<std::shared_ptr<RuntimeObject>> objects;
+        std::vector<std::shared_ptr<Light>> lights;
+        uint32_t version;
 
+        uint32_t ecos_offset() const;
+        uint32_t floras_offset() const;
+        uint32_t invis_walls_offset() const;
+        uint32_t objects_offset() const;
+        uint32_t lights_offset() const;
+        uint32_t unknowns_offset() const;
+        uint32_t decals_offset() const;
     };
 }
