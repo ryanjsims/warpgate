@@ -40,7 +40,7 @@ add_executable(dme_converter
     src/utils/sign.cpp 
     src/utils/textures.cpp
     src/utils/tsqueue.cpp 
-  )
+)
 target_include_directories(dme_converter PUBLIC include/ ${CMAKE_BINARY_DIR}/include/ internal/dme_loader/include/ external/argparse/include/ external/half/include/ external/tinygltf/ external/synthium/include)
 target_link_libraries(dme_converter PRIVATE dme_loader spdlog::spdlog tinygltf argparse synthium::synthium gli)
 
@@ -52,7 +52,7 @@ add_executable(chunk_converter
     src/utils/sign.cpp 
     src/utils/textures.cpp
     src/utils/tsqueue.cpp
-  )
+)
 
 target_include_directories(chunk_converter 
   PUBLIC 
@@ -75,6 +75,20 @@ target_link_libraries(chunk_converter
     tinygltf 
 )
 
+add_executable(zone_converter 
+    src/zone_converter.cpp
+    src/utils/gltf/common.cpp
+    src/utils/gltf/chunk.cpp
+    src/utils/adr.cpp
+    src/utils/gltf.cpp
+    src/utils/materials_3.cpp 
+    src/utils/sign.cpp 
+    src/utils/textures.cpp
+    src/utils/tsqueue.cpp 
+  )
+target_include_directories(zone_converter PUBLIC include/ ${CMAKE_BINARY_DIR}/include/ internal/cnk_loader/include/ internal/dme_loader/include/ external/argparse/include/ external/half/include/ external/tinygltf/ external/synthium/include)
+target_link_libraries(zone_converter PRIVATE cnk_loader dme_loader zone_loader pugixml::static spdlog::spdlog tinygltf argparse synthium::synthium gli Glob)
+
 find_package(Git)
 add_custom_target(version
   ${CMAKE_COMMAND} -D SRC=${CMAKE_SOURCE_DIR}/include/version.h.in
@@ -85,6 +99,7 @@ add_custom_target(version
 
 add_dependencies(chunk_converter version)
 add_dependencies(dme_converter version)
+add_dependencies(zone_converter version)
 
 add_dependencies(test_cnk version)
 add_dependencies(test_dme version)

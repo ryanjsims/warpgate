@@ -4,6 +4,8 @@ add_subdirectory(argparse)
 option(GLI_TEST_ENABLE OFF)
 add_subdirectory(gli)
 
+add_subdirectory(glob)
+
 add_subdirectory(pugixml)
 
 add_subdirectory(lzham_alpha)

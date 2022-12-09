@@ -50,6 +50,21 @@ T utils::tsqueue<T>::try_dequeue(T def) {
 }
 
 template <class T>
+std::optional<T> utils::tsqueue<T>::try_dequeue_for(const std::chrono::milliseconds ms) {
+    if(is_closed()) {
+        return {};
+    }
+    std::unique_lock<std::mutex> lock(m);
+    c.wait_for(lock, ms);
+    if(q.empty()) {
+        return {};
+    }
+    T val = q.front();
+    q.pop();
+    return val;
+}
+
+template <class T>
 bool utils::tsqueue<T>::is_closed(void) {
     return closed && q.empty();
 }

@@ -14,6 +14,13 @@ DME::DME(std::span<uint8_t> subspan, std::string name_): buf_(subspan), name(nam
     logger::info("DME file parsed");
 }
 
+DME::DME(std::span<uint8_t> subspan, std::string name_, std::shared_ptr<DMAT> dmat): buf_(subspan), name(name_), dmat_(dmat) {
+    logger::info("Parsing DME file...");
+    parse_meshes();
+    parse_bones();
+    logger::info("DME file parsed");
+}
+
 void DME::parse_dmat() {
     dmat_ = std::make_shared<DMAT>(buf_.subspan(dmat_offset(), dmat_length()));
 }
@@ -53,6 +60,10 @@ DME::ref<uint32_t> DME::dmat_length() const { return get<uint32_t>(8); }
 
 std::shared_ptr<const DMAT> DME::dmat() const {
     return dmat_;
+}
+
+void DME::set_dmat(std::shared_ptr<DMAT> new_dmat) {
+    dmat_ = new_dmat;
 }
 
 uint32_t DME::aabb_offset() const {

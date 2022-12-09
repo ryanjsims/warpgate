@@ -19,7 +19,7 @@ int utils::gltf::add_texture_to_gltf(
     tinygltf::Texture tex;
     tex.source = (int)gltf.images.size();
     tex.name = label ? *label : texture_path.filename().string();
-    tex.sampler = 0;
+    tex.sampler = sampler;
     tinygltf::Image img;
     img.uri = texture_path.lexically_relative(output_directory).string();
     

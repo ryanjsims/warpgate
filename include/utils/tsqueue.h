@@ -2,6 +2,8 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <optional>
+#include <chrono>
 
 namespace warpgate::utils {
     // A threadsafe-queue.
@@ -19,6 +21,7 @@ namespace warpgate::utils {
         // If the queue is empty, wait till a element is avaiable.
         T dequeue(void);
         T try_dequeue(T def);
+        std::optional<T> try_dequeue_for(const std::chrono::milliseconds ms);
 
         bool is_closed(void);
         void close(void);

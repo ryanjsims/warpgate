@@ -15,6 +15,7 @@ namespace warpgate {
         mutable std::span<uint8_t> buf_;
 
         DME(std::span<uint8_t> subspan, std::string name);
+        DME(std::span<uint8_t> subspan, std::string name, std::shared_ptr<DMAT> dmat);
 
         template <typename T>
         struct ref {
@@ -43,6 +44,7 @@ namespace warpgate {
 
         ref<uint32_t> dmat_length() const;
         std::shared_ptr<const DMAT> dmat() const;
+        void set_dmat(std::shared_ptr<DMAT> new_dmat);
 
         ref<AABB> aabb() const;
 

@@ -72,7 +72,7 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         .scan<'u', uint32_t>();
 
     parser.add_argument("--no-textures", "-i")
-        .help("Exclude the skeleton from the output")
+        .help("Exclude the textures from the output")
         .default_value(false)
         .implicit_value(true)
         .nargs(0);
@@ -183,15 +183,15 @@ int main(int argc, char* argv[]) {
         logger::info("Not exporting textures by user request.");
     }
 
-    warpgate::Chunk compressed_chunk0(data_span);
+    warpgate::chunk::Chunk compressed_chunk0(data_span);
     std::unique_ptr<uint8_t[]> decompressed_chunk0 = compressed_chunk0.decompress();
 
-    warpgate::CNK0 chunk0({decompressed_chunk0.get(), compressed_chunk0.decompressed_size()});
+    warpgate::chunk::CNK0 chunk0({decompressed_chunk0.get(), compressed_chunk0.decompressed_size()});
 
-    warpgate::Chunk compressed_chunk1(chunk1_data_span);
+    warpgate::chunk::Chunk compressed_chunk1(chunk1_data_span);
     std::unique_ptr<uint8_t[]> decompressed_chunk1 = compressed_chunk1.decompress();
 
-    warpgate::CNK1 chunk1({decompressed_chunk1.get(), compressed_chunk1.decompressed_size()});
+    warpgate::chunk::CNK1 chunk1({decompressed_chunk1.get(), compressed_chunk1.decompressed_size()});
 
     logger::info("Adding chunk to gltf...");
     tinygltf::Model gltf = warpgate::utils::gltf::chunk::build_gltf_from_chunks(chunk0, chunk1, output_directory, export_textures, image_queue, input_filename.stem().string());

@@ -21,13 +21,13 @@ int main() {
 
     logger::info("Loading Nexus.zone...");
     std::vector<uint8_t> data_vector = manager.get("Nexus.zone").get_data();
-    warpgate::Zone nexus(data_vector);
+    warpgate::zone::Zone nexus(data_vector);
     logger::info("Nexus.zone loaded.");
 
     logger::info("Magic: '{}'", 
         nexus.version() < 4 
-            ? ((warpgate::ZoneHeader)nexus.header()).magic() 
-            : ((warpgate::ZoneHeaderv45)nexus.header_v45()).magic()
+            ? ((warpgate::zone::ZoneHeader)nexus.header()).magic() 
+            : ((warpgate::zone::ZoneHeaderv45)nexus.header_v45()).magic()
     );
 
     logger::info("Version: {}", nexus.version());
@@ -36,7 +36,7 @@ int main() {
         return 0;
     }
 
-    warpgate::ZoneHeader header = nexus.header();
+    warpgate::zone::ZoneHeader header = nexus.header();
 
     logger::info("Offsets:");
     logger::info("   ecos:        {:#010x}", header.offsets.ecos);
@@ -45,6 +45,19 @@ int main() {
     logger::info("   objects:     {:#010x}", header.offsets.objects);
     logger::info("   lights:      {:#010x}", header.offsets.lights);
     logger::info("   unknown:     {:#010x}", header.offsets.unknown);
+
+    logger::info("Per Tile Info:");
+    logger::info("    quad_count:   {:d}", header.per_tile.quad_count);
+    logger::info("    width:        {:.2f}", header.per_tile.width);
+    logger::info("    height:       {:.2f}", header.per_tile.height);
+    logger::info("    vertex_count: {:d}", header.per_tile.vertex_count);
+
+    logger::info("Chunk Info:");
+    logger::info("    tile_count:  {:d}", header.chunk_info.tile_count);
+    logger::info("    start_x:    {: d}", header.chunk_info.start_x);
+    logger::info("    start_y:    {: d}", header.chunk_info.start_y);
+    logger::info("    count_x:     {:d}", header.chunk_info.count_x);
+    logger::info("    count_y:     {:d}", header.chunk_info.count_y);
 
     return 0;
 }

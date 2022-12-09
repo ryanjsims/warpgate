@@ -36,7 +36,8 @@ std::vector<Parameter::Semantic> semantics = {
 int utils::gltf::dmat::add_material_to_gltf(
     tinygltf::Model &gltf, 
     const DMAT &dmat, 
-    uint32_t material_index, 
+    uint32_t material_index,
+    int sampler_index,
     bool export_textures,
     std::unordered_map<uint32_t, uint32_t> &texture_indices,
     std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
@@ -46,7 +47,7 @@ int utils::gltf::dmat::add_material_to_gltf(
 ) {
     tinygltf::Material material;
     if(export_textures) {
-        build_material(gltf, material, dmat, material_index, texture_indices, image_queue, output_directory);
+        build_material(gltf, material, dmat, material_index, texture_indices, image_queue, output_directory, sampler_index);
     } else {
         material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133, 1.0 }; // Forest Green
     }
@@ -67,6 +68,30 @@ int utils::gltf::dmat::add_material_to_gltf(
     int to_return = (int)gltf.materials.size();
     gltf.materials.push_back(material);
     return to_return;
+}
+
+void utils::gltf::dme::add_dme_to_gltf(
+    tinygltf::Model &gltf, const DME &dme,
+    tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+    std::filesystem::path output_directory,
+    std::unordered_map<uint32_t, uint32_t> &texture_indices, 
+    std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
+    int sampler_index,
+    bool export_textures,
+    bool include_skeleton
+) {
+    std::vector<int> mesh_nodes;
+    for(uint32_t i = 0; i < dme.mesh_count(); i++) {
+        int material_index = dmat::add_material_to_gltf(gltf, *dme.dmat(), i, sampler_index, export_textures, texture_indices, material_indices, image_queue, output_directory, dme.get_name());
+        int node_index = add_mesh_to_gltf(gltf, dme, i, material_index);
+        mesh_nodes.push_back(node_index);
+        
+        logger::info("Added mesh {} to gltf", i);
+    }
+
+    if(dme.bone_count() > 0 && include_skeleton) {
+        add_skeleton_to_gltf(gltf, dme, mesh_nodes);
+    }
 }
 
 int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index, uint32_t material_index) {
@@ -282,6 +307,7 @@ tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
 ) {
     tinygltf::Model gltf;
     tinygltf::Sampler sampler;
+    int sampler_index = (int)gltf.samplers.size();
     sampler.magFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
     sampler.minFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
     sampler.wrapS = TINYGLTF_TEXTURE_WRAP_REPEAT;
@@ -293,22 +319,11 @@ tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
 
     std::unordered_map<uint32_t, uint32_t> texture_indices;
     std::unordered_map<uint32_t, std::vector<uint32_t>> material_indices;
-    std::vector<int> mesh_nodes;
-
-    for(uint32_t i = 0; i < dme.mesh_count(); i++) {
-        int material_index = dmat::add_material_to_gltf(gltf, *dme.dmat(), i, export_textures, texture_indices, material_indices, image_queue, output_directory, dme.get_name());
-        int node_index = add_mesh_to_gltf(gltf, dme, i, material_index);
-        mesh_nodes.push_back(node_index);
-        
-        logger::info("Added mesh {} to gltf", i);
-    }
-
-    if(dme.bone_count() > 0 && include_skeleton) {
-        add_skeleton_to_gltf(gltf, dme, mesh_nodes);
-    }
+    
+    add_dme_to_gltf(gltf, dme, image_queue, output_directory, texture_indices, material_indices, sampler_index, export_textures, include_skeleton);
     
     gltf.asset.version = "2.0";
-    gltf.asset.generator = "DME Converter (C++) " + std::string(CPPDMOD_VERSION) + " via tinygltf";
+    gltf.asset.generator = "warpgate " + std::string(WARPGATE_VERSION) + " via tinygltf";
     return gltf;
 }
 
@@ -319,7 +334,8 @@ void utils::gltf::dmat::build_material(
     uint32_t i, 
     std::unordered_map<uint32_t, uint32_t> &texture_indices,
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
-    std::filesystem::path output_directory
+    std::filesystem::path output_directory,
+    int sampler
 ) {
     std::optional<tinygltf::TextureInfo> info;
     std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> info_pair;
@@ -328,20 +344,20 @@ void utils::gltf::dmat::build_material(
     for(Parameter::Semantic semantic : semantics) {
         switch(semantic) {
         case Parameter::Semantic::NORMAL_MAP:
-            info = load_texture_info(gltf, dmat, i, texture_indices, image_queue, output_directory, semantic);
+            info = load_texture_info(gltf, dmat, i, texture_indices, image_queue, output_directory, semantic, sampler);
             if(!info)
                 break;
             material.normalTexture.index = info->index;
             break;
         case Parameter::Semantic::BASE_COLOR:
-            info = load_texture_info(gltf, dmat, i, texture_indices, image_queue, output_directory, semantic);
+            info = load_texture_info(gltf, dmat, i, texture_indices, image_queue, output_directory, semantic, sampler);
             if(!info)
                 break;
             material.pbrMetallicRoughness.baseColorTexture = *info;
             break;
         case Parameter::Semantic::SPECULAR:
             info_pair = load_specular_info(
-                gltf, dmat, i, texture_indices, image_queue, output_directory, semantic
+                gltf, dmat, i, texture_indices, image_queue, output_directory, semantic, sampler
             );
             if(!info_pair)
                 break;
@@ -361,7 +377,7 @@ void utils::gltf::dmat::build_material(
                 texture_indices[hash] = (uint32_t)gltf.textures.size();
                 image_queue.enqueue({*texture_name, semantic});
                 if (semantic != Parameter::Semantic::DETAIL_CUBE) {
-                    add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_directory, label);
+                    add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_directory, sampler, label);
                 } else {
                     temp = std::filesystem::path(*texture_name);
                     for(std::string face : utils::materials3::detailcube_faces) {
@@ -369,6 +385,7 @@ void utils::gltf::dmat::build_material(
                             gltf, 
                             (output_directory / "textures" / (temp.stem().string() + "_" + face)).replace_extension(".png"),
                             output_directory,
+                            sampler,
                             *label + " " + face
                         );
                     }
@@ -386,7 +403,8 @@ std::optional<tinygltf::TextureInfo> utils::gltf::dmat::load_texture_info(
     std::unordered_map<uint32_t, uint32_t> &texture_indices, 
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
     std::filesystem::path output_directory,
-    Parameter::Semantic semantic
+    Parameter::Semantic semantic,
+    int sampler
 ) {
     std::optional<std::string> texture_name = dmat.material(i)->texture(semantic);
     if(!texture_name) {
@@ -404,7 +422,7 @@ std::optional<tinygltf::TextureInfo> utils::gltf::dmat::load_texture_info(
         texture_path = output_directory / "textures" / texture_path;
         
         texture_indices[hash] = (uint32_t)gltf.textures.size();
-        info.index = add_texture_to_gltf(gltf, texture_path, output_directory);
+        info.index = add_texture_to_gltf(gltf, texture_path, output_directory, sampler);
     } else {
         info.index = value->second;
     }
@@ -418,7 +436,8 @@ std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> utils::gl
     std::unordered_map<uint32_t, uint32_t> &texture_indices, 
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
     std::filesystem::path output_directory,
-    Parameter::Semantic semantic
+    Parameter::Semantic semantic,
+    int sampler
 ) {
     tinygltf::TextureInfo metallic_roughness_info, emissive_info;
     std::optional<std::string> texture_name = dmat.material(i)->texture(semantic);
@@ -436,7 +455,7 @@ std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> utils::gl
         metallic_roughness_path = output_directory / "textures" / metallic_roughness_path;
         
         texture_indices[hash] = (uint32_t)gltf.textures.size();
-        metallic_roughness_info.index = add_texture_to_gltf(gltf, metallic_roughness_path, output_directory);
+        metallic_roughness_info.index = add_texture_to_gltf(gltf, metallic_roughness_path, output_directory, sampler);
         
         std::string emissive_name = utils::textures::relabel_texture(*texture_name, "E");
         std::filesystem::path emissive_path = metallic_roughness_path.parent_path() / emissive_name;
@@ -444,7 +463,7 @@ std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> utils::gl
 
         hash = jenkins::oaat(emissive_name);
         texture_indices[hash] = (uint32_t)gltf.textures.size();
-        emissive_info.index = add_texture_to_gltf(gltf, emissive_path, output_directory);
+        emissive_info.index = add_texture_to_gltf(gltf, emissive_path, output_directory, sampler);
     } else {
         metallic_roughness_info.index = value->second;
         std::string emissive_name = utils::textures::relabel_texture(*texture_name, "E");
