@@ -1,6 +1,6 @@
 #include "flora_info.h"
 
-using namespace warpgate;
+using namespace warpgate::zone;
 
 FloraInfo::FloraInfo(std::span<uint8_t> subspan): buf_(subspan) {
     uint32_t offset = 4;

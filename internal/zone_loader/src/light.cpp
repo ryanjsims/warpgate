@@ -1,6 +1,6 @@
 #include "light.h"
 
-using namespace warpgate;
+using namespace warpgate::zone;
 
 Light::Light(std::span<uint8_t> subspan): buf_(subspan) {
     name_ = std::string((char*)buf_.data());

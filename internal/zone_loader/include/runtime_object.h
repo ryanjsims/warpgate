@@ -6,7 +6,7 @@
 
 #include "instance.h"
 
-namespace warpgate {
+namespace warpgate::zone {
     struct RuntimeObject {
         mutable std::span<uint8_t> buf_;
 

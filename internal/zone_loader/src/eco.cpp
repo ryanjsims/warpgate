@@ -1,6 +1,6 @@
 #include "eco.h"
 
-using namespace warpgate;
+using namespace warpgate::zone;
 
 Eco::Eco(std::span<uint8_t> subspan): buf_(subspan)  {
     texture_info_ = std::make_shared<TextureInfo>(buf_.subspan(4));

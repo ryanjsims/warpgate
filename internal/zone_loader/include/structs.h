@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace warpgate {
+namespace warpgate::zone {
     struct ChunkInfo {
         uint32_t tile_count;
         int32_t start_x, start_y;

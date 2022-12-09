@@ -1,6 +1,6 @@
 #include "eco_layer.h"
 
-using namespace warpgate;
+using namespace warpgate::zone;
 
 EcoLayer::EcoLayer(std::span<uint8_t> subspan): buf_(subspan) {
     flora_name_ = std::string((char*)buf_.data() + sizeof(float) * 7 + 1);

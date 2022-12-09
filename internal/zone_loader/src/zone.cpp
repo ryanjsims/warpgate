@@ -3,7 +3,7 @@
 #include <spdlog/spdlog.h>
 
 namespace logger = spdlog;
-using namespace warpgate;
+using namespace warpgate::zone;
 
 Zone::Zone(std::span<uint8_t> subspan): buf_(subspan) {
     ZoneVersionHeader header = get<ZoneVersionHeader>(0);

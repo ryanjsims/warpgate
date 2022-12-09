@@ -2,7 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
-using namespace warpgate;
+using namespace warpgate::zone;
 
 Instance::Instance(std::span<uint8_t> subspan, uint32_t version_): buf_(subspan), version(version_) {
     uint32_t base_size = 3 * sizeof(Float4);

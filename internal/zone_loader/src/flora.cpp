@@ -1,6 +1,6 @@
 #include "flora.h"
 
-using namespace warpgate;
+using namespace warpgate::zone;
 
 Flora::Flora(std::span<uint8_t> subspan, uint32_t version_): buf_(subspan), version(version_) {
     name_ = std::string((char*)buf_.data());

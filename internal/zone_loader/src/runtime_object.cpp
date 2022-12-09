@@ -1,6 +1,6 @@
 #include "runtime_object.h"
 
-using namespace warpgate;
+using namespace warpgate::zone;
 
 RuntimeObject::RuntimeObject(std::span<uint8_t> subspan, uint32_t version): buf_(subspan) {
     actor_file_ = std::string((char*)buf_.data());

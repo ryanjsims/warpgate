@@ -2,7 +2,7 @@
 #include <span>
 #include <stdexcept>
 
-namespace warpgate {
+namespace warpgate::zone {
     struct Flora {
         mutable std::span<uint8_t> buf_;
 

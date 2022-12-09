@@ -1,6 +1,6 @@
 #include "texture_info.h"
 
-using namespace warpgate;
+using namespace warpgate::zone;
 
 TextureInfo::TextureInfo(std::span<uint8_t> subspan): buf_(subspan) {
     name_ = std::string((char*)buf_.data());

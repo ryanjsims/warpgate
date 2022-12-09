@@ -5,7 +5,7 @@
 
 #include "structs.h"
 
-namespace warpgate {
+namespace warpgate::zone {
     struct EcoLayer {
         mutable std::span<uint8_t> buf_;
 

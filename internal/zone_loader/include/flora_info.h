@@ -5,7 +5,7 @@
 
 #include "eco_layer.h"
 
-namespace warpgate {
+namespace warpgate::zone {
     struct FloraInfo {
         mutable std::span<uint8_t> buf_;
 

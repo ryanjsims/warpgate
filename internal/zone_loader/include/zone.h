@@ -9,7 +9,7 @@
 #include "runtime_object.h"
 #include "light.h"
 
-namespace warpgate {
+namespace warpgate::zone {
     struct Zone {
         mutable std::span<uint8_t> buf_;
 

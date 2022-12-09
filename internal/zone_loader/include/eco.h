@@ -6,7 +6,7 @@
 #include "texture_info.h"
 #include "flora_info.h"
 
-namespace warpgate {
+namespace warpgate::zone {
     struct Eco {
         mutable std::span<uint8_t> buf_;
 
