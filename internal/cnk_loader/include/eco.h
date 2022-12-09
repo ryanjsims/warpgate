@@ -6,7 +6,7 @@
 
 #include "flora.h"
 
-namespace warpgate {
+namespace warpgate::chunk {
     struct Eco {
         mutable std::span<uint8_t> buf_;
 

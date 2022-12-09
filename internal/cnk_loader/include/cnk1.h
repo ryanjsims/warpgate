@@ -7,7 +7,7 @@
 #include "structs.h"
 #include "texture.h"
 
-namespace warpgate {
+namespace warpgate::chunk {
     struct CNK1 {
         mutable std::span<uint8_t> buf_;
 

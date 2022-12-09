@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace warpgate {
+namespace warpgate::chunk {
     struct ChunkHeader {
         char magic[4];
         uint32_t version;

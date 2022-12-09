@@ -2,7 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
-using namespace warpgate;
+using namespace warpgate::chunk;
 
 CNK0::CNK0(std::span<uint8_t> subspan): buf_(subspan) {
     ChunkHeader header = this->header();

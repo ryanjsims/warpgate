@@ -1,6 +1,6 @@
 #include "tile.h"
 
-using namespace warpgate;
+using namespace warpgate::chunk;
 
 Tile::Tile(std::span<uint8_t> subspan): buf_(subspan) {
     uint32_t offset = 20;

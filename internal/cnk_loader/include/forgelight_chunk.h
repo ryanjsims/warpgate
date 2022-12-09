@@ -6,7 +6,7 @@
 
 #include "structs.h"
 
-namespace warpgate {
+namespace warpgate::chunk {
     struct Chunk {
         mutable std::span<uint8_t> buf_;
 

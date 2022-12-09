@@ -1,6 +1,6 @@
 #include "texture.h"
 
-using namespace warpgate;
+using namespace warpgate::chunk;
 
 Texture::Texture(std::span<uint8_t> subspan): buf_(subspan) {
     buf_ = buf_.first(

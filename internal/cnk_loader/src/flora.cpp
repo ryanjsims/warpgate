@@ -1,6 +1,6 @@
 #include "flora.h"
 
-using namespace warpgate;
+using namespace warpgate::chunk;
 
 Flora::Flora(std::span<uint8_t> subspan): buf_(subspan) {
     uint32_t layer_count = this->layer_count();

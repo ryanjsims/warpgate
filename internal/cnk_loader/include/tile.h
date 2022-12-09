@@ -6,7 +6,7 @@
 
 #include "eco.h"
 
-namespace warpgate {
+namespace warpgate::chunk {
     struct Tile {
         mutable std::span<uint8_t> buf_;
 

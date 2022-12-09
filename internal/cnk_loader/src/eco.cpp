@@ -1,6 +1,6 @@
 #include "eco.h"
 
-using namespace warpgate;
+using namespace warpgate::chunk;
 
 Eco::Eco(std::span<uint8_t> subspan): buf_(subspan) {
     uint32_t offset = 8;

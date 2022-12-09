@@ -1,6 +1,6 @@
 #include "cnk1.h"
 
-using namespace warpgate;
+using namespace warpgate::chunk;
 
 CNK1::CNK1(std::span<uint8_t> subspan): buf_(subspan) {
     uint32_t offset = sizeof(ChunkHeader) + sizeof(uint32_t);

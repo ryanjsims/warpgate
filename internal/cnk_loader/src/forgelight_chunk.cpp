@@ -12,7 +12,7 @@ constexpr uint32_t window_bits = 20;
 #define LZHAM_DEFINE_ZLIB_API
 #include "lzham.h"
 
-using namespace warpgate;
+using namespace warpgate::chunk;
 
 Chunk::Chunk(std::span<uint8_t> subspan): buf_(subspan) {}
 
