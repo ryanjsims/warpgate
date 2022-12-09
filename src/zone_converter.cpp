@@ -283,7 +283,7 @@ int main(int argc, char* argv[]) {
             warpgate::chunk::CNK1 cnk1({decompressed_cnk1_data.get(), cnk1_length});
             int chunk_index = warpgate::utils::gltf::chunk::add_chunks_to_gltf(gltf, cnk0, cnk1, chunk_image_queue, output_directory, chunk_stem, chunk_sampler_index, export_textures);
 
-            gltf.nodes.at(chunk_index).translation = {((int)(header.chunk_info.start_x + x)) * 64.0, 0.0, ((int)(header.chunk_info.start_y + y)) * 64.0};
+            gltf.nodes.at(chunk_index).translation = {((int)(header.chunk_info.start_x + x)) * 64.0, 0.0, ((int)(header.chunk_info.start_y + y)) * -64.0};
             gltf.nodes.at(terrain_parent_index).children.push_back(chunk_index);
         }
     }

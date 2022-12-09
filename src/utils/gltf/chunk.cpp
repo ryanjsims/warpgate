@@ -168,7 +168,7 @@ int utils::gltf::chunk::add_mesh_to_gltf(
         mesh.primitives.push_back(primitive);
 
         node.mesh = (int)gltf.meshes.size();
-        node.translation = {(i >> 2) * 64.0, 0, (i % 4) * 64.0};
+        node.translation = {(i >> 2) * 64.0, 0, (i % 4) * -64.0};
 
         gltf.nodes.at(parent_index).children.push_back((int)gltf.nodes.size());
 
@@ -195,9 +195,9 @@ int utils::gltf::chunk::add_mesh_to_gltf(
         texcoords.push_back(texcoord);
 
         Float3 vertex;
-        vertex.x = (float)raw_vertex.y;
+        vertex.x = (float)(raw_vertex.y);
         vertex.y = (float)raw_vertex.height_near / 32.0f;
-        vertex.z = (float)raw_vertex.x;
+        vertex.z = (float)(-raw_vertex.x);
         vertices.push_back(vertex);
 
         Color2 color;
