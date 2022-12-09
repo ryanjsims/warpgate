@@ -10,6 +10,13 @@ add_subdirectory(internal)
 
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}")
 
+add_executable(test_adr
+  src/test_adr.cpp
+  src/utils/adr.cpp
+)
+target_include_directories(test_adr PUBLIC include/)
+target_link_libraries(test_adr PRIVATE pugixml::static spdlog::spdlog synthium::synthium)
+
 add_executable(test_dme src/test_dme.cpp)
 target_include_directories(test_dme PUBLIC include/ dme_loader/include/)
 target_link_libraries(test_dme PRIVATE dme_loader spdlog::spdlog synthium::synthium)
