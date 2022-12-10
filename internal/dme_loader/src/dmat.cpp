@@ -54,7 +54,7 @@ void DMAT::parse_filenames() {
 void DMAT::parse_materials() {
     materials_size = 0;
     uint32_t material_count = this->material_count();
-    spdlog::info("Parsing {} material{}", material_count, material_count != 1 ? "s" : "");
+    spdlog::debug("Parsing {} material{}", material_count, material_count != 1 ? "s" : "");
     for(size_t i = 0; i < material_count; i++) {
         std::shared_ptr<Material> material = std::make_shared<Material>(buf_.subspan(material_offset() + 4 + materials_size), texture_names);
         materials.push_back(material);

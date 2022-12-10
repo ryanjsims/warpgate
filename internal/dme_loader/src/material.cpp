@@ -29,7 +29,7 @@ void Material::parse_parameters() {
 }
 
 void Material::parse_semantics(std::vector<std::string> textures) {
-    logger::info("Parsing semantics");
+    logger::debug("Parsing semantics");
     std::unordered_map<uint32_t, std::string> hash_to_names;
     for(std::string texture : textures) {
         std::string upper = utils::uppercase(texture);
@@ -42,7 +42,9 @@ void Material::parse_semantics(std::vector<std::string> textures) {
         if(p.type() == Parameter::D3DXParamType::TEXTURE && (value = hash_to_names.find(p.get<uint32_t>(16))) != hash_to_names.end()) {
             semantic_textures[p.semantic_hash()] = value->second;
             std::string name = Parameter::semantic_name(p.semantic_hash());
-            logger::info("Semantic '{}' = '{}'", name, value->second);
+            if(name.find("Unknown") != std::string::npos) {
+                logger::info("Semantic '{}' = '{}'", name, value->second);
+            }
         }
     }
 }

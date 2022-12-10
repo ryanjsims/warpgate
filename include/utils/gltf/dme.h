@@ -13,7 +13,7 @@
 #include "version.h"
 
 namespace warpgate::utils::gltf::dme {
-    void add_dme_to_gltf(
+    int add_dme_to_gltf(
         tinygltf::Model &gltf, const DME &dme,
         tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
         std::filesystem::path output_directory,
@@ -24,8 +24,8 @@ namespace warpgate::utils::gltf::dme {
         bool include_skeleton
     );
     
-    int add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index, uint32_t material_index);
-    void add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes);
+    int add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index, uint32_t material_index, bool include_skeleton = true);
+    int add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes);
     tinygltf::Model build_gltf_from_dme(
         const DME &dme, 
         tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue, 

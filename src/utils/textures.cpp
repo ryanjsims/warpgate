@@ -95,8 +95,9 @@ void utils::textures::process_specular(std::string texture_name, std::vector<uin
     std::unique_ptr<uint32_t[]> emissive = std::make_unique<uint32_t[]>(albedo_pixels.size());
     auto extent = albedo.extent();
     int stride = (int)gli::component_count(albedo.format()) * extent.x;
+    float ratio_a2s = (float)specular_pixels.size() / albedo_pixels.size();
     for(int i = 0; i < albedo_pixels.size(); i++) {
-        uint32_t pixel = specular_pixels[i];
+        uint32_t pixel = specular_pixels[(int)(i * ratio_a2s)];
         uint32_t albedo_pixel = albedo_pixels[i];
         //uint32_t value = ((((pixel & 0x0000FF00) >> 8 | (pixel & 0x000000FF) << 8) / 255) & 0xFF) << 16;
         uint32_t metal_rough = ((pixel & 0xFF000000) >> 16) | ((pixel & 0x000000FF) << 16) | 0xFF000000;

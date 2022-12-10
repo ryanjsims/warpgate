@@ -7,6 +7,7 @@
 #include <cnk0.h>
 #include <cnk1.h>
 #include "tiny_gltf.h"
+#include "utils/aabb.h"
 #include "utils/tsqueue.h"
 
 namespace warpgate::utils::gltf::chunk {
@@ -18,7 +19,8 @@ namespace warpgate::utils::gltf::chunk {
         std::filesystem::path output_directory, 
         std::string name,
         int sampler_index,
-        bool export_textures
+        bool export_textures,
+        std::optional<warpgate::utils::AABB> aabb = {}
     );
     
     int add_mesh_to_gltf(

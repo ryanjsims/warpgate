@@ -7,12 +7,12 @@ Mesh::Mesh(std::span<uint8_t> subspan): buf_(subspan) {
     vertex_data_size = 0;
     uint32_t vertex_stream_count = this->vertex_stream_count();
     uint32_t vertex_count = this->vertex_count();
-    spdlog::info("Loading mesh with vertex_stream_count = {} and vertex count = {}", vertex_stream_count, vertex_count);
+    spdlog::debug("Loading mesh with vertex_stream_count = {} and vertex count = {}", vertex_stream_count, vertex_count);
     for(uint32_t i = 0; i < vertex_stream_count; i++) {
-        spdlog::info("Loading vertex stream: {}...", i);
+        spdlog::debug("Loading vertex stream: {}...", i);
         vertex_stream_offsets.push_back(32 + 4 * i + vertex_data_size);
         vertex_data_size += bytes_per_vertex(i) * vertex_count;
-        spdlog::info("Loaded vertex stream {}", i);
+        spdlog::debug("Loaded vertex stream {}", i);
     }
     buf_ = buf_.first(index_offset() + index_count() * (index_size() & 0xFF));
 }

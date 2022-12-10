@@ -4,7 +4,7 @@
 #include <span>
 #include <vector>
 
-#include "data_classes.h"
+#include "structs.h"
 #include "dmat.h"
 #include "mesh.h"
 

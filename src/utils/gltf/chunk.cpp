@@ -30,9 +30,13 @@ int utils::gltf::chunk::add_chunks_to_gltf(
     std::filesystem::path output_directory, 
     std::string name,
     int sampler_index,
-    bool export_textures
+    bool export_textures,
+    std::optional<utils::AABB> aabb
 ) {
     int base_index = -1;
+    if(aabb && !aabb->overlaps(utils::AABB({0.0, 0.0, 0.0, 1.0}, {256.0, 1024.0, 256.0, 1.0}))) {
+        return -1;
+    }
     if(export_textures) {
         base_index = add_materials_to_gltf(gltf, chunk1, image_queue, output_directory, name, sampler_index);
     }

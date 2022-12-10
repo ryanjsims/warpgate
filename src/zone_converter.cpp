@@ -4,12 +4,17 @@
 #include <memory>
 #include <thread>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 #include "argparse/argparse.hpp"
 #include "cnk_loader.h"
 #include "dme_loader.h"
 #include "zone_loader.h"
 #include "utils/gltf/chunk.h"
+#include "utils/gltf/dme.h"
 #include "utils/adr.h"
+#include "utils/materials_3.h"
 #include "utils/textures.h"
 #include "utils/tsqueue.h"
 #include "synthium/synthium.h"
@@ -53,23 +58,34 @@ void process_images(
             auto[texture_name, semantic] = *dme_value;
             switch (semantic)
             {
-            case warpgate::Parameter::Semantic::BASE_COLOR:
+            case warpgate::Parameter::Semantic::BASE_COLOR1:
+            case warpgate::Parameter::Semantic::BASE_COLOR2:
+            case warpgate::Parameter::Semantic::BASE_COLOR3:
+            case warpgate::Parameter::Semantic::BASE_COLOR4:
+            case warpgate::Parameter::Semantic::EMISSIVE1:
             case warpgate::Parameter::Semantic::BASE_CAMO:
             case warpgate::Parameter::Semantic::DETAIL_SELECT:
             case warpgate::Parameter::Semantic::OVERLAY0:
             case warpgate::Parameter::Semantic::OVERLAY1:
+            case warpgate::Parameter::Semantic::OVERLAY2:
+            case warpgate::Parameter::Semantic::OVERLAY3:
                 warpgate::utils::textures::save_texture(texture_name, manager.get(texture_name).get_data(), output_directory);
                 break;
-            case warpgate::Parameter::Semantic::NORMAL_MAP:
+            case warpgate::Parameter::Semantic::NORMAL_MAP1:
+            case warpgate::Parameter::Semantic::NORMAL_MAP2:
                 warpgate::utils::textures::process_normalmap(texture_name, manager.get(texture_name).get_data(), output_directory);
                 break;
-            case warpgate::Parameter::Semantic::SPECULAR:
+            case warpgate::Parameter::Semantic::SPECULAR1:
+            case warpgate::Parameter::Semantic::SPECULAR2:
+            case warpgate::Parameter::Semantic::SPECULAR3:
+            case warpgate::Parameter::Semantic::SPECULAR4:
                 albedo_name = texture_name;
                 index = albedo_name.find_last_of('_');
                 albedo_name[index + 1] = 'C';
                 warpgate::utils::textures::process_specular(texture_name, manager.get(texture_name).get_data(), manager.get(albedo_name).get_data(), output_directory);
                 break;
-            case warpgate::Parameter::Semantic::DETAIL_CUBE:
+            case warpgate::Parameter::Semantic::DETAIL_CUBE1:
+            case warpgate::Parameter::Semantic::DETAIL_CUBE2:
                 warpgate::utils::textures::process_detailcube(texture_name, manager.get(texture_name).get_data(), output_directory);
                 break;
             default:
@@ -108,11 +124,6 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         .default_value(false)
         .implicit_value(true);
     
-    parser.add_argument("--threads", "-t")
-        .help("The number of threads to use for image processing")
-        .default_value(4u)
-        .scan<'u', uint32_t>();
-
     parser.add_argument("--no-textures", "-i")
         .help("Exclude the textures from the output")
         .default_value(false)
@@ -123,6 +134,16 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         .help("The directory where the game's assets are stored")
         .default_value(std::string("C:/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/"));
     
+    parser.add_argument("--threads", "-t")
+        .help("The number of threads to use for image processing")
+        .default_value(4u)
+        .scan<'u', uint32_t>();
+
+    parser.add_argument("--aabb")
+        .help("An axis aligned bounding box to constrain which assets are exported. (xmin zmin xmax zmax)")
+        .nargs(4)
+        //.default_value(std::vector<double>{0.0, 0.0, 0.0, 0.0})
+        .scan<'g', double>();
 }
 
 int main(int argc, char* argv[]) {
@@ -137,6 +158,11 @@ int main(int argc, char* argv[]) {
         std::cerr << err.what() << std::endl;
         std::cerr << parser;
         std::exit(1);
+    }
+
+    std::optional<warpgate::utils::AABB> aabb = {};
+    if(auto aabb_value = parser.present<std::vector<double>>("--aabb")) {
+        aabb = warpgate::utils::AABB({(*aabb_value)[0], 0.0, (*aabb_value)[1], 1.0}, {(*aabb_value)[2], 1024.0, (*aabb_value)[3], 1.0});
     }
 
     logger::set_level(logger::level::level_enum(log_level));
@@ -157,6 +183,10 @@ int main(int argc, char* argv[]) {
     logger::info("Loading {} packs...", packs.size());
     synthium::Manager manager(packs);
     logger::info("Manager loaded.");
+
+    logger::info("Loading materials.json");
+    warpgate::utils::materials3::init_materials();
+    logger::info("Loaded materials.json");
 
     std::filesystem::path input_filename(input_str);
     std::unique_ptr<uint8_t[]> data;
@@ -262,32 +292,137 @@ int main(int argc, char* argv[]) {
     tinygltf::Node terrain_parent;
     terrain_parent.name = "Terrain";
     gltf.nodes.push_back(terrain_parent);
+    double min_z = ((int)(header.chunk_info.start_y + header.chunk_info.count_y)) * -64.0;
+    double max_z = header.chunk_info.start_y * -64.0;
+    std::vector<std::pair<int, int>> chunk_indices;
     for(uint32_t x = 0; x < header.chunk_info.count_x; x += 4) {
+        if(aabb) {
+            double curr_x = ((int)(header.chunk_info.start_x + x)) * 64.0, next_x = ((int)(header.chunk_info.start_x + x + 4)) * 64.0;
+            warpgate::utils::AABB strip_aabb({curr_x, 0.0, min_z, 1.0}, {next_x, 1024.0, max_z, 1.0});
+            if(!aabb->overlaps(strip_aabb)) {
+                logger::debug("Skipping x={}", (int)(header.chunk_info.start_x + x));
+                continue;
+            }
+        }
         for(uint32_t y = 0; y < header.chunk_info.count_y; y += 4) {
-            std::string chunk_stem = continent_name + "_" + std::to_string((int)(header.chunk_info.start_x + x)) + "_" + std::to_string((int)(header.chunk_info.start_y + y));
-            std::unique_ptr<uint8_t[]> decompressed_cnk0_data, decompressed_cnk1_data;
-            size_t cnk0_length, cnk1_length;
-            {
-                std::vector<uint8_t> chunk0_data = manager.get(std::filesystem::path(chunk_stem).replace_extension(".cnk0").string()).get_data();
-                warpgate::chunk::Chunk compressed_chunk0(chunk0_data);
-                decompressed_cnk0_data = std::move(compressed_chunk0.decompress());
-                cnk0_length = compressed_chunk0.decompressed_size();
+            if(aabb) {
+                glm::dvec4 minimum{((int)(header.chunk_info.start_x + x)) * 64.0, 0.0, ((int)(header.chunk_info.start_y + y)) * -64.0, 1.0};
+                glm::dvec4 maximum = minimum + glm::dvec4{256.0, 1024.0, 256.0, 0.0};
+                warpgate::utils::AABB strip_aabb(minimum, maximum);
+                if(!aabb->overlaps(strip_aabb)) {
+                    logger::debug("Skipping z={}", (int)(header.chunk_info.start_y + y));
+                    continue;
+                }
             }
-            {
-                std::vector<uint8_t> chunk1_data = manager.get(std::filesystem::path(chunk_stem).replace_extension(".cnk1").string()).get_data();
-                warpgate::chunk::Chunk compressed_chunk1(chunk1_data);
-                decompressed_cnk1_data = std::move(compressed_chunk1.decompress());
-                cnk1_length = compressed_chunk1.decompressed_size();
-            }
-            warpgate::chunk::CNK0 cnk0({decompressed_cnk0_data.get(), cnk0_length});
-            warpgate::chunk::CNK1 cnk1({decompressed_cnk1_data.get(), cnk1_length});
-            int chunk_index = warpgate::utils::gltf::chunk::add_chunks_to_gltf(gltf, cnk0, cnk1, chunk_image_queue, output_directory, chunk_stem, chunk_sampler_index, export_textures);
-
-            gltf.nodes.at(chunk_index).translation = {((int)(header.chunk_info.start_x + x)) * 64.0, 0.0, ((int)(header.chunk_info.start_y + y)) * -64.0};
-            gltf.nodes.at(terrain_parent_index).children.push_back(chunk_index);
+            chunk_indices.push_back({(int)(header.chunk_info.start_x + x), (int)(header.chunk_info.start_y + y)});
         }
     }
+    logger::info("Adding {} chunks...", chunk_indices.size());
+    for(auto[x, z] : chunk_indices) {
+        std::string chunk_stem = continent_name + "_" + std::to_string(x) + "_" + std::to_string(z);
+        std::unique_ptr<uint8_t[]> decompressed_cnk0_data, decompressed_cnk1_data;
+        size_t cnk0_length, cnk1_length;
+        {
+            std::vector<uint8_t> chunk0_data = manager.get(std::filesystem::path(chunk_stem).replace_extension(".cnk0").string()).get_data();
+            warpgate::chunk::Chunk compressed_chunk0(chunk0_data);
+            decompressed_cnk0_data = std::move(compressed_chunk0.decompress());
+            cnk0_length = compressed_chunk0.decompressed_size();
+        }
+        {
+            std::vector<uint8_t> chunk1_data = manager.get(std::filesystem::path(chunk_stem).replace_extension(".cnk1").string()).get_data();
+            warpgate::chunk::Chunk compressed_chunk1(chunk1_data);
+            decompressed_cnk1_data = std::move(compressed_chunk1.decompress());
+            cnk1_length = compressed_chunk1.decompressed_size();
+        }
 
+        warpgate::chunk::CNK0 cnk0({decompressed_cnk0_data.get(), cnk0_length});
+        warpgate::chunk::CNK1 cnk1({decompressed_cnk1_data.get(), cnk1_length});
+        int chunk_index = warpgate::utils::gltf::chunk::add_chunks_to_gltf(
+            gltf, cnk0, cnk1, chunk_image_queue, output_directory,
+            chunk_stem, chunk_sampler_index, export_textures);
+        std::vector<double> translation = {x * 64.0, 0.0, z * -64.0};
+        // if(aabb) {
+        //     translation[0] -= aabb->midpoint().x;
+        //     translation[2] -= aabb->midpoint().z;
+        // }
+        gltf.nodes.at(chunk_index).translation = translation;
+        gltf.nodes.at(terrain_parent_index).children.push_back(chunk_index);
+    }
+
+    int object_parent_index = (int)gltf.nodes.size();
+    tinygltf::Node object_parent;
+    object_parent.name = "Objects";
+    gltf.nodes.push_back(object_parent);
+
+    uint32_t objects_count = continent.objects_count();
+    for(uint32_t i = 0; i < objects_count; i++) {
+        std::shared_ptr<warpgate::zone::RuntimeObject> object = continent.object(i);
+        std::vector<uint8_t> adr_data = manager.get(object->actor_file()).get_data();
+        warpgate::utils::ADR adr(adr_data);
+        std::optional<std::string> dme_name = adr.base_model();
+        if(!dme_name) {
+            logger::warn("ADR {} did not have a model file?", object->actor_file());
+            continue;
+        }
+        std::vector<uint8_t> dme_data = manager.get(*dme_name).get_data();
+        warpgate::DME dme(dme_data, std::filesystem::path(object->actor_file()).stem().string());
+        warpgate::AABB aabb_data = dme.aabb();
+        warpgate::utils::AABB dme_aabb(aabb_data.min.x, aabb_data.min.y, aabb_data.min.z, aabb_data.max.x, aabb_data.max.y, aabb_data.max.z);
+        std::vector<uint32_t> instances_to_add;
+        uint32_t instance_count = object->instance_count();
+        for(uint32_t j = 0; j < instance_count; j++) {
+            warpgate::zone::Instance instance = object->instance(j);
+            warpgate::zone::Float4 rot = instance.rotation();
+            warpgate::zone::Float4 trans = instance.translation();
+            warpgate::zone::Float4 scale_data = instance.scale();
+            glm::dquat rotation(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
+            glm::dvec3 translation(trans.x, trans.y, trans.z);
+            glm::dvec3 scale(scale_data.x, scale_data.y, scale_data.z);
+            if(aabb && !aabb->overlaps(((dme_aabb + translation) * rotation) * scale)) {
+                continue;
+            }
+            instances_to_add.push_back(j);
+        }
+        if(instances_to_add.size() == 0) {
+            continue;
+        }
+        logger::info("Adding {} instances of {}", instances_to_add.size(), object->actor_file());
+        int object_index = warpgate::utils::gltf::dme::add_dme_to_gltf(gltf, dme, dme_image_queue, output_directory, texture_indices, material_indices, dme_sampler_index, export_textures, false);
+        gltf.nodes.at(object_parent_index).children.push_back(object_index);
+        warpgate::zone::Float4 rot = object->instance(instances_to_add[0]).rotation();
+        warpgate::zone::Float4 trans = object->instance(instances_to_add[0]).translation();
+        warpgate::zone::Float4 scale_data = object->instance(instances_to_add[0]).scale();
+        gltf.nodes.at(object_index).translation = {trans.z, trans.y, -trans.x};
+        glm::dquat rotation(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
+        gltf.nodes.at(object_index).rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
+        gltf.nodes.at(object_index).scale = {scale_data.x, scale_data.y, scale_data.z};
+        for(auto it = instances_to_add.begin() + 1; it != instances_to_add.end(); it++) {
+            uint32_t instance = *it;
+            rot = object->instance(instance).rotation();
+            trans = object->instance(instance).translation();
+            scale_data = object->instance(instance).scale();
+            tinygltf::Node parent;
+            int parent_index = (int)gltf.nodes.size();
+            parent.name = dme.get_name() + "_" + std::to_string(instance);
+            parent.translation = {trans.z, trans.y, -trans.x};
+            rotation = glm::dquat(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
+            parent.rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
+            parent.scale = {scale_data.x, scale_data.y, scale_data.z};
+            gltf.nodes.push_back(parent);
+            if(gltf.nodes.at(object_index).children.size() > 0) {
+                for(int child : gltf.nodes.at(object_index).children) {
+                    tinygltf::Node child_node;
+                    child_node.mesh = gltf.nodes.at(child).mesh;
+                    gltf.nodes.at(parent_index).children.push_back((int)gltf.nodes.size());
+                    gltf.nodes.push_back(child_node);
+                }
+            } else {
+                gltf.nodes.at(parent_index).mesh = gltf.nodes.at(object_index).mesh;
+            }
+            gltf.nodes.at(object_parent_index).children.push_back(parent_index);
+        }
+    }
+    
     gltf.asset.version = "2.0";
     gltf.asset.generator = "warpgate " + std::string(WARPGATE_VERSION) + " via tinygltf";
 

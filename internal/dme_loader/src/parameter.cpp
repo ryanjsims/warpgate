@@ -29,20 +29,33 @@ std::span<uint8_t> Parameter::data() const {
 
 std::string Parameter::semantic_name(int32_t semantic) {
     switch(Parameter::Semantic(semantic)) {
-    case Parameter::Semantic::BASE_COLOR:
+    case Parameter::Semantic::BASE_COLOR1:
+    case Parameter::Semantic::BASE_COLOR2:
+    case Parameter::Semantic::BASE_COLOR3:
+    case Parameter::Semantic::BASE_COLOR4:
         return "Base Color";
-    case Parameter::Semantic::NORMAL_MAP:
+    case Parameter::Semantic::EMISSIVE1:
+        return "Emissive";
+    case Parameter::Semantic::NORMAL_MAP1:
+    case Parameter::Semantic::NORMAL_MAP2:
         return "Normal Map";
-    case Parameter::Semantic::SPECULAR:
+    case Parameter::Semantic::BUMP_MAP1:
+        return "Bump Map";
+    case Parameter::Semantic::SPECULAR1:
+    case Parameter::Semantic::SPECULAR2:
+    case Parameter::Semantic::SPECULAR3:
+    case Parameter::Semantic::SPECULAR4:
         return "Specular";
-    case Parameter::Semantic::DETAIL_CUBE:
+    case Parameter::Semantic::DETAIL_CUBE1:
+    case Parameter::Semantic::DETAIL_CUBE2:
         return "Detail Cube";
     case Parameter::Semantic::DETAIL_SELECT:
         return "Detail Select";
     case Parameter::Semantic::OVERLAY0:
-        return "Overlay 1";
     case Parameter::Semantic::OVERLAY1:
-        return "Overlay 2";
+    case Parameter::Semantic::OVERLAY2:
+    case Parameter::Semantic::OVERLAY3:
+        return "Overlay";
     case Parameter::Semantic::BASE_CAMO:
         return "Base Camo";
     default:

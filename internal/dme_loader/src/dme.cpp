@@ -7,18 +7,18 @@ namespace logger = spdlog;
 using namespace warpgate;
 
 DME::DME(std::span<uint8_t> subspan, std::string name_): buf_(subspan), name(name_) {
-    logger::info("Parsing DME file...");
+    logger::debug("Parsing DME file...");
     parse_dmat();
     parse_meshes();
     parse_bones();
-    logger::info("DME file parsed");
+    logger::debug("DME file parsed");
 }
 
 DME::DME(std::span<uint8_t> subspan, std::string name_, std::shared_ptr<DMAT> dmat): buf_(subspan), name(name_), dmat_(dmat) {
-    logger::info("Parsing DME file...");
+    logger::debug("Parsing DME file...");
     parse_meshes();
     parse_bones();
-    logger::info("DME file parsed");
+    logger::debug("DME file parsed");
 }
 
 void DME::parse_dmat() {
@@ -33,7 +33,7 @@ void DME::parse_meshes() {
         meshes_size += mesh->size();
         meshes.push_back(mesh);
     }
-    spdlog::info("Loaded {} mesh{}", meshes.size(), meshes.size() != 1 ? "es" : "");
+    spdlog::debug("Loaded {} mesh{}", meshes.size(), meshes.size() != 1 ? "es" : "");
 }
 
 void DME::parse_bones() {
@@ -47,7 +47,7 @@ void DME::parse_bones() {
         bbox_offset += sizeof(AABB);
         namehash_offset += sizeof(uint32_t);
     }
-    spdlog::info("Loaded {} bones", bones.size());
+    spdlog::debug("Loaded {} bones", bones.size());
 }
 
 DME::ref<uint32_t> DME::magic() const { return get<uint32_t>(0); }

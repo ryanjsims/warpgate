@@ -79,6 +79,7 @@ add_executable(zone_converter
     src/zone_converter.cpp
     src/utils/gltf/common.cpp
     src/utils/gltf/chunk.cpp
+    src/utils/aabb.cpp
     src/utils/adr.cpp
     src/utils/gltf.cpp
     src/utils/materials_3.cpp 
