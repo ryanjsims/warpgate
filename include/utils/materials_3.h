@@ -1,5 +1,6 @@
 #pragma once
 #include <fstream>
+#include <optional>
 #include <vector>
 #include <spdlog/spdlog.h>
 #include <string>
@@ -22,5 +23,5 @@ namespace warpgate::utils::materials3 {
     extern nlohmann::json materials;
     void init_materials();
 
-    nlohmann::json get_input_layout(uint32_t material_definition);
+    std::optional<nlohmann::json> get_input_layout(uint32_t material_definition);
 }

@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <memory>
 #include <span>
+#include <string_view>
 #include <vector>
 
 #include "structs.h"
@@ -39,7 +40,7 @@ namespace warpgate {
             return name;
         }
 
-        ref<uint32_t> magic() const;
+        std::string_view magic() const;
         ref<uint32_t> version() const;
 
         ref<uint32_t> dmat_length() const;

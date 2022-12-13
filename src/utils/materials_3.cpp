@@ -63,7 +63,11 @@ void utils::materials3::init_materials() {
     materials = nlohmann::json::parse(materials_file);
 }
 
-nlohmann::json utils::materials3::get_input_layout(uint32_t material_definition) {
+std::optional<nlohmann::json> utils::materials3::get_input_layout(uint32_t material_definition) {
+    if(!materials.at("materialDefinitions").contains(std::to_string(material_definition))) {
+        return {};
+    }
+    
     std::string input_layout_name = materials
         .at("materialDefinitions")
         .at(std::to_string(material_definition))

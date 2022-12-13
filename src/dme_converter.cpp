@@ -40,24 +40,35 @@ void process_images(
 
         switch (semantic)
         {
-        case Parameter::Semantic::BASE_COLOR:
+        case Parameter::Semantic::BASE_COLOR1:
+        case Parameter::Semantic::BASE_COLOR2:
+        case Parameter::Semantic::BASE_COLOR3:
+        case Parameter::Semantic::BASE_COLOR4:
+        case Parameter::Semantic::EMISSIVE1:
         case Parameter::Semantic::BASE_CAMO:
         case Parameter::Semantic::DETAIL_SELECT:
         case Parameter::Semantic::OVERLAY0:
         case Parameter::Semantic::OVERLAY1:
-            utils::textures::save_texture(texture_name, manager.get(texture_name).get_data(), output_directory);
+            utils::textures::save_texture(texture_name, manager.get(texture_name)->get_data(), output_directory);
             break;
-        case Parameter::Semantic::NORMAL_MAP:
-            utils::textures::process_normalmap(texture_name, manager.get(texture_name).get_data(), output_directory);
+        case Parameter::Semantic::NORMAL_MAP1:
+        case Parameter::Semantic::NORMAL_MAP2:
+            utils::textures::process_normalmap(texture_name, manager.get(texture_name)->get_data(), output_directory);
             break;
-        case Parameter::Semantic::SPECULAR:
+        case Parameter::Semantic::SPECULAR1:
+        case Parameter::Semantic::SPECULAR2:
+        case Parameter::Semantic::SPECULAR3:
+        case Parameter::Semantic::SPECULAR4:
             albedo_name = texture_name;
             index = albedo_name.find_last_of('_');
             albedo_name[index + 1] = 'C';
-            utils::textures::process_specular(texture_name, manager.get(texture_name).get_data(), manager.get(albedo_name).get_data(), output_directory);
+            if(manager.contains(albedo_name)) {
+                utils::textures::process_specular(texture_name, manager.get(texture_name)->get_data(), manager.get(albedo_name)->get_data(), output_directory);
+            }
             break;
-        case Parameter::Semantic::DETAIL_CUBE:
-            utils::textures::process_detailcube(texture_name, manager.get(texture_name).get_data(), output_directory);
+        case Parameter::Semantic::DETAIL_CUBE1:
+        case Parameter::Semantic::DETAIL_CUBE2:
+            utils::textures::process_detailcube(texture_name, manager.get(texture_name)->get_data(), output_directory);
             break;
         default:
             logger::warn("Skipping unimplemented semantic: {}", texture_name);
@@ -155,7 +166,7 @@ int main(int argc, const char* argv[]) {
     std::vector<uint8_t> data_vector;
     std::span<uint8_t> data_span;
     if(manager.contains(input_str)) {
-        data_vector = manager.get(input_str).get_data();
+        data_vector = manager.get(input_str)->get_data();
         data_span = std::span<uint8_t>(data_vector.data(), data_vector.size());
     } else {
         std::ifstream input(input_filename, std::ios::binary | std::ios::ate);

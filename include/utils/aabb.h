@@ -34,6 +34,7 @@ namespace warpgate::utils {
         // Rotates the AABB around its midpoint, expanding the AABB as needed
         void rotate(glm::dquat rotation);
         bool overlaps(const AABB &other) const;
+        bool contains(const glm::dvec3 point) const;
 
         AABB operator+(const glm::dvec3 translation);
         AABB operator-(const glm::dvec3 translation);

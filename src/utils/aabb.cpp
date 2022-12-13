@@ -79,6 +79,25 @@ bool AABB::overlaps(const AABB &other) const {
     return true;
 }
 
+bool AABB::contains(const glm::dvec3 point) const {
+    double dx = point.x - this->midpoint_.x;
+    if(this->half.x - std::fabs(dx) <= 0) {
+        return false;
+    }
+
+    double dy = point.y - this->midpoint_.y;
+    if(this->half.y - std::fabs(dy) <= 0) {
+        return false;
+    }
+
+    double dz = point.z - this->midpoint_.z;
+    if(this->half.z - std::fabs(dz) <= 0) {
+        return false;
+    }
+
+    return true;
+}
+
 AABB AABB::operator+(const glm::dvec3 translation) {
     glm::dvec4 min = midpoint_ - half, max = midpoint_ + half;
     return AABB(min + glm::dvec4{translation, 0.0}, max + glm::dvec4{translation, 0.0});

@@ -36,15 +36,13 @@ int main() {
     synthium::Manager manager(assets);
     logger::info("Manager loaded.");
 
-    std::vector<uint8_t> data_vector = manager.get("Vehicle_TR_Mosquito_Base_Chassis_LOD0.dme").get_data();
+    std::vector<uint8_t> data_vector = manager.get("Common_Structures_Warpgate_Shield_LOD0_test.dmv")->get_data();
 
     DME mosquito(data_vector, "mosquito");
-    uint32_t magic = mosquito.magic();
+    std::string_view magic = mosquito.magic();
 
-    logger::info("0x{:08x}", magic);
-    for(int i = 0; i < 4; i++) {
-        logger::info("{:4s}", (char*)&magic);
-    }
+    logger::info("{}", magic);
+    
 
     logger::info("Textures:");
     std::unordered_map<uint32_t, std::string> hashes_to_names;
@@ -61,10 +59,17 @@ int main() {
         logger::info("Namehash {}: {:08x} {:d}", i, (uint32_t)mosquito.dmat()->material(i)->namehash(), (uint32_t)mosquito.dmat()->material(i)->namehash());
         for(uint32_t j = 0; j < mosquito.dmat()->material(i)->param_count(); j++) {
             if(mosquito.dmat()->material(i)->parameter(j).type() == Parameter::D3DXParamType::TEXTURE) {
-                logger::info("{:d}: {}",
-                    mosquito.dmat()->material(i)->parameter(j).semantic_hash(), 
-                    hashes_to_names.at(mosquito.dmat()->material(i)->parameter(j).get<uint32_t>(16))
-                ); 
+                if(hashes_to_names.find(mosquito.dmat()->material(i)->parameter(j).get<uint32_t>(16)) != hashes_to_names.end()) {
+                    logger::info("{:d}: {}",
+                        mosquito.dmat()->material(i)->parameter(j).semantic_hash(), 
+                        hashes_to_names.at(mosquito.dmat()->material(i)->parameter(j).get<uint32_t>(16))
+                    );
+                } else {
+                    logger::info("{:d}: {:#010x}",
+                        mosquito.dmat()->material(i)->parameter(j).semantic_hash(), 
+                        (uint32_t)mosquito.dmat()->material(i)->parameter(j).get<uint32_t>(16)
+                    );
+                }
             }
         }
     }

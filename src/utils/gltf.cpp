@@ -66,19 +66,24 @@ int utils::gltf::dmat::add_material_to_gltf(
         material.pbrMetallicRoughness.baseColorFactor = { 0.133, 0.545, 0.133, 1.0 }; // Forest Green
     }
     std::unordered_map<uint32_t, std::vector<uint32_t>>::iterator value;
-    uint32_t material_namehash = dmat.material(material_index)->definition();
-    if((value = material_indices.find(material_namehash)) != material_indices.end()) {
+    uint32_t material_definition = dmat.material(material_index)->definition();
+    if((value = material_indices.find(material_definition)) != material_indices.end()) {
         for(uint32_t index : value->second) {
             if(gltf.materials.at(index) == material) {
                 return index;
             }
         }
     } else {
-        material_indices[material_namehash] = {};
+        material_indices[material_definition] = {};
     }
-    material_indices[material_namehash].push_back((uint32_t)gltf.materials.size());
+    material_indices[material_definition].push_back((uint32_t)gltf.materials.size());
     material.doubleSided = true;
-    material.name = dme_name + "::" + utils::materials3::materials.at("materialDefinitions").at(std::to_string(material_namehash)).at("name").get<std::string>();
+
+    if(utils::materials3::materials.at("materialDefinitions").contains(std::to_string(material_definition))){
+        material.name = dme_name + "::" + utils::materials3::materials.at("materialDefinitions").at(std::to_string(material_definition)).at("name").get<std::string>();
+    } else {
+        material.name = dme_name + "::" + std::to_string(material_definition);
+    }
     int to_return = (int)gltf.materials.size();
     gltf.materials.push_back(material);
     return to_return;
@@ -126,8 +131,12 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
     tinygltf::Primitive primitive;
     std::shared_ptr<const Mesh> mesh = dme.mesh(index);
     std::vector<uint32_t> offsets((std::size_t)mesh->vertex_stream_count(), 0);
-    nlohmann::json input_layout = utils::materials3::get_input_layout(dme.dmat()->material(index)->definition());
-    std::string layout_name = input_layout.at("name").get<std::string>();
+    std::optional<nlohmann::json> input_layout = utils::materials3::get_input_layout(dme.dmat()->material(index)->definition());
+    if(!input_layout) {
+        logger::error("Material definition not found!");
+        std::exit(4);
+    }
+    std::string layout_name = input_layout->at("name").get<std::string>();
     logger::debug("Using input layout {}", layout_name);
     bool rigid = utils::uppercase(layout_name).find("RIGID") != std::string::npos;
     
@@ -136,11 +145,11 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
         std::span<uint8_t> vertex_stream = mesh->vertex_stream(j);
         tinygltf::Buffer buffer;
         logger::debug("Expanding vertex stream {}", j);
-        buffer.data = expand_vertex_stream(input_layout, vertex_stream, j, rigid, dme);
+        buffer.data = expand_vertex_stream(*input_layout, vertex_stream, j, rigid, dme);
         buffers.push_back(buffer);
     }
 
-    for(nlohmann::json entry : input_layout.at("entries")) {
+    for(nlohmann::json entry : input_layout->at("entries")) {
         std::string type = entry.at("type").get<std::string>();
         std::string usage = entry.at("usage").get<std::string>();
         int stream = entry.at("stream").get<int>();
@@ -159,7 +168,7 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
         tinygltf::BufferView bufferview;
         bufferview.buffer = (int)gltf.buffers.size() + stream;
         bufferview.byteLength = buffers.at(stream).data.size() - offsets.at(stream);
-        bufferview.byteStride = input_layout.at("sizes").at(std::to_string(stream)).get<uint32_t>();
+        bufferview.byteStride = input_layout->at("sizes").at(std::to_string(stream)).get<uint32_t>();
         bufferview.target = TINYGLTF_TARGET_ARRAY_BUFFER;
         bufferview.byteOffset = offsets.at(stream);
         std::string attribute = utils::materials3::usages.at(usage);
@@ -173,6 +182,9 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
             color++;
             accessor.normalized = true;
         } else if(usage == "Position") {
+            if(utils::materials3::types.at(type) == TINYGLTF_TYPE_VEC4) {
+                logger::error("Vector4 position type?");
+            }
             AABB aabb = dme.aabb();
             accessor.minValues = {aabb.min.x, aabb.min.y, aabb.min.z};
             accessor.maxValues = {aabb.max.x, aabb.max.y, aabb.max.z};
@@ -184,9 +196,13 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
             offsets.at(stream) += utils::materials3::sizes.at(type);
             continue;
         }
-        primitive.attributes[attribute] = (int)gltf.accessors.size();
-        gltf.accessors.push_back(accessor);
-        gltf.bufferViews.push_back(bufferview);
+        if(primitive.attributes.find(attribute) == primitive.attributes.end()) {
+            primitive.attributes[attribute] = (int)gltf.accessors.size();
+            gltf.accessors.push_back(accessor);
+            gltf.bufferViews.push_back(bufferview);
+        } else {
+            logger::warn("Skipping duplicate attribute {}", attribute);
+        }
 
         offsets.at(stream) += utils::materials3::sizes.at(type);
     }
@@ -517,7 +533,9 @@ std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> utils::gl
         metallic_roughness_info.index = value->second;
         std::string emissive_name = utils::textures::relabel_texture(*texture_name, "E");
         hash = jenkins::oaat(emissive_name);
-        emissive_info.index = texture_indices.at(hash);
+        if((value = texture_indices.find(hash)) != texture_indices.end()) {
+            emissive_info.index = value->second;
+        }
     }
     return std::make_pair(metallic_roughness_info, emissive_info);
 }
@@ -539,10 +557,11 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
     bool conversion_required = false;
     int tangent_index = -1;
     int binormal_index = -1;
+    int normal_index = -1;
     int blend_indices_index = -1;
     int blend_weights_index = -1;
     int vert_index_offset = 0;
-    bool has_normals = false, bone_remapping = false, weight_conversion = false;
+    bool has_normals = false, bone_remapping = false, weight_conversion = false, expand_normals = false;
 
     for(int i = 0; i < layout.at("entries").size(); i++) {
         nlohmann::json &entry = layout.at("entries").at(i);
@@ -568,6 +587,12 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
         
         if(usage == "Normal") {
             has_normals = true;
+            if(type == "ubyte4n") {
+                entry.at("type") = "Float3";
+                layout.at("sizes").at(std::to_string(stream)) = layout.at("sizes").at(std::to_string(stream)).get<uint32_t>() + 8;
+                expand_normals = true;
+            }
+            normal_index = i;
         } else if(usage == "Binormal") {
             binormal_index = i;
         } else if(usage == "Tangent") {
@@ -593,7 +618,7 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
     bool calculate_normals = !has_normals && binormal_index != -1 && tangent_index != -1;
     bool add_rigid_bones = is_rigid && binormal_type == "ubyte4n";
 
-    if(!conversion_required && !calculate_normals && !add_rigid_bones && !bone_remapping && !weight_conversion) {
+    if(!conversion_required && !calculate_normals && !add_rigid_bones && !bone_remapping && !weight_conversion && !expand_normals) {
         logger::debug("No conversion required!");
         return std::vector<uint8_t>(vertices.buf_.begin(), vertices.buf_.end());
     }
@@ -628,6 +653,11 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
                 converter[0] = (float)(half)vertices.get<half>(vertex_offset + entry_offset);
                 converter[1] = (float)(half)vertices.get<half>(vertex_offset + entry_offset + 2);
                 output.insert(output.end(), reinterpret_cast<uint8_t*>(converter), reinterpret_cast<uint8_t*>(converter) + 8);
+            } else if(expand_normals && index == normal_index - vert_index_offset) {
+                normal[0] = (float)vertices.get<uint8_t>(vertex_offset + entry_offset) / 128.0f - 1;
+                normal[1] = (float)vertices.get<uint8_t>(vertex_offset + entry_offset + 1) / 128.0f - 1;
+                normal[2] = (float)vertices.get<uint8_t>(vertex_offset + entry_offset + 2) / 128.0f - 1;
+                output.insert(output.end(), reinterpret_cast<uint8_t*>(normal), reinterpret_cast<uint8_t*>(normal) + 12);
             } else {
                 std::span<uint8_t> to_add = vertices.buf_.subspan(vertex_offset + entry_offset, iter->first);
                 if(index == blend_indices_index - vert_index_offset) {

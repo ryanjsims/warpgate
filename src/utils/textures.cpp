@@ -89,21 +89,50 @@ void utils::textures::process_specular(std::string texture_name, std::vector<uin
         albedo = gli::convert(albedo, gli::format::FORMAT_RGBA8_UNORM_PACK8);
     }
 
-    std::span<uint32_t> specular_pixels = std::span<uint32_t>(specular.data<uint32_t>(), specular.size<uint32_t>());
-    std::span<uint32_t> albedo_pixels = std::span<uint32_t>(albedo.data<uint32_t>(), albedo.size<uint32_t>());
-    std::unique_ptr<uint32_t[]> metallic_roughness = std::make_unique<uint32_t[]>(albedo_pixels.size());
-    std::unique_ptr<uint32_t[]> emissive = std::make_unique<uint32_t[]>(albedo_pixels.size());
-    auto extent = albedo.extent();
-    int stride = (int)gli::component_count(albedo.format()) * extent.x;
-    float ratio_a2s = (float)specular_pixels.size() / albedo_pixels.size();
-    for(int i = 0; i < albedo_pixels.size(); i++) {
-        uint32_t pixel = specular_pixels[(int)(i * ratio_a2s)];
-        uint32_t albedo_pixel = albedo_pixels[i];
-        //uint32_t value = ((((pixel & 0x0000FF00) >> 8 | (pixel & 0x000000FF) << 8) / 255) & 0xFF) << 16;
-        uint32_t metal_rough = ((pixel & 0xFF000000) >> 16) | ((pixel & 0x000000FF) << 16) | 0xFF000000;
-        uint32_t emissive_pixel = (((pixel & 0x00FF0000) > (50 << 16)) && (albedo_pixel & 0xFF000000) != 0) ? albedo_pixel : 0; 
-        metallic_roughness[i] = metal_rough;
-        emissive[i] = emissive_pixel;
+    // std::span<uint32_t> specular_pixels = std::span<uint32_t>(specular.data<uint32_t>(), specular.size<uint32_t>());
+    // std::span<uint32_t> albedo_pixels = std::span<uint32_t>(albedo.data<uint32_t>(), albedo.size<uint32_t>());
+    // std::unique_ptr<uint32_t[]> metallic_roughness = std::make_unique<uint32_t[]>(specular_pixels.size());
+    // std::unique_ptr<uint32_t[]> emissive = std::make_unique<uint32_t[]>(specular_pixels.size());
+    auto extent = specular.extent();
+    // float ratio_s2a = (float)albedo_pixels.size() / specular_pixels.size();
+    // for(int i = 0; i < specular_pixels.size(); i++) {
+    //     uint32_t pixel = specular_pixels[i];
+    //     uint32_t albedo_pixel = albedo_pixels[(int)(i * ratio_s2a)];
+    //     //uint32_t value = ((((pixel & 0x0000FF00) >> 8 | (pixel & 0x000000FF) << 8) / 255) & 0xFF) << 16;
+    //     uint32_t metal_rough = ((pixel & 0xFF000000) >> 16) | ((pixel & 0x000000FF) << 16) | 0xFF000000;
+    //     uint32_t emissive_pixel = (((pixel & 0x00FF0000) > (50 << 16)) && (albedo_pixel & 0xFF000000) != 0) ? albedo_pixel : 0; 
+    //     metallic_roughness[i] = metal_rough;
+    //     emissive[i] = emissive_pixel;
+    // }
+
+    gli::texture2d metallic_roughness(gli::format::FORMAT_RGBA8_UNORM_PACK8, extent);
+    gli::texture2d emissive(gli::format::FORMAT_RGBA8_UNORM_PACK8, extent);
+    gli::sampler2d<float> color_sampler(albedo, gli::wrap::WRAP_REPEAT);
+    gli::sampler2d<float> spec_sampler(specular, gli::wrap::WRAP_REPEAT);
+    gli::sampler2d<float> mr_sampler(metallic_roughness, gli::wrap::WRAP_REPEAT);
+    gli::sampler2d<float> e_sampler(emissive, gli::wrap::WRAP_REPEAT);
+    // std::unique_ptr<uint32_t[]> metallic_roughness = std::make_unique<uint32_t[]>(extent.x * extent.y);
+    // std::unique_ptr<uint32_t[]> emissive = std::make_unique<uint32_t[]>(extent.x * extent.y);
+
+    auto albedo_extent = albedo.extent();
+    float x_ratio = ((float)albedo_extent.x) / extent.x;
+    float y_ratio = ((float)albedo_extent.y) / extent.y;
+    for(int32_t x = 0; x < extent.x; x++) {
+        for(int32_t y = 0; y < extent.y; y++) {
+            gli::texture2d::extent_type texel_loc(x, y);
+            glm::vec<4, float> spec_pixel = spec_sampler.texel_fetch(texel_loc, 0);
+            glm::vec<4, float> albedo_pixel = color_sampler.texel_fetch({(int)(x * x_ratio), (int)(y * y_ratio)}, 0);
+
+            if(spec_pixel.b > 0.2f && albedo_pixel.a != 0) {
+                albedo_pixel.a = spec_pixel.b;
+                e_sampler.texel_write(texel_loc, 0, albedo_pixel);
+            }
+            spec_pixel.g = spec_pixel.a;
+            spec_pixel.b = spec_pixel.r;
+            spec_pixel.r = 0;
+            spec_pixel.a = 1.0f;
+            mr_sampler.texel_write(texel_loc, 0, spec_pixel);
+        }
     }
 
     std::string metallic_roughness_name = relabel_texture(texture_name, "MR");
@@ -111,7 +140,7 @@ void utils::textures::process_specular(std::string texture_name, std::vector<uin
     metallic_roughness_path.replace_extension(".png");
     metallic_roughness_path = output_directory / "textures" / metallic_roughness_path;
     logger::trace("Writing image of size ({}, {}) to {}", extent.x, extent.y, metallic_roughness_path.lexically_relative(output_directory).string());
-    if(write_texture(std::span<uint32_t>(metallic_roughness.get(), albedo_pixels.size()), metallic_roughness_path, extent)){
+    if(write_texture({metallic_roughness.data<uint32_t>(), (size_t)(extent.x * extent.y)}, metallic_roughness_path, extent)){
         logger::debug("Saved metallic roughness map to {}", metallic_roughness_path.lexically_relative(output_directory).string());
     }
 
@@ -119,7 +148,7 @@ void utils::textures::process_specular(std::string texture_name, std::vector<uin
     std::filesystem::path emissive_path = metallic_roughness_path.parent_path() / emissive_name;
     emissive_path.replace_extension(".png");
     logger::trace("Writing image of size ({}, {}) to {}", extent.x, extent.y, emissive_path.lexically_relative(output_directory).string());
-    if(write_texture(std::span<uint32_t>(emissive.get(), albedo_pixels.size()), emissive_path, extent)) {
+    if(write_texture({emissive.data<uint32_t>(), (size_t)(extent.x * extent.y)}, emissive_path, extent)) {
         logger::debug("Saved emissive map to {}", emissive_path.lexically_relative(output_directory).string());
     }
 }

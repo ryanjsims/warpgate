@@ -50,7 +50,7 @@ void DME::parse_bones() {
     spdlog::debug("Loaded {} bones", bones.size());
 }
 
-DME::ref<uint32_t> DME::magic() const { return get<uint32_t>(0); }
+std::string_view DME::magic() const { return std::string_view((char*)buf_.data(), 4); }
 
 DME::ref<uint32_t> DME::version() const { return get<uint32_t>(4); }
 
