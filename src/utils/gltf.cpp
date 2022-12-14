@@ -97,7 +97,8 @@ int utils::gltf::dme::add_dme_to_gltf(
     std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
     int sampler_index,
     bool export_textures,
-    bool include_skeleton
+    bool include_skeleton,
+    bool rigify
 ) {
     std::vector<int> mesh_nodes;
     int parent_index;
@@ -110,7 +111,7 @@ int utils::gltf::dme::add_dme_to_gltf(
     }
 
     if(dme.bone_count() > 0 && include_skeleton) {
-        parent_index = add_skeleton_to_gltf(gltf, dme, mesh_nodes);
+        parent_index = add_skeleton_to_gltf(gltf, dme, mesh_nodes, rigify);
     } else if (mesh_nodes.size() > 1) {
         tinygltf::Node parent;
         parent.children = mesh_nodes;
@@ -249,7 +250,7 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
     return node_index;
 }
 
-int utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes) {
+int utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes, bool rigify) {
     for(int node_index : mesh_nodes) {
         gltf.nodes.at(node_index).skin = (int)gltf.skins.size();
     }
@@ -288,7 +289,12 @@ int utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme
         bone_node.rotation = {quat.x, quat.y, quat.z, quat.w};
         std::unordered_map<uint32_t, std::string>::iterator name_iter;
         if((name_iter = utils::bone_hashmap.find(namehash)) != utils::bone_hashmap.end()) {
-            bone_node.name = name_iter->second;
+            std::unordered_map<std::string, std::string>::iterator rigify_iter;
+            if(rigify && (rigify_iter = utils::rigify_names.find(name_iter->second)) != utils::rigify_names.end()) {
+                bone_node.name = rigify_iter->second;
+            } else {
+                bone_node.name = name_iter->second;
+            }
         }
         
         skeleton_map[bone.namehash] = gltf.nodes.size();
@@ -353,7 +359,8 @@ tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue, 
     std::filesystem::path output_directory, 
     bool export_textures, 
-    bool include_skeleton
+    bool include_skeleton,
+    bool rigify
 ) {
     tinygltf::Model gltf;
     tinygltf::Sampler sampler;
@@ -370,7 +377,7 @@ tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
     std::unordered_map<uint32_t, uint32_t> texture_indices;
     std::unordered_map<uint32_t, std::vector<uint32_t>> material_indices;
     
-    add_dme_to_gltf(gltf, dme, image_queue, output_directory, texture_indices, material_indices, sampler_index, export_textures, include_skeleton);
+    add_dme_to_gltf(gltf, dme, image_queue, output_directory, texture_indices, material_indices, sampler_index, export_textures, include_skeleton, rigify);
     
     gltf.asset.version = "2.0";
     gltf.asset.generator = "warpgate " + std::string(WARPGATE_VERSION) + " via tinygltf";
