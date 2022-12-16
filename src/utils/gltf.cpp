@@ -295,17 +295,19 @@ int utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme
             } else {
                 bone_node.name = name_iter->second;
             }
+        } else {
+            logger::debug("Could not find a bone name for namehash {:#010x}", namehash);
+            bone_node.name = std::to_string(namehash);
         }
         
-        skeleton_map[bone.namehash] = gltf.nodes.size();
-        skin.joints.push_back((int)gltf.nodes.size());
-
         bone_buffer.data.insert(
             bone_buffer.data.end(), 
             reinterpret_cast<uint8_t*>(inverse_matrix_data.data()), 
             reinterpret_cast<uint8_t*>(inverse_matrix_data.data()) + inverse_matrix_data.size_bytes()
         );
 
+        skeleton_map[bone.namehash] = gltf.nodes.size();
+        skin.joints.push_back((int)gltf.nodes.size());
         gltf.nodes.push_back(bone_node);
     }
 
@@ -709,8 +711,8 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
             sign /= std::fabsf(sign);
             utils::normalize(binormal);
             utils::normalize(tangent);
-            logger::debug("Tangent {}:  ({: 0.2f} {: 0.2f} {: 0.2f})", tangent_index, tangent[0], tangent[1], tangent[2]);
-            logger::debug("Binormal {}: ({: 0.2f} {: 0.2f} {: 0.2f})", binormal_index, binormal[0], binormal[1], binormal[2]);
+            logger::trace("Tangent {}:  ({: 0.2f} {: 0.2f} {: 0.2f})", tangent_index, tangent[0], tangent[1], tangent[2]);
+            logger::trace("Binormal {}: ({: 0.2f} {: 0.2f} {: 0.2f})", binormal_index, binormal[0], binormal[1], binormal[2]);
             normal[0] = binormal[1] * tangent[2] - binormal[2] * tangent[1];
             normal[1] = binormal[2] * tangent[0] - binormal[0] * tangent[2];
             normal[2] = binormal[0] * tangent[1] - binormal[1] * tangent[0];
@@ -718,8 +720,8 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
             normal[0] *= sign;
             normal[1] *= sign;
             normal[2] *= sign;
-            logger::debug("Normal:     ({: 0.2f} {: 0.2f} {: 0.2f})", normal[0], normal[1], normal[2], sign);
-            logger::debug("Entry offset/stride: {} / {}", entry_offset, stride);
+            logger::trace("Normal:     ({: 0.2f} {: 0.2f} {: 0.2f})", normal[0], normal[1], normal[2], sign);
+            logger::trace("Entry offset/stride: {} / {}", entry_offset, stride);
             output.insert(output.end(), reinterpret_cast<uint8_t*>(normal), reinterpret_cast<uint8_t*>(normal) + 12);
         }
 
