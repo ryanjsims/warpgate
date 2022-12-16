@@ -5,8 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
 
 project(warpgate)
 
-add_subdirectory(external)
-add_subdirectory(internal)
+add_subdirectory(lib)
 
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}")
 
@@ -41,7 +40,14 @@ add_executable(dme_converter
     src/utils/textures.cpp
     src/utils/tsqueue.cpp 
 )
-target_include_directories(dme_converter PUBLIC include/ ${CMAKE_BINARY_DIR}/include/ internal/dme_loader/include/ external/argparse/include/ external/half/include/ external/tinygltf/ external/synthium/include)
+target_include_directories(dme_converter PUBLIC 
+  include/
+  ${CMAKE_BINARY_DIR}/include/
+  lib/internal/dme_loader/include/
+  lib/external/argparse/include/
+  lib/external/half/include/
+  lib/external/tinygltf/
+  lib/external/synthium/include)
 target_link_libraries(dme_converter PRIVATE dme_loader spdlog::spdlog tinygltf argparse synthium::synthium gli)
 
 add_executable(chunk_converter
@@ -58,12 +64,12 @@ target_include_directories(chunk_converter
   PUBLIC 
     include/ 
     ${CMAKE_BINARY_DIR}/include/ 
-    internal/cnk_loader/include/
-    internal/dme_loader/include/
-    external/argparse/include/ 
-    external/half/include/ 
-    external/synthium/include
-    external/tinygltf/ 
+    lib/internal/cnk_loader/include/
+    lib/internal/dme_loader/include/
+    lib/external/argparse/include/ 
+    lib/external/half/include/ 
+    lib/external/synthium/include
+    lib/external/tinygltf/ 
 )
 target_link_libraries(chunk_converter 
   PRIVATE 
@@ -87,7 +93,16 @@ add_executable(zone_converter
     src/utils/textures.cpp
     src/utils/tsqueue.cpp 
   )
-target_include_directories(zone_converter PUBLIC include/ ${CMAKE_BINARY_DIR}/include/ internal/cnk_loader/include/ internal/dme_loader/include/ external/argparse/include/ external/half/include/ external/tinygltf/ external/synthium/include)
+target_include_directories(zone_converter PUBLIC 
+  include/
+  ${CMAKE_BINARY_DIR}/include/
+  lib/internal/cnk_loader/include/
+  lib/internal/dme_loader/include/
+  lib/external/argparse/include/
+  lib/external/half/include/
+  lib/external/tinygltf/
+  lib/external/synthium/include
+)
 target_link_libraries(zone_converter PRIVATE cnk_loader dme_loader zone_loader pugixml::static spdlog::spdlog tinygltf argparse synthium::synthium gli Glob)
 
 find_package(Git)
@@ -95,7 +110,7 @@ add_custom_target(version
   ${CMAKE_COMMAND} -D SRC=${CMAKE_SOURCE_DIR}/include/version.h.in
                    -D DST=${CMAKE_SOURCE_DIR}/include/version.h
                    -D GIT_EXECUTABLE=${GIT_EXECUTABLE}
-                   -P ${CMAKE_SOURCE_DIR}/external/cmake-git-versioning/GenerateVersionHeader.cmake
+                   -P ${CMAKE_SOURCE_DIR}/lib/external/cmake-git-versioning/GenerateVersionHeader.cmake
 )
 
 add_dependencies(chunk_converter version)

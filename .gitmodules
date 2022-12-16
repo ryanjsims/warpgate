@@ -1,27 +1,27 @@
 [submodule "tinygltf"]
-	path = external/tinygltf
+	path = lib/external/tinygltf
 	url = https://github.com/syoyo/tinygltf
 [submodule "argparse"]
-	path = external/argparse
+	path = lib/external/argparse
 	url = https://github.com/p-ranav/argparse
 [submodule "external/cmake-git-versioning-example"]
-	path = external/cmake-git-versioning
+	path = lib/external/cmake-git-versioning
 	url = https://github.com/nocnokneo/cmake-git-versioning-example
 [submodule "external/spdlog"]
-	path = external/spdlog
+	path = lib/external/spdlog
 	url = https://github.com/gabime/spdlog
 [submodule "external/gli"]
-	path = external/gli
+	path = lib/external/gli
 	url = https://github.com/g-truc/gli
 [submodule "external/lzham_alpha"]
-	path = external/lzham_alpha
+	path = lib/external/lzham_alpha
 	url = https://github.com/ryanjsims/lzham_alpha
 [submodule "external/synthium"]
-	path = external/synthium
+	path = lib/external/synthium
 	url = https://github.com/ryanjsims/synthium
 [submodule "external/pugixml"]
-	path = external/pugixml
+	path = lib/external/pugixml
 	url = https://github.com/zeux/pugixml
 [submodule "external/glob"]
-	path = external/glob
+	path = lib/external/glob
 	url = https://github.com/p-ranav/glob
