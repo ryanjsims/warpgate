@@ -392,7 +392,7 @@ int main(int argc, char* argv[]) {
             warpgate::zone::Float4 rot = instance.rotation();
             warpgate::zone::Float4 trans = instance.translation();
             warpgate::zone::Float4 scale_data = instance.scale();
-            glm::dquat rotation(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
+            glm::dquat rotation(glm::dvec3(-rot.y, rot.x + M_PI / 2, -rot.z));
             glm::dvec3 translation(trans.z, trans.y, -trans.x + 256);
             glm::dvec3 scale(scale_data.x, scale_data.y, scale_data.z);
             if(aabb && !aabb->overlaps(((dme_aabb + translation) * rotation) * scale)) {
@@ -404,13 +404,18 @@ int main(int argc, char* argv[]) {
             continue;
         }
         logger::info("Adding {} instances of {}", instances_to_add.size(), object->actor_file());
-        int object_index = warpgate::utils::gltf::dme::add_dme_to_gltf(gltf, dme, dme_image_queue, output_directory, texture_indices, material_indices, dme_sampler_index, export_textures, false);
+        int object_index = warpgate::utils::gltf::dme::add_dme_to_gltf(gltf, dme, dme_image_queue, output_directory, texture_indices, material_indices, dme_sampler_index, export_textures, false, false);
         gltf.nodes.at(object_parent_index).children.push_back(object_index);
         warpgate::zone::Float4 rot = object->instance(instances_to_add[0]).rotation();
         warpgate::zone::Float4 trans = object->instance(instances_to_add[0]).translation();
         warpgate::zone::Float4 scale_data = object->instance(instances_to_add[0]).scale();
         gltf.nodes.at(object_index).translation = {trans.z, trans.y, -trans.x};
-        glm::dquat rotation(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
+        glm::dquat rotation;
+        if(!(std::fabs(rot.x) < 0.001 && std::fabs(rot.y) < 0.001 && std::fabs(rot.z) > 0.001)) {
+            rotation = glm::dquat(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
+        } else {
+            rotation = glm::dquat(glm::dvec3(rot.y, rot.x, rot.z));
+        }
         gltf.nodes.at(object_index).rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
         gltf.nodes.at(object_index).scale = {scale_data.x, scale_data.y, scale_data.z};
         for(auto it = instances_to_add.begin() + 1; it != instances_to_add.end(); it++) {
@@ -418,10 +423,25 @@ int main(int argc, char* argv[]) {
             rot = object->instance(instance).rotation();
             trans = object->instance(instance).translation();
             scale_data = object->instance(instance).scale();
-            rotation = glm::dquat(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
+            if(!(std::fabs(rot.x) < 0.001 && std::fabs(rot.y) < 0.001 && std::fabs(rot.z) > 0.001)) {
+                rotation = glm::dquat(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
+            } else {
+                rotation = glm::dquat(glm::dvec3(rot.y, rot.x, rot.z));
+            }
             tinygltf::Node parent;
             int parent_index = (int)gltf.nodes.size();
             parent.name = dme.get_name() + "_" + std::to_string(instance);
+            if(parent.name == "Common_Props_Pipes_LargeStraightLong_87") {
+                glm::dvec3 modified_rot = glm::eulerAngles(rotation);
+                logger::info("Original transformations:");
+                logger::info("    T: {: .4f} {: .4f} {: .4f}", trans.x, trans.y, trans.z);
+                logger::info("    R: {: .4f} {: .4f} {: .4f}", rot.x, rot.y, rot.z);
+                logger::info("    S: {: .4f} {: .4f} {: .4f}", scale_data.x, scale_data.y, scale_data.z);
+                logger::info("Modified transformations:");
+                logger::info("    T: {: .4f} {: .4f} {: .4f}", trans.z, trans.y, -trans.x);
+                logger::info("    R: {: .4f} {: .4f} {: .4f}", modified_rot.x, modified_rot.y, modified_rot.z);
+                logger::info("    S: {: .4f} {: .4f} {: .4f}", scale_data.x, scale_data.y, scale_data.z);
+            }
             parent.translation = {trans.z, trans.y, -trans.x};
             parent.rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
             parent.scale = {scale_data.x, scale_data.y, scale_data.z};
