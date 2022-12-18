@@ -28,7 +28,11 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
     
     parser.add_argument("--assets-directory", "-d")
         .help("The directory where the game's assets are stored")
+#ifdef _WIN32
         .default_value(std::string("C:/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/"));
+#else
+        .default_value(std::string("/mnt/c/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/"));
+#endif
 
     parser.add_argument("--by-magic", "-m")
         .help("Export by magic")

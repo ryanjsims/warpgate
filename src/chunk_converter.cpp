@@ -79,8 +79,11 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
 
     parser.add_argument("--assets-directory", "-d")
         .help("The directory where the game's assets are stored")
+#ifdef _WIN32
         .default_value(std::string("C:/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/"));
-    
+#else
+        .default_value(std::string("/mnt/c/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/"));
+#endif    
 }
 
 int main(int argc, char* argv[]) {
@@ -120,7 +123,7 @@ int main(int argc, char* argv[]) {
     std::vector<uint8_t> data_vector, chunk1_data_vector;
     std::span<uint8_t> data_span, chunk1_data_span;
     if(manager.contains(input_str)) {
-        data_vector = manager.get(input_str).get_data();
+        data_vector = manager.get(input_str)->get_data();
         data_span = std::span<uint8_t>(data_vector.data(), data_vector.size());
     } else {
         std::ifstream input(input_filename, std::ios::binary | std::ios::ate);
@@ -137,7 +140,7 @@ int main(int argc, char* argv[]) {
     }
 
     if(input_filename.extension().string() == ".cnk0" && manager.contains(input_filename.filename().replace_extension("cnk1").string())) {
-        chunk1_data_vector = manager.get(input_filename.filename().replace_extension("cnk1").string()).get_data();
+        chunk1_data_vector = manager.get(input_filename.filename().replace_extension("cnk1").string())->get_data();
         chunk1_data_span = std::span<uint8_t>(chunk1_data_vector.data(), chunk1_data_vector.size());
     }
 
