@@ -17,7 +17,7 @@ std::string utils::uppercase(const std::string input) {
 
 void utils::normalize(float vector[3]) {
     float length = std::sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
-    if(std::fabsf(length) > 0) {
+    if(std::fabs(length) > 0) {
         vector[0] /= length;
         vector[1] /= length;
         vector[2] /= length;

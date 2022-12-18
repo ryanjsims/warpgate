@@ -1,4 +1,5 @@
 #pragma once
+#include <cstring>
 #include <stdexcept>
 #include <span>
 #include <vector>
