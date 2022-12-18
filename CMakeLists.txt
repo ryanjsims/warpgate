@@ -5,6 +5,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
 
 project(warpgate)
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  add_compile_options("-Wno-deprecated")
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  add_compile_options("/W4")
+endif()
+
 add_subdirectory(lib)
 
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}")
