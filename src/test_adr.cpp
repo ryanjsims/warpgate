@@ -18,7 +18,7 @@ int main() {
     logger::info("Manager loaded.");
 
     
-    std::vector<uint8_t> data_vector = manager.get("Vehicle_TR_Mosquito_Base_Chassis.adr").get_data();
+    std::vector<uint8_t> data_vector = manager.get("Vehicle_TR_Mosquito_Base_Chassis.adr")->get_data();
     
     logger::info("Got buffer:\n{}", (char*)data_vector.data());
 

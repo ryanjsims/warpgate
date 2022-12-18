@@ -20,7 +20,7 @@ int main() {
     logger::info("Manager loaded.");
 
     logger::info("Loading Nexus.zone...");
-    std::vector<uint8_t> data_vector = manager.get("Nexus.zone").get_data();
+    std::vector<uint8_t> data_vector = manager.get("Nexus.zone")->get_data();
     warpgate::zone::Zone nexus(data_vector);
     logger::info("Nexus.zone loaded.");
 
