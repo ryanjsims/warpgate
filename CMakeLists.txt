@@ -60,6 +60,7 @@ add_executable(chunk_converter
     src/chunk_converter.cpp
     src/utils/gltf/chunk.cpp
     src/utils/gltf/common.cpp
+    src/utils/aabb.cpp
     src/utils/materials_3.cpp 
     src/utils/sign.cpp 
     src/utils/textures.cpp
