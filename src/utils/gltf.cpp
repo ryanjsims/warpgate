@@ -708,7 +708,7 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
         }
 
         if(calculate_normals) {
-            sign /= std::fabsf(sign);
+            sign /= std::fabs(sign);
             utils::normalize(binormal);
             utils::normalize(tangent);
             logger::trace("Tangent {}:  ({: 0.2f} {: 0.2f} {: 0.2f})", tangent_index, tangent[0], tangent[1], tangent[2]);
