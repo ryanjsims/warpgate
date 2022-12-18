@@ -31,6 +31,12 @@ add_executable(test_zone
 target_include_directories(test_zone PUBLIC include/)
 target_link_libraries(test_zone PRIVATE zone_loader spdlog::spdlog synthium::synthium)
 
+add_executable(export
+  src/export.cpp
+)
+target_include_directories(export PUBLIC include/)
+target_link_libraries(export PRIVATE spdlog::spdlog synthium::synthium argparse Glob)
+
 add_executable(dme_converter 
     src/dme_converter.cpp
     src/utils/gltf/common.cpp
@@ -114,6 +120,7 @@ add_custom_target(version
 )
 
 add_dependencies(chunk_converter version)
+add_dependencies(export version)
 add_dependencies(dme_converter version)
 add_dependencies(zone_converter version)
 
