@@ -64,13 +64,33 @@ int main(int argc, char* argv[]) {
     logger::info("export: loading assets (using synthium {})", synthium::version());
     std::string server = parser.get<std::string>("--assets-directory");
     synthium::Manager manager(
-        glob::glob(
-            server + "assets_x64_*.pack2"
-        )
+        glob::glob({
+            server + "assets_x64_*.pack2",
+            server + "data_x64_*.pack2"
+        })
     );
 
     std::string input_filename = parser.get<std::string>("asset_name");
+    if(!manager.contains(input_filename)) {
+        logger::error("{} not found in loaded assets", input_filename);
+        std::exit(1);
+    }
+    
     std::filesystem::path output_filename(parser.get<std::string>("output_file"));
+    output_filename = std::filesystem::weakly_canonical(output_filename);
+    std::filesystem::path output_directory;
+    if(output_filename.has_parent_path()) {
+        output_directory = output_filename.parent_path();
+    }
+
+    try {
+        if(!std::filesystem::exists(output_filename.parent_path())) {
+            std::filesystem::create_directories(output_directory);
+        }
+    } catch (std::filesystem::filesystem_error& err) {
+        logger::error("Failed to create directory {}: {}", err.path1().string(), err.what());
+        std::exit(3);
+    }
 
     bool by_magic = parser.get<bool>("--by-magic");
     bool raw = parser.get<bool>("--raw");
@@ -111,9 +131,9 @@ int main(int argc, char* argv[]) {
     }
 
     std::vector<uint8_t> data = manager.get(input_filename)->get_data(raw);
-    std::ofstream output("export" / output_filename, std::ios::binary);
+    std::ofstream output(output_filename, std::ios::binary);
     output.write((char*)data.data(), data.size());
     output.close();
-    logger::info("Wrote {} bytes to export/{}", data.size(), output_filename.string());
+    logger::info("Wrote {} bytes to {}", data.size(), output_filename.string());
     return 0;
 }
