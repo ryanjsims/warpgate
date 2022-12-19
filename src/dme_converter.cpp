@@ -116,7 +116,7 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         .nargs(0);
     
     parser.add_argument("--no-textures", "-i")
-        .help("Exclude the skeleton from the output")
+        .help("Exclude textures from the output. Creates a monochromatic material instead.")
         .default_value(false)
         .implicit_value(true)
         .nargs(0);
