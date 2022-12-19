@@ -184,7 +184,7 @@ int main(int argc, const char* argv[]) {
                 data_vector = asset->get_data();
                 data_span = std::span<uint8_t>(data_vector.data(), data_vector.size());
                 logger::debug("Loaded '{}' from manager.", input_str);
-            } catch(std::bad_alloc &err) {
+            } catch(std::bad_alloc) {
                 logger::warn("Failed to load asset, deallocating some packs");
                 manager.deallocate(asset->uncompressed_size());
             } catch(std::exception &err) {
