@@ -23,7 +23,7 @@ namespace logger = spdlog;
 using namespace warpgate;
 
 void process_images(
-    const synthium::Manager& manager, 
+    synthium::Manager& manager, 
     utils::tsqueue<std::pair<std::string, Parameter::Semantic>>& queue, 
     std::filesystem::path output_directory
 ) {
@@ -175,9 +175,26 @@ int main(int argc, const char* argv[]) {
     std::vector<uint8_t> data_vector;
     std::span<uint8_t> data_span;
     if(manager.contains(input_str)) {
-        data_vector = manager.get(input_str)->get_data();
-        data_span = std::span<uint8_t>(data_vector.data(), data_vector.size());
+        logger::debug("Loading '{}' from manager...", input_str);
+        int retries = 3;
+        std::shared_ptr<synthium::Asset2> asset = manager.get(input_str);
+        //manager.deallocate(asset->uncompressed_size());
+        while(data_vector.size() == 0 && retries > 0) {
+            try {
+                data_vector = asset->get_data();
+                data_span = std::span<uint8_t>(data_vector.data(), data_vector.size());
+                logger::debug("Loaded '{}' from manager.", input_str);
+            } catch(std::bad_alloc &err) {
+                logger::warn("Failed to load asset, deallocating some packs");
+                manager.deallocate(asset->uncompressed_size());
+            } catch(std::exception &err) {
+                logger::error("Failed to load '{}' from manager: {}", input_str, err.what());
+                std::exit(1);
+            }
+            retries--;
+        }
     } else {
+        logger::debug("Loading '{}' from filesystem...", input_str);
         std::ifstream input(input_filename, std::ios::binary | std::ios::ate);
         if(input.fail()) {
             logger::error("Failed to open file '{}'", input_filename.string());
@@ -189,6 +206,7 @@ int main(int argc, const char* argv[]) {
         input.read((char*)data.get(), length);
         input.close();
         data_span = std::span<uint8_t>(data.get(), length);
+        logger::debug("Loaded '{}' from filesystem.", input_str);
     }
     
     std::filesystem::path output_filename(parser.get<std::string>("output_file"));
@@ -200,7 +218,9 @@ int main(int argc, const char* argv[]) {
 
     try {
         if(!std::filesystem::exists(output_filename.parent_path())) {
+            logger::debug("Creating directories '{}'...", (output_directory / "textures").string());
             std::filesystem::create_directories(output_directory / "textures");
+            logger::debug("Created directories '{}'.", (output_directory / "textures").string());
         }
     } catch (std::filesystem::filesystem_error& err) {
         logger::error("Failed to create directory {}: {}", err.path1().string(), err.what());
@@ -220,7 +240,7 @@ int main(int argc, const char* argv[]) {
         for(uint32_t i = 0; i < image_processor_thread_count; i++) {
             image_processor_pool.push_back(std::thread{
                 process_images, 
-                std::cref(manager), 
+                std::ref(manager), 
                 std::ref(image_queue), 
                 output_directory
             });
