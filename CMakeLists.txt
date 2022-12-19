@@ -7,8 +7,6 @@ project(warpgate)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   add_compile_options("-Wno-deprecated")
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  add_compile_options("/W4")
 endif()
 
 add_subdirectory(lib)
@@ -72,7 +70,6 @@ add_executable(chunk_converter
     src/utils/textures.cpp
     src/utils/tsqueue.cpp
 )
-
 target_include_directories(chunk_converter 
   PUBLIC 
     include/ 
@@ -105,7 +102,7 @@ add_executable(zone_converter
     src/utils/sign.cpp 
     src/utils/textures.cpp
     src/utils/tsqueue.cpp 
-  )
+)
 target_include_directories(zone_converter PUBLIC 
   include/
   ${CMAKE_BINARY_DIR}/include/
