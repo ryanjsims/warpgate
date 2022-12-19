@@ -39,6 +39,12 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         .nargs(0)
         .default_value(false)
         .implicit_value(true);
+
+    parser.add_argument("--raw", "-r")
+        .help("Export raw data")
+        .nargs(0)
+        .default_value(false)
+        .implicit_value(true);
 }
 
 int main(int argc, char* argv[]) {
@@ -67,6 +73,7 @@ int main(int argc, char* argv[]) {
     std::filesystem::path output_filename(parser.get<std::string>("output_file"));
 
     bool by_magic = parser.get<bool>("--by-magic");
+    bool raw = parser.get<bool>("--raw");
     if(by_magic) {
         size_t curr_pos = 0;
         size_t pos = input_filename.find_first_of("\\x");
@@ -99,7 +106,11 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    std::vector<uint8_t> data = manager.get(input_filename)->get_data();
+    if(raw) {
+        logger::info("Exporting raw data");
+    }
+
+    std::vector<uint8_t> data = manager.get(input_filename)->get_data(raw);
     std::ofstream output("export" / output_filename, std::ios::binary);
     output.write((char*)data.data(), data.size());
     output.close();
