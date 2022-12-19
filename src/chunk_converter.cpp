@@ -12,6 +12,7 @@
 #include "tiny_gltf.h"
 #include "version.h"
 
+#include <glob/glob.h>
 #include <spdlog/spdlog.h>
 
 namespace logger = spdlog;
@@ -106,16 +107,16 @@ int main(int argc, char* argv[]) {
     
     logger::info("Converting file {} using dme_converter {}", input_str, WARPGATE_VERSION);
    
+    std::string continent_name = input_str.substr(0, input_str.find("_"));
 
     std::string path = parser.get<std::string>("--assets-directory");
     std::filesystem::path server(path);
-    std::vector<std::filesystem::path> assets;
-    for(int i = 0; i < 5; i++) {
-        assets.push_back(server / ("Nexus_x64_" + std::to_string(i) + ".pack2"));
-    }
+    std::vector<std::filesystem::path> packs = glob::glob({
+        (server / (continent_name + "_x64_*.pack2")).string(),
+    });
 
     logger::info("Loading packs...");
-    synthium::Manager manager(assets);
+    synthium::Manager manager(packs);
     logger::info("Manager loaded.");
 
     std::filesystem::path input_filename(input_str);

@@ -84,7 +84,8 @@ target_include_directories(chunk_converter
 target_link_libraries(chunk_converter 
   PRIVATE 
     argparse 
-    cnk_loader 
+    cnk_loader
+    Glob
     gli
     spdlog::spdlog 
     synthium::synthium 
