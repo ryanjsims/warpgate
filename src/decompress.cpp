@@ -28,7 +28,8 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
 }
 
 int main(int argc, char* argv[]) {
-    argparse::ArgumentParser parser("export", WARPGATE_VERSION);
+    logger::info("Decompressing '{}' (using decompress {})", WARPGATE_VERSION);
+    argparse::ArgumentParser parser("decompress", WARPGATE_VERSION);
     int log_level = logger::level::info;
     build_argument_parser(parser, log_level);
 
@@ -99,7 +100,9 @@ int main(int argc, char* argv[]) {
         std::exit(3);
     }
 
+    logger::info("Writing file {}", output_filename.string());
     std::ofstream output(output_filename, std::ios::binary);
     output.write((char*)decompressed.get(), decompressed_size);
+    logger::info("Wrote {} bytes to {}", decompressed_size, output_filename.string());
     return 0;
 }
