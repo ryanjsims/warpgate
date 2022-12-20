@@ -28,7 +28,6 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
 }
 
 int main(int argc, char* argv[]) {
-    logger::info("Decompressing '{}' (using decompress {})", WARPGATE_VERSION);
     argparse::ArgumentParser parser("decompress", WARPGATE_VERSION);
     int log_level = logger::level::info;
     build_argument_parser(parser, log_level);
@@ -43,6 +42,7 @@ int main(int argc, char* argv[]) {
     logger::set_level(logger::level::level_enum(log_level));
 
     std::string input_filename = parser.get<std::string>("compressed_file");
+    logger::info("Decompressing '{}' (using decompress {})", input_filename, WARPGATE_VERSION);
 
     std::ifstream input(input_filename, std::ios::binary | std::ios::ate);
     if(input.fail()) {
