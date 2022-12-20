@@ -35,6 +35,12 @@ add_executable(test_zone
 target_include_directories(test_zone PUBLIC include/)
 target_link_libraries(test_zone PRIVATE zone_loader spdlog::spdlog synthium::synthium)
 
+add_executable(decompress
+  src/decompress.cpp
+)
+target_include_directories(decompress PUBLIC include/ PRIVATE lib/external/synthium/external/zlib ${CMAKE_BINARY_DIR}/lib/external/synthium/external/zlib)
+target_link_libraries(decompress PRIVATE spdlog::spdlog argparse ZLIB::ZLIB)
+
 add_executable(export
   src/export.cpp
 )
