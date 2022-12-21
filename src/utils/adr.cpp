@@ -2,6 +2,10 @@
 
 #include <spdlog/spdlog.h>
 
+#if __cpp_lib_shared_ptr_arrays < 201707L
+#error warpgate::utils::ADR requires a compiler that supports std::make_shared<T[]> (__cpp_lib_shared_ptr_arrays >= 201707L)
+#endif
+
 using namespace warpgate;
 using namespace pugi;
 

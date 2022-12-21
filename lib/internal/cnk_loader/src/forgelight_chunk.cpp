@@ -2,6 +2,10 @@
 
 #include <spdlog/spdlog.h>
 
+#if __cpp_lib_shared_ptr_arrays < 201707L
+#error warpgate::chunk requires a compiler that supports std::make_shared<T[]> (__cpp_lib_shared_ptr_arrays >= 201707L)
+#endif
+
 constexpr auto operator""_MB( unsigned long long const x )
     -> uint64_t
 { return 1024L * 1024L * x; }

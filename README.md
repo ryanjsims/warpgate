@@ -6,8 +6,8 @@ This is a C++ port of [PyDMOD](https://github.com/ryanjsims/pydmod)
 ## Requirements
 ### Windows
 * Visual Studio 2022 with Desktop Development with C++ component
-### Linux [(prefer Windows)](#known-issues)
-* GCC 10+/Clang ??+ (for C++20 features) (todo: build with clang)
+### Linux
+* GCC 12.1+/Clang ??+ (for C++20 features) (todo: build with clang)
 * Intel Thread Building Blocks (for parallel `std::for_each` loops)
     * Debian/Ubuntu: `sudo apt install libtbb-dev`
 ### Both
@@ -100,8 +100,6 @@ The magic may be more than 4 bytes, though typically file magics are 4 bytes lon
 The output files will be named `{namehash}.bin` in the output directory.
 
 ## Known issues
-* On WSL2 Ubuntu 20.04 linux, `uncompress` (from zlib) will cause a segmentation fault when decompressing asset data, despite the same code working on Windows ¯\\\_(ツ)_/¯. I haven't tested on other distros but I expect issues there as well.
-
 * Zone converter does not properly orient actors that are rotated on all three axes.
 
 * Some models have bones that are not detailed by the MRN files, so their hierarchy will not be properly exported, and their pose will need to be reset in Blender before they appear correct.

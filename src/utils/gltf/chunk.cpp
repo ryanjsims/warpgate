@@ -8,6 +8,10 @@
 #include "utils/gltf/common.h"
 #include "utils/tsqueue.h"
 
+#if __cpp_lib_shared_ptr_arrays < 201707L
+#error warpgate::utils::gltf::chunk requires a compiler that supports std::make_shared<T[]> (__cpp_lib_shared_ptr_arrays >= 201707L)
+#endif
+
 using namespace warpgate;
 
 struct Float2 {
