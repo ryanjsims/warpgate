@@ -7,7 +7,7 @@ This is a C++ port of [PyDMOD](https://github.com/ryanjsims/pydmod)
 ### Windows
 * Visual Studio 2022 with Desktop Development with C++ component
 ### Linux
-* GCC 12.1+/Clang ??+ (for C++20 features) (todo: build with clang)
+* GCC 12.1+/Clang 15+ (for C++20 features)
 * Intel Thread Building Blocks (for parallel `std::for_each` loops)
     * Debian/Ubuntu: `sudo apt install libtbb-dev`
 ### Both
