@@ -3,9 +3,10 @@
 
 #include "version.h"
 
-#include "argparse/argparse.hpp"
+#include <argparse/argparse.hpp>
+#include <cnk_loader.h>
 #include <glob/glob.h>
-#include "synthium/synthium.h"
+#include <synthium/synthium.h>
 
 namespace logger = spdlog;
 
@@ -63,14 +64,26 @@ int main(int argc, char* argv[]) {
 
     logger::info("export: loading assets (using synthium {})", synthium::version());
     std::string server = parser.get<std::string>("--assets-directory");
-    synthium::Manager manager(
-        glob::glob({
-            server + "assets_x64_*.pack2",
-            server + "data_x64_*.pack2"
-        })
-    );
-
     std::string input_filename = parser.get<std::string>("asset_name");
+    std::vector<std::filesystem::path> paths = glob::glob({
+        server + "assets_x64_*.pack2",
+        server + "data_x64_*.pack2"
+    });
+
+    size_t zone_loc;
+    bool chunk_file = input_filename.find(".cnk") != std::string::npos;
+    if(
+        (zone_loc = input_filename.find(".zone")) != std::string::npos 
+        || (chunk_file && ((zone_loc = input_filename.find("_")) != std::string::npos))
+    ) {
+        std::vector<std::filesystem::path> additional = glob::glob({
+            server + input_filename.substr(0, zone_loc) + "_x64_*.pack2"
+        });
+        paths.insert(paths.end(), additional.begin(), additional.end());
+    }
+
+    synthium::Manager manager(paths);
+
     if(!manager.contains(input_filename)) {
         logger::error("{} not found in loaded assets", input_filename);
         std::exit(1);
@@ -131,9 +144,17 @@ int main(int argc, char* argv[]) {
     }
 
     std::vector<uint8_t> data = manager.get(input_filename)->get_data(raw);
+    std::unique_ptr<uint8_t[]> decompressed;
+    std::span<uint8_t> data_span(data);
+    if(chunk_file) {
+        warpgate::chunk::Chunk chunk(data);
+        logger::info("Decompressing chunk '{}' of size {} (Compressed size: {})", input_filename, synthium::utils::human_bytes(chunk.decompressed_size()), synthium::utils::human_bytes(chunk.compressed_size()));
+        decompressed = chunk.decompress();
+        data_span = std::span<uint8_t>(decompressed.get(), chunk.decompressed_size());
+    }
     std::ofstream output(output_filename, std::ios::binary);
-    output.write((char*)data.data(), data.size());
+    output.write((char*)data_span.data(), data_span.size());
     output.close();
-    logger::info("Wrote {} bytes to {}", data.size(), output_filename.string());
+    logger::info("Wrote {} to {}", synthium::utils::human_bytes(data_span.size()), output_filename.string());
     return 0;
 }

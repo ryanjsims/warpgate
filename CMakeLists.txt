@@ -44,8 +44,8 @@ target_link_libraries(decompress PRIVATE spdlog::spdlog argparse ZLIB::ZLIB)
 add_executable(export
   src/export.cpp
 )
-target_include_directories(export PUBLIC include/)
-target_link_libraries(export PRIVATE spdlog::spdlog synthium::synthium argparse Glob)
+target_include_directories(export PUBLIC include/ lib/internal/cnk_loader/include/)
+target_link_libraries(export PRIVATE spdlog::spdlog synthium::synthium argparse Glob cnk_loader)
 
 add_executable(dme_converter 
     src/dme_converter.cpp
