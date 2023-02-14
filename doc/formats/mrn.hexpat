@@ -1,4 +1,5 @@
 #include <std/mem.pat>
+#include <std/ptr.pat>
 
 //These values are not correct for old MRN files
 
@@ -95,11 +96,57 @@ struct skeleton_data {
     orientation_data orientations;
 };
 
+struct u16_array {
+    u16 length;
+    u16 values[length];
+};
+
+ fn relative_to_parents_parent(u128 offset) {
+    return addressof(parent.parent);
+ };
+
+// Pointer that checks if the offset is valid before dereferencing
+// Also needed so that an array of pointers can be made with imhex
+struct u16_array_ptr {
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        u16_array *ptr: u64 [[pointer_base("relative_to_parents_parent")]];
+    } else {
+        u64 null;
+    }
+} [[inline]];
+
+struct float6_array_ptr {
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        float *ptr[6]: u64 [[pointer_base("relative_to_parents_parent")]];
+    } else {
+        u64 null;
+    }
+} [[inline]];
+
+struct indexed_data {
+    be u32 crc32hash; // CRC32 of the rest of the data
+    u32 version;   // Maybe?
+    padding[8];    // Looks to be just 0 in the files I've seen so far
+    u32 unknown1, unknown2;
+    float unknown_float1, unknown_float2;
+    u32 unknown3, unknown4;
+    u16_array_ptr offsets[6] [[inline]];
+    float unknown_float_array[6];
+    padding[8];
+    u32 unknown5, unknown6;
+    padding[8];
+    float6_array_ptr offsets2[6] [[inline]];
+    padding[8];
+};
+
 struct packet {
     header head;
     if(head.type == PacketType::skeleton) {
         skeleton_data skeleton;
         u8 data[head.datalength - sizeof(skeleton)];
+    } else if(head.type == PacketType::indexed_data) {
+        indexed_data indexed;
+        u8 data[head.datalength - sizeof(indexed)];
     } else {
         u8 data[head.datalength];
     }
