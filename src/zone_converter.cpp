@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
 
         std::string input_str = parser.get<std::string>("input_file");
         
-        logger::info("Converting file {} using dme_converter {}", input_str, WARPGATE_VERSION);
+        logger::info("Converting file {} using zone_converter {}", input_str, WARPGATE_VERSION);
 
         std::string continent_name = std::filesystem::path(input_str).stem().string();
 
