@@ -19,12 +19,16 @@ struct header {
     u32 magic[2];
     PacketType type;
     u32 index_or_namehash;
-    u32 namehashes[4];
+    // Maybe hashes? No real clue. These are identical across all 'indexed_data' packets within one file.
+    // Other packets in the file have these values zeroed out.
+    u32 unknown[4];
     u32 datalength;
     // Header alignment appears to be either 4 or 16 bytes
     u32 header_alignment;
-    // Pad the header to align the data
-    u8 pad[$%header_alignment != 0 ? (header_alignment - ($ % header_alignment)) : 0];
+    if($ % header_alignment != 0) {
+        // Pad the header to align the data
+        padding[header_alignment - ($ % header_alignment)];
+    }
 };
 
 u8 magic @0x00;
@@ -66,10 +70,17 @@ struct orientation_header {
 
 struct orientation_data {
     orientation_header header;
-    padding[12];
+    if($ % 16 != 0) {
+        padding[16 - ($ % 16)];
+    }
     vector4 offsets[parent.bone_count];
-    padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
+    if(sizeof(offsets) % 64 != 0) {
+        padding[64 - (sizeof(offsets) % 64)];
+    }
     quaternion rotations[parent.bone_count];
+    if(sizeof(rotations) % 64 != 0) {
+        padding[64 - (sizeof(rotations) % 64)];
+    }
 };
 
 struct skeleton_data {
@@ -113,7 +124,7 @@ struct u16_array_ptr {
     } else {
         u64 null;
     }
-} [[inline]];
+};
 
 struct float6_array_ptr {
     if(std::mem::read_unsigned($, 8) != 0x00) {
@@ -123,6 +134,22 @@ struct float6_array_ptr {
     }
 } [[inline]];
 
+struct deq_factors {
+    float factors[6];
+};
+
+struct translation_deq_factors {
+    deq_factors array[parent.translation_anim_deq_count];
+};
+
+struct rotation_deq_factors {
+    deq_factors array[parent.rotation_anim_deq_count];
+};
+
+struct scale_deq_factors {
+    deq_factors array[parent.scale_anim_deq_count];
+};
+
 struct indexed_data {
     be u32 crc32hash; // CRC32 of the rest of the data
     u32 version;   // Maybe?
@@ -130,12 +157,33 @@ struct indexed_data {
     u32 unknown1, unknown2;
     float unknown_float1, unknown_float2;
     u32 unknown3, unknown4;
-    u16_array_ptr offsets[6] [[inline]];
-    float unknown_float_array[6];
+    u16_array_ptr static_translation_bone_indices;
+    u16_array_ptr static_rotation_bone_indices;
+    u16_array_ptr static_scale_bone_indices;
+    u16_array_ptr dynamic_translation_bone_indices;
+    u16_array_ptr dynamic_rotation_bone_indices;
+    u16_array_ptr dynamic_scale_bone_indices;
+    float translation_start_pos_factors[6];
     padding[8];
-    u32 unknown5, unknown6;
-    padding[8];
-    float6_array_ptr offsets2[6] [[inline]];
+    u32 translation_anim_deq_count, rotation_anim_deq_count, scale_anim_deq_count;
+    padding[4];
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        translation_deq_factors *translation_factors: u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_tr;
+    }
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        rotation_deq_factors *rotation_factors: u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_rot;
+    }
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        scale_deq_factors *scale_factors: u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_scl;
+    }
+    float6_array_ptr offsets2[2] [[inline]];
+    u8 *end_data[96] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     padding[8];
 };
 
