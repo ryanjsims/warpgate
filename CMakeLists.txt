@@ -9,9 +9,11 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID STREQUAL "Cla
   add_compile_options("-Wno-deprecated")
 endif()
 
+set(MATERIALS_JSON_PORTABLE 0 CACHE BOOL "")
+
 add_subdirectory(lib)
 
-add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}")
+add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}" -DMATERIALS_JSON_PORTABLE=${MATERIALS_JSON_PORTABLE})
 
 add_executable(test_adr
   src/test_adr.cpp

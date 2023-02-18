@@ -1,5 +1,26 @@
 #include "utils/materials_3.h"
 
+namespace logger = spdlog;
+
+#ifdef WIN32
+#include <windows.h>
+
+std::optional<std::filesystem::path> executable_location() {
+    char location[512];
+    DWORD rc = GetModuleFileNameA(nullptr, location, 512);
+    DWORD error = GetLastError();
+    if(rc == 512 && error == ERROR_INSUFFICIENT_BUFFER || rc == 0) {
+        logger::error("Failed to get executable location: error code {}", error);
+        return {};
+    }
+    return std::filesystem::path(location);
+}
+#else
+std::optional<std::filesystem::path> executable_location() {
+    return std::filesystem::canonical("/proc/self/exe");
+}
+#endif
+
 using namespace warpgate;
 
 std::vector<std::string> utils::materials3::detailcube_faces = {"+x", "-x", "+y", "-y", "+z", "-z"};
@@ -55,9 +76,13 @@ std::unordered_map<std::string, int> utils::materials3::types = {
 };
 
 void utils::materials3::init_materials() {
-    std::ifstream materials_file(MATERIALS_JSON_LOCATION);
+    std::filesystem::path material_location = MATERIALS_JSON_LOCATION;
+    #if MATERIALS_JSON_PORTABLE
+        material_location = (*executable_location()).parent_path() / material_location;
+    #endif
+    std::ifstream materials_file(material_location);
     if(materials_file.fail()) {
-        spdlog::error("Could not open materials.json: looking at location {}", MATERIALS_JSON_LOCATION);
+        spdlog::error("Could not open materials.json: looking at location {}", material_location.string());
         std::exit(1);
     }
     materials = nlohmann::json::parse(materials_file);
