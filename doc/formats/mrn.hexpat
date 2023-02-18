@@ -150,6 +150,24 @@ struct scale_deq_factors {
     deq_factors array[parent.scale_anim_deq_count];
 };
 
+struct indexed_data_second_segment {
+    u32 magic;
+    u32 translation_bone_count;
+    u32 rotation_bone_count;
+    u32 scale_bone_count;
+    u8 *translation_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8 *translation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8 *rotation_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8 *rotation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        u8 *scale_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+        u8 *scale_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_scale_data;
+        u64 null_scale_factors;
+    }
+};
+
 struct indexed_data {
     be u32 crc32hash; // CRC32 of the rest of the data
     u32 version;   // Maybe?
@@ -182,7 +200,9 @@ struct indexed_data {
     } else {
         u64 null_scl;
     }
-    float6_array_ptr offsets2[2] [[inline]];
+
+    float6_array_ptr static_data;
+    indexed_data_second_segment *dynamic_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     u8 *end_data[96] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     padding[8];
 };
