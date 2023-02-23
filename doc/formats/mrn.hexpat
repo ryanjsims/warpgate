@@ -88,9 +88,15 @@ struct skeleton_data {
     vector4 position;
     u32 chain_count;
     padding[4];
-    u32 unknown_array1[11];
+    u8* unknown_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u32* ptr_bone_count : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u32 unknown_array1[2];
+    u8* unknown_ptr2 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* unknown_ptr3 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	u32 unknown_int;
     padding[4];
-    u32 unknown_array2[3];
+    u8* ptr_end_data[96] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u32 unknown_int2;
     padding[4];
     u32 unknown_array3[4];
     padding[8];
@@ -150,17 +156,66 @@ struct scale_deq_factors {
     deq_factors array[parent.scale_anim_deq_count];
 };
 
-struct indexed_data_second_segment {
-    u32 magic;
+struct indexed_data_first_segment {
     u32 translation_bone_count;
     u32 rotation_bone_count;
     u32 scale_bone_count;
-    u8 *translation_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8 *translation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8 *rotation_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8 *rotation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    deq_factors translation_factors;
+    deq_factors rotation_factors;
+    if(scale_bone_count > 0) {
+    	deq_factors scale_factors;
+    }
+    padding[4];
+    u64 unknown;
     if(std::mem::read_unsigned($, 8) != 0x00) {
-        u8 *scale_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	u8 *translation_data[6 * translation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_translation_data;
+    }
+    
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+    	u8 *rotation_data[6 * rotation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_rotation_data;
+    }
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        u8 *scale_data[6 * scale_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_scale_data;
+    }
+};
+
+struct rotation_bone_data {
+    u8 data[6];
+};
+
+struct rotation_frame_data {
+    rotation_bone_data data[parent.rotation_bone_count];
+};
+
+struct indexed_data_second_segment {
+    u32 frames; // Not 100%
+    u32 translation_bone_count;
+    u32 rotation_bone_count;
+    u32 scale_bone_count;
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+	    u8 *translation_data[frames * translation_bone_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    u8 *translation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_translation_data;
+        u64 null_translation_factors;
+    }
+    
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+	    rotation_frame_data *rotation_data[frames * rotation_bone_count * 6] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    u8 *rotation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_rotation_data;
+        u64 null_rotation_factors;
+    }
+    
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        u8 *scale_data[frames * scale_bone_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
         u8 *scale_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_scale_data;
@@ -200,9 +255,17 @@ struct indexed_data {
     } else {
         u64 null_scl;
     }
-
-    float6_array_ptr static_data;
-    indexed_data_second_segment *dynamic_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	
+	if(std::mem::read_unsigned($, 8) != 0x00) {
+    	indexed_data_first_segment *static_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_static_data;
+    }
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+    	indexed_data_second_segment *dynamic_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_dynamic_data;
+    }
     u8 *end_data[96] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     padding[8];
 };
