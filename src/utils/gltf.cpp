@@ -139,7 +139,7 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
     }
     std::string layout_name = input_layout->at("name").get<std::string>();
     logger::debug("Using input layout {}", layout_name);
-    bool rigid = utils::uppercase(layout_name).find("RIGID") != std::string::npos;
+    bool rigid = utils::uppercase(layout_name).find("RIGID") != std::string::npos || utils::uppercase(layout_name) == "VEHICLE";
     
     std::vector<tinygltf::Buffer> buffers;
     for(uint32_t j = 0; j < mesh->vertex_stream_count(); j++) {
