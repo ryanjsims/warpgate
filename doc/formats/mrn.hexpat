@@ -50,7 +50,11 @@ struct BoneHierarchyEntry {
 
 struct bone_name {
     char name[];
-} [[inline]];
+};
+
+struct string {
+    char value[];
+};
 
 struct orientation_header {
     u32 header_size;
@@ -140,6 +144,15 @@ struct float6_array_ptr {
     }
 } [[inline]];
 
+// For arrays of pointers
+struct checked_ptr {
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        u8 *ptr : u64 [[pointer_base("relative_to_parents_parent")]];
+    } else {
+        u64 null;
+    }
+} [[inline]];
+
 struct deq_factors {
     float factors[6];
 };
@@ -185,8 +198,16 @@ struct indexed_data_first_segment {
     }
 };
 
+struct translation_bone_data {
+    s8 data[4]; // May be two shorts or one int, idk
+};
+
+struct translation_frame_data {
+    translation_bone_data data[parent.translation_bone_count];
+};
+
 struct rotation_bone_data {
-    u8 data[6];
+    s8 data[6]; // may be three shorts or something else, idk
 };
 
 struct rotation_frame_data {
@@ -199,7 +220,7 @@ struct indexed_data_second_segment {
     u32 rotation_bone_count;
     u32 scale_bone_count;
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    u8 *translation_data[frames * translation_bone_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    translation_frame_data *translation_data[frames] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 	    u8 *translation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_translation_data;
@@ -207,7 +228,7 @@ struct indexed_data_second_segment {
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    rotation_frame_data *rotation_data[frames * rotation_bone_count * 6] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    rotation_frame_data *rotation_data[frames] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 	    u8 *rotation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_rotation_data;
@@ -270,6 +291,24 @@ struct indexed_data {
     padding[8];
 };
 
+struct file_segment {
+    u32 string_count;
+    u32 string_data_size;
+    u32* string_offsets[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string* strings[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    padding[string_count * sizeof(u32) + string_data_size];
+    padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
+};
+
+struct file_segment_ptr {
+    file_segment* segment : u64 [[pointer_base("relative_to_parents_parent")]];
+} [[inline]];
+
+struct file_data {
+    file_segment_ptr segments[4];
+    checked_ptr offset;
+};
+
 struct packet {
     header head;
     if(head.type == PacketType::skeleton) {
@@ -278,6 +317,9 @@ struct packet {
     } else if(head.type == PacketType::indexed_data) {
         indexed_data indexed;
         u8 data[head.datalength - sizeof(indexed)];
+    } else if(head.type == PacketType::file_names) {
+        file_data files;
+        padding[head.datalength - sizeof(files)];
     } else {
         u8 data[head.datalength];
     }
