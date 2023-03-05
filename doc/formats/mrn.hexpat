@@ -153,30 +153,36 @@ struct checked_ptr {
     }
 } [[inline]];
 
-struct deq_factors {
-    float factors[6];
+struct dequantization_factors {
+    float q_min[3];
+    float q_max[3];
+};
+
+struct dequantization_info {
+    u8 init[3];
+    u8 factor_index[3];
 };
 
 struct translation_deq_factors {
-    deq_factors array[parent.translation_anim_deq_count];
+    dequantization_factors array[parent.translation_anim_deq_count];
 };
 
 struct rotation_deq_factors {
-    deq_factors array[parent.rotation_anim_deq_count];
+    dequantization_factors array[parent.rotation_anim_deq_count];
 };
 
 struct scale_deq_factors {
-    deq_factors array[parent.scale_anim_deq_count];
+    dequantization_factors array[parent.scale_anim_deq_count];
 };
 
 struct indexed_data_first_segment {
     u32 translation_bone_count;
     u32 rotation_bone_count;
     u32 scale_bone_count;
-    deq_factors translation_factors;
-    deq_factors rotation_factors;
+    dequantization_factors translation_factors;
+    dequantization_factors rotation_factors;
     if(scale_bone_count > 0) {
-    	deq_factors scale_factors;
+        dequantization_factors scale_factors;
     }
     padding[4];
     u64 unknown;
@@ -198,8 +204,10 @@ struct indexed_data_first_segment {
     }
 };
 
-struct translation_bone_data {
-    s8 data[4]; // May be two shorts or one int, idk
+bitfield translation_bone_data {
+    z : 10;
+    y : 11;
+    x : 11;
 };
 
 struct translation_frame_data {
@@ -221,26 +229,26 @@ struct indexed_data_second_segment {
     u32 scale_bone_count;
     if(std::mem::read_unsigned($, 8) != 0x00) {
 	    translation_frame_data *translation_data[frames] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-	    u8 *translation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    dequantization_info *translation_deq_info : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_translation_data;
-        u64 null_translation_factors;
+        u64 null_translation_deq_info;
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
 	    rotation_frame_data *rotation_data[frames] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-	    u8 *rotation_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    dequantization_info *rotation_deq_info : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_rotation_data;
-        u64 null_rotation_factors;
+        u64 null_rotation_deq_info;
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
         u8 *scale_data[frames * scale_bone_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-        u8 *scale_factors : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+        dequantization_info *scale_deq_info : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_scale_data;
-        u64 null_scale_factors;
+        u64 null_scale_deq_info;
     }
 };
 
@@ -249,7 +257,7 @@ struct indexed_data {
     u32 version;   // Maybe?
     padding[8];    // Looks to be just 0 in the files I've seen so far
     u32 unknown1, unknown2;
-    float unknown_float1, unknown_float2;
+    float duration_seconds, frame_rate;
     u32 unknown3, unknown4;
     u16_array_ptr static_translation_bone_indices;
     u16_array_ptr static_rotation_bone_indices;
