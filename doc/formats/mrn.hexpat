@@ -56,20 +56,35 @@ struct string {
     char value[];
 };
 
+fn relative_to_parents_parent(u128 offset) {
+    return addressof(parent.parent);
+};
+
+struct orientation_transform_locations {
+	u8* translation_data : u64 [[pointer_base("relative_to_parents_parent")]];
+    u8* rotation_data : u64 [[pointer_base("relative_to_parents_parent")]];
+};
+
+struct orientation_subheader {
+	u32 datalength;
+    u32 alignment;
+    u32 element_count;
+    bool full;
+    padding[3];
+    u32 element_type; //maybe
+    padding[4];
+    u8* unknown_ptr1 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    orientation_transform_locations* transforms : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* unknown_ptr3 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    padding[while($ < std::mem::read_unsigned(addressof(this) + 32, 8) + addressof(this) + 16)];
+    
+};
+
 struct orientation_header {
     u32 header_size;
     u32 unknown1;
     padding[8];
-    u32 total_length;
-    u32 unknown2;
-    u32 unknown3;
-    bool unknown_bool;
-    padding[3];
-    u32 unknown4;
-    padding[4];
-    u64 arr_len_bytes;
-    u64 unknown5;
-    s32 unknown_array[arr_len_bytes / 4];
+    orientation_subheader subheader;
 };
 
 struct orientation_data {
@@ -87,6 +102,15 @@ struct orientation_data {
     }
 };
 
+struct string_table {
+    u32 string_count;
+    u32 string_data_size;
+    u32* string_offsets[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string* strings[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    padding[string_count * sizeof(u32) + string_data_size];
+    padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
+};
+
 struct skeleton_data {
     quaternion rotation;
     vector4 position;
@@ -102,15 +126,15 @@ struct skeleton_data {
     u8* ptr_end_data[96] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     u32 unknown_int2;
     padding[4];
-    u32 unknown_array3[4];
+    u8* unknown_ptr4 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* unknown_ptr5 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     padding[8];
     BoneHierarchyEntry chains[chain_count];
     u32 bone_count;
     padding[4];
-    u32 unknown_array4[3];
+    u32 unknown_array4[2];
     u32 indices[bone_count];
-    u32 unknown_array5[bone_count + 5];
-    bone_name bone_names[bone_count];
+    string_table bone_names_table;
     padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
     u32 magic;
     padding[4];
@@ -121,10 +145,6 @@ struct u16_array {
     u16 length;
     u16 values[length];
 };
-
- fn relative_to_parents_parent(u128 offset) {
-    return addressof(parent.parent);
- };
 
 // Pointer that checks if the offset is valid before dereferencing
 // Also needed so that an array of pointers can be made with imhex
@@ -297,15 +317,6 @@ struct indexed_data {
     }
     u8 *end_data[96] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     padding[8];
-};
-
-struct string_table {
-    u32 string_count;
-    u32 string_data_size;
-    u32* string_offsets[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    string* strings[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    padding[string_count * sizeof(u32) + string_data_size];
-    padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
 };
 
 struct file_segment_ptr {
