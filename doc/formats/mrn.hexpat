@@ -215,7 +215,7 @@ struct translation_frame_data {
 };
 
 struct rotation_bone_data {
-    s8 data[6]; // may be three shorts or something else, idk
+    u16 data[3];
 };
 
 struct rotation_frame_data {
@@ -299,7 +299,7 @@ struct indexed_data {
     padding[8];
 };
 
-struct file_segment {
+struct string_table {
     u32 string_count;
     u32 string_data_size;
     u32* string_offsets[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
@@ -309,12 +309,17 @@ struct file_segment {
 };
 
 struct file_segment_ptr {
-    file_segment* segment : u64 [[pointer_base("relative_to_parents_parent")]];
+    string_table* table : u64 [[pointer_base("relative_to_parents_parent")]];
 } [[inline]];
 
 struct file_data {
-    file_segment_ptr segments[4];
-    checked_ptr offset;
+    string_table* filenames : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string_table* filetypes : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string_table* source_filenames : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string_table* animation_names : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    // Turns out imhex does not allow you to dereference pointers to get values.
+    // The count here should be filenames->string_count but unfortunately that is not available in imhex
+    be u32* crc32hashes[std::mem::read_unsigned(addressof(this) + 40, 4)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 };
 
 struct packet {
