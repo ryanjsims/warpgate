@@ -1,3 +1,5 @@
+#pragma pattern_limit 2097152
+
 #include <std/mem.pat>
 #include <std/ptr.pat>
 
@@ -8,18 +10,18 @@ enum PacketType : u32 {
     some_other_data = 0x02,
     name2 = 0x03,
     data = 0x07,
-    animation_data = 0x0A, // not sure but it has some names in it that sound like it
+    network_data = 0x0A, // not sure but it has some names in it that sound like it
     name = 0x0C,
     file_names = 0x0E, // same as above - has some file name data in it alongside other stuff.
     vehicle_names = 0x0F,
-    indexed_data = 0x10, // Data that has an index rather than namehash in the header
+    nsa_data = 0x10, // Data that has an index rather than namehash in the header
 };
 
 struct header {
     u32 magic[2];
     PacketType type;
     u32 index_or_namehash;
-    // Maybe hashes? No real clue. These are identical across all 'indexed_data' packets within one file.
+    // Maybe hashes? No real clue. These are identical across all 'nsa_data' packets within one file.
     // Other packets in the file have these values zeroed out.
     u32 unknown[4];
     u32 datalength;
@@ -100,6 +102,17 @@ struct orientation_data {
     if(sizeof(rotations) % 64 != 0) {
         padding[64 - (sizeof(rotations) % 64)];
     }
+};
+
+struct expanded_string_table {
+	u32 string_count;
+    u32 string_data_size;
+    u32* string_ids[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u32* string_offsets[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* unknown_data[string_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string* strings[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    padding[string_count * sizeof(u32) + string_data_size];
+    padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
 };
 
 struct string_table {
@@ -195,7 +208,7 @@ struct scale_deq_factors {
     dequantization_factors array[parent.scale_anim_deq_count];
 };
 
-struct indexed_data_first_segment {
+struct nsa_data_first_segment {
     u32 translation_bone_count;
     u32 rotation_bone_count;
     u32 scale_bone_count;
@@ -225,10 +238,10 @@ struct indexed_data_first_segment {
 };
 
 bitfield translation_bone_data {
-    z : 10;
-    y : 11;
-    x : 11;
-};
+    x : 9;
+    y : 14;
+    z : 9;
+} [[left_to_right]];
 
 struct translation_frame_data {
     translation_bone_data data[parent.translation_bone_count];
@@ -242,7 +255,7 @@ struct rotation_frame_data {
     rotation_bone_data data[parent.rotation_bone_count];
 };
 
-struct indexed_data_second_segment {
+struct nsa_data_second_segment {
     u32 frames; // Not 100%
     u32 translation_bone_count;
     u32 rotation_bone_count;
@@ -272,7 +285,7 @@ struct indexed_data_second_segment {
     }
 };
 
-struct indexed_data {
+struct nsa_data {
     be u32 crc32hash; // CRC32 of the rest of the data
     u32 version;   // Maybe?
     padding[8];    // Looks to be just 0 in the files I've seen so far
@@ -306,12 +319,12 @@ struct indexed_data {
     }
 	
 	if(std::mem::read_unsigned($, 8) != 0x00) {
-    	indexed_data_first_segment *static_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	nsa_data_first_segment *static_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_static_data;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	indexed_data_second_segment *dynamic_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	nsa_data_second_segment *dynamic_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_dynamic_data;
     }
@@ -319,7 +332,7 @@ struct indexed_data {
     padding[8];
 };
 
-struct file_segment_ptr {
+struct string_table_ptr {
     string_table* table : u64 [[pointer_base("relative_to_parents_parent")]];
 } [[inline]];
 
@@ -333,17 +346,57 @@ struct file_data {
     be u32* crc32hashes[std::mem::read_unsigned(addressof(this) + 40, 4)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 };
 
+struct expanded_string_table_ptr {
+	expanded_string_table* table : u64 [[pointer_base("relative_to_parents_parent")]];
+} [[inline]];
+
+struct network_data_offset_table {
+	u32 chunk_count;
+	u32 chunk_size;
+	checked_ptr* ptrs[chunk_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+};
+
+struct network_data {
+    u8 unknown1[32];
+    checked_ptr ptrs[6];
+    u8 unknown2[120];
+    checked_ptr ptrs2[5];
+    expanded_string_table_ptr ex_string_tables[2];
+    string_table* string_table1 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    checked_ptr ptrs3[1];
+    string_table* string_table2 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string_table* string_table3 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    checked_ptr ptrs4[2];
+    network_data_offset_table* data_chunk_table : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u32 unknown_int;
+    padding[4];
+    checked_ptr ptrs5[1];
+    u32 unknown_int2;
+    padding[4];
+    checked_ptr* ptr_ptrs[unknown_int2] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    checked_ptr ptrs6[1];
+    u32 some_data_length;
+    u32 unknown_int3;
+    u16 unknown_short;
+    padding[2];
+    u32 unknown_int4;
+    checked_ptr ptrs7[4];
+};
+
 struct packet {
     header head;
     if(head.type == PacketType::skeleton) {
         skeleton_data skeleton;
         u8 data[head.datalength - sizeof(skeleton)];
-    } else if(head.type == PacketType::indexed_data) {
-        indexed_data indexed;
-        u8 data[head.datalength - sizeof(indexed)];
+    } else if(head.type == PacketType::nsa_data) {
+        nsa_data nsa;
+        padding[head.datalength - sizeof(nsa)];
     } else if(head.type == PacketType::file_names) {
         file_data files;
         padding[head.datalength - sizeof(files)];
+    } else if(head.type == PacketType::network_data) {
+        network_data network;
+        u8 data[head.datalength - sizeof(network)];
     } else {
         u8 data[head.datalength];
     }
