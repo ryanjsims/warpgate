@@ -37,6 +37,26 @@ add_executable(test_zone
 target_include_directories(test_zone PUBLIC include/)
 target_link_libraries(test_zone PRIVATE zone_loader spdlog::spdlog synthium::synthium)
 
+add_executable(adr_converter 
+    src/adr_converter.cpp
+    src/utils/adr.cpp
+    src/utils/gltf/common.cpp
+    src/utils/gltf.cpp
+    src/utils/materials_3.cpp 
+    src/utils/sign.cpp 
+    src/utils/textures.cpp
+    src/utils/tsqueue.cpp 
+)
+target_include_directories(adr_converter PUBLIC 
+  include/
+  ${CMAKE_BINARY_DIR}/include/
+  lib/internal/dme_loader/include/
+  lib/external/argparse/include/
+  lib/external/half/include/
+  lib/external/tinygltf/
+  lib/external/synthium/include)
+target_link_libraries(adr_converter PRIVATE dme_loader pugixml::static spdlog::spdlog tinygltf argparse synthium::synthium gli)
+
 add_executable(decompress
   src/decompress.cpp
 )

@@ -134,7 +134,7 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
     std::vector<uint32_t> offsets((std::size_t)mesh->vertex_stream_count(), 0);
     std::optional<nlohmann::json> input_layout = utils::materials3::get_input_layout(dme.dmat()->material(index)->definition());
     if(!input_layout) {
-        logger::error("Material definition not found!");
+        logger::error("Material definition not found! Definition hash: {}", dme.dmat()->material(index)->definition());
         std::exit(4);
     }
     std::string layout_name = input_layout->at("name").get<std::string>();
@@ -293,7 +293,7 @@ int utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme
             if(rigify && (rigify_iter = utils::rigify_names.find(name_iter->second)) != utils::rigify_names.end()) {
                 bone_node.name = rigify_iter->second;
             } else {
-                bone_node.name = name_iter->second;
+                bone_node.name = std::to_string(bone_index + 1) + " " + name_iter->second;
             }
         } else {
             logger::debug("Could not find a bone name for namehash {:#010x}", namehash);
