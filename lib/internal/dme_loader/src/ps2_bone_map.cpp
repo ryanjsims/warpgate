@@ -1498,9 +1498,20 @@ std::unordered_map<uint32_t, std::string> utils::bone_hashmap = {
     {3546266377u, "YAWPROP_L"},
     {411682144u, "YAWPROP_R"},
     {843617178u, "YAWRECOIL"},
+    // Weird bastion cannon name hashes
+    {1923000924u, "BARREL"},
+    {3098565902u, "PITCH"},
+    {4220085123u, "WORLDROOT"},
+    {119272585u, "YAW"},
+    {1731449576u, "YAWRECOIL"},
 };
 
 std::unordered_map<uint32_t, uint32_t> utils::bone_hierarchy = {
+    {4220085123u, 0u},
+    {119272585u, 4220085123u},
+    {1731449576u, 119272585u},
+    {3098565902u, 119272585u},
+    {1923000924u, 3098565902u},
     {4099058003u, 2726916658u},
     {2859017764u, 2726916658u},
     {4043274857u, 1049972350u},
