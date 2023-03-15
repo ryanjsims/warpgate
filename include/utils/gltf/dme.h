@@ -40,6 +40,7 @@ namespace warpgate::utils::gltf::dme {
         std::span<uint8_t> data, 
         uint32_t stream, 
         bool is_rigid, 
-        const DME &dme
+        const DME &dme,
+        std::shared_ptr<const Mesh> mesh
     );
 }

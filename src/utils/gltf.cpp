@@ -5,6 +5,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <spdlog/spdlog.h>
+#include <thread>
 
 #include "bone.h"
 #include "glm/matrix.hpp"
@@ -146,9 +147,12 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
         std::span<uint8_t> vertex_stream = mesh->vertex_stream(j);
         tinygltf::Buffer buffer;
         logger::debug("Expanding vertex stream {}", j);
-        buffer.data = expand_vertex_stream(*input_layout, vertex_stream, j, rigid, dme);
+        buffer.data = expand_vertex_stream(*input_layout, vertex_stream, j, rigid, dme, mesh);
         buffers.push_back(buffer);
     }
+    logger::debug("Expanded vertex streams");
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(20ms);
 
     for(nlohmann::json entry : input_layout->at("entries")) {
         std::string type = entry.at("type").get<std::string>();
@@ -554,7 +558,8 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
     std::span<uint8_t> data, 
     uint32_t stream, 
     bool is_rigid, 
-    const DME &dme
+    const DME &dme,
+    std::shared_ptr<const Mesh> mesh
 ) {
     VertexStream vertices(data);
     logger::trace("{}['{}']", layout.at("sizes").dump(), std::to_string(stream));
@@ -562,6 +567,11 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
                             .at(std::to_string(stream))
                             .get<uint32_t>();
     logger::debug("Data stride: {}", stride);
+
+    if(mesh->bytes_per_vertex(stream) != stride) {
+        logger::error("VertexStream stride {} != InputLayout stride {}", mesh->bytes_per_vertex(stream), stride);
+        std::exit(32);
+    }
     std::vector<std::pair<uint32_t, bool>> offsets;
     bool conversion_required = false;
     int tangent_index = -1;
@@ -644,8 +654,8 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
         layout.at("entries") += nlohmann::json::parse("{\"stream\":"+std::to_string(stream)+",\"type\":\"D3dcolor\",\"usage\":\"BlendIndices\",\"usageIndex\":0}");
         layout.at("entries") += nlohmann::json::parse("{\"stream\":"+std::to_string(stream)+",\"type\":\"Float4\",\"usage\":\"BlendWeight\",\"usageIndex\":0}");
     }
-
-    logger::debug("Converting {} entries", std::count_if(offsets.begin(), offsets.end(), [](auto pair) { return pair.second; }));
+    int entries_count = std::count_if(offsets.begin(), offsets.end(), [](auto pair) { return pair.second; });
+    logger::debug("Converting {} entries", entries_count);
     std::vector<uint8_t> output;
     for(uint32_t vertex_offset = 0; vertex_offset < vertices.size(); vertex_offset += stride) {
         uint32_t entry_offset = 0;
@@ -732,5 +742,6 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
             output.insert(output.end(), reinterpret_cast<uint8_t*>(blend_weights), reinterpret_cast<uint8_t*>(blend_weights) + 16);
         }
     }
+    logger::debug("Converted {} entries", entries_count);
     return output;
 }

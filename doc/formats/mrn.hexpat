@@ -238,39 +238,39 @@ struct nsa_data_first_segment {
 };
 
 bitfield translation_bone_data {
-    x : 9;
-    y : 14;
-    z : 9;
+    x : 11;
+    y : 11;
+    z : 10;
 } [[left_to_right]];
 
-struct translation_frame_data {
-    translation_bone_data data[parent.translation_bone_count];
+struct translation_sample_data {
+    translation_bone_data data[parent.samples];
 };
 
 struct rotation_bone_data {
     u16 data[3];
 };
 
-struct rotation_frame_data {
-    rotation_bone_data data[parent.rotation_bone_count];
+struct rotation_sample_data {
+    rotation_bone_data data[parent.samples];
 };
 
 struct nsa_data_second_segment {
-    u32 frames; // Not 100%
+    u32 samples; // Not 100%
     u32 translation_bone_count;
     u32 rotation_bone_count;
     u32 scale_bone_count;
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    translation_frame_data *translation_data[frames] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-	    dequantization_info *translation_deq_info : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    translation_sample_data *translation_data[translation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    dequantization_info *translation_deq_info[parent.translation_anim_deq_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_translation_data;
         u64 null_translation_deq_info;
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    rotation_frame_data *rotation_data[frames] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-	    dequantization_info *rotation_deq_info : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    rotation_sample_data *rotation_data[rotation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    dequantization_info *rotation_deq_info[parent.rotation_anim_deq_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_rotation_data;
         u64 null_rotation_deq_info;
@@ -285,11 +285,25 @@ struct nsa_data_second_segment {
     }
 };
 
+struct end_data_header {
+	u32 version;
+	u32 unk_array[3];
+	u32 size;
+	u32 alignment;
+	float frame_rate;
+	u32 samples;
+};
+
+struct end_data {
+	end_data_header header;
+	u8 data[64];
+};
+
 struct nsa_data {
     be u32 crc32hash; // CRC32 of the rest of the data
     u32 version;   // Maybe?
     padding[8];    // Looks to be just 0 in the files I've seen so far
-    u32 unknown1, unknown2;
+    u32 static_length, alignment;
     float duration_seconds, frame_rate;
     u32 unknown3, unknown4;
     u16_array_ptr static_translation_bone_indices;
@@ -328,7 +342,7 @@ struct nsa_data {
     } else {
         u64 null_dynamic_data;
     }
-    u8 *end_data[96] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    end_data *end_data_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     padding[8];
 };
 
