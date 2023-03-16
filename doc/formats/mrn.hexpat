@@ -255,6 +255,16 @@ struct rotation_sample_data {
     rotation_bone_data data[parent.samples];
 };
 
+// There are deq_info sets for every bone, but the number of sets is always a multiple of 4
+// This code simply gets the first multiple of 4 that is greater than or equal to the bone count
+fn deq_info_sets(u32 bone_count) {
+    u32 multiple = bone_count / 4;
+    if(bone_count % 4 != 0) {
+        multiple = multiple + 1;
+    }
+    return multiple * 4;
+};
+
 struct nsa_data_second_segment {
     u32 samples; // Not 100%
     u32 translation_bone_count;
@@ -262,7 +272,7 @@ struct nsa_data_second_segment {
     u32 scale_bone_count;
     if(std::mem::read_unsigned($, 8) != 0x00) {
 	    translation_sample_data *translation_data[translation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-	    dequantization_info *translation_deq_info[parent.translation_anim_deq_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    dequantization_info *translation_deq_info[deq_info_sets(translation_bone_count)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_translation_data;
         u64 null_translation_deq_info;
@@ -270,7 +280,7 @@ struct nsa_data_second_segment {
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
 	    rotation_sample_data *rotation_data[rotation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-	    dequantization_info *rotation_deq_info[parent.rotation_anim_deq_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    dequantization_info *rotation_deq_info[deq_info_sets(rotation_bone_count)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_rotation_data;
         u64 null_rotation_deq_info;
