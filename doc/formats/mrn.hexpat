@@ -266,7 +266,7 @@ fn deq_info_sets(u32 bone_count) {
 };
 
 struct nsa_data_second_segment {
-    u32 samples; // Not 100%
+    u32 samples;
     u32 translation_bone_count;
     u32 rotation_bone_count;
     u32 scale_bone_count;
