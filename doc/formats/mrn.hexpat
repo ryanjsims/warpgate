@@ -7,13 +7,13 @@
 
 enum PacketType : u32 {
     skeleton = 0x01,
-    some_other_data = 0x02,
+    some_other_data = 0x02, // Maybe a network object? Header hashes are interesting
     name2 = 0x03,
     data = 0x07,
     network_data = 0x0A, // not sure but it has some names in it that sound like it
     name = 0x0C,
     file_names = 0x0E, // same as above - has some file name data in it alongside other stuff.
-    vehicle_names = 0x0F,
+    skeleton_names = 0x0F,
     nsa_data = 0x10, // Data that has an index rather than namehash in the header
 };
 
@@ -188,7 +188,7 @@ struct checked_ptr {
 
 struct dequantization_factors {
     float q_min[3];
-    float q_max[3];
+    float q_scaled_extent[3];
 };
 
 struct dequantization_info {
@@ -208,6 +208,10 @@ struct scale_deq_factors {
     dequantization_factors array[parent.scale_anim_deq_count];
 };
 
+struct vec3_short {
+    u16 x, y, z;
+};
+
 struct nsa_data_first_segment {
     u32 translation_bone_count;
     u32 rotation_bone_count;
@@ -220,18 +224,18 @@ struct nsa_data_first_segment {
     padding[4];
     u64 unknown;
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	u8 *translation_data[6 * translation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	vec3_short *translation_data[translation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_translation_data;
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	u8 *rotation_data[6 * rotation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	vec3_short *rotation_data[rotation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_rotation_data;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-        u8 *scale_data[6 * scale_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+        vec3_short *scale_data[scale_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_scale_data;
     }
@@ -244,7 +248,7 @@ bitfield translation_bone_data {
 } [[left_to_right]];
 
 struct translation_sample_data {
-    translation_bone_data data[parent.samples];
+    translation_bone_data data[parent.translation_bone_count];
 };
 
 struct rotation_bone_data {
@@ -252,7 +256,7 @@ struct rotation_bone_data {
 };
 
 struct rotation_sample_data {
-    rotation_bone_data data[parent.samples];
+    rotation_bone_data data[parent.rotation_bone_count];
 };
 
 // There are deq_info sets for every bone, but the number of sets is always a multiple of 4
@@ -271,7 +275,7 @@ struct nsa_data_second_segment {
     u32 rotation_bone_count;
     u32 scale_bone_count;
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    translation_sample_data *translation_data[translation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    translation_sample_data *translation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 	    dequantization_info *translation_deq_info[deq_info_sets(translation_bone_count)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_translation_data;
@@ -279,7 +283,7 @@ struct nsa_data_second_segment {
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    rotation_sample_data *rotation_data[rotation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    rotation_sample_data *rotation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 	    dequantization_info *rotation_deq_info[deq_info_sets(rotation_bone_count)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
         u64 null_rotation_data;
@@ -315,7 +319,7 @@ struct nsa_data {
     padding[8];    // Looks to be just 0 in the files I've seen so far
     u32 static_length, alignment;
     float duration_seconds, frame_rate;
-    u32 unknown3, unknown4;
+    u32 total_bones, total_animated_bones;
     u16_array_ptr static_translation_bone_indices;
     u16_array_ptr static_rotation_bone_indices;
     u16_array_ptr static_scale_bone_indices;
@@ -407,6 +411,10 @@ struct network_data {
     checked_ptr ptrs7[4];
 };
 
+struct skeleton_names_data {
+	expanded_string_table_ptr names_table;
+};
+
 struct packet {
     header head;
     if(head.type == PacketType::skeleton) {
@@ -421,6 +429,9 @@ struct packet {
     } else if(head.type == PacketType::network_data) {
         network_data network;
         u8 data[head.datalength - sizeof(network)];
+    } else if(head.type == PacketType::skeleton_names) {
+    	skeleton_names_data skeletons;
+    	padding[head.datalength - sizeof(skeletons)];
     } else {
         u8 data[head.datalength];
     }
