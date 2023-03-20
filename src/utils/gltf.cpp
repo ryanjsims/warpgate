@@ -297,7 +297,7 @@ int utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme
             if(rigify && (rigify_iter = utils::rigify_names.find(name_iter->second)) != utils::rigify_names.end()) {
                 bone_node.name = rigify_iter->second;
             } else {
-                bone_node.name = std::to_string(bone_index + 1) + " " + name_iter->second;
+                bone_node.name = name_iter->second;
             }
         } else {
             logger::debug("Could not find a bone name for namehash {:#010x}", namehash);
