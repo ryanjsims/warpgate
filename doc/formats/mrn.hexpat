@@ -2,7 +2,7 @@
 
 #include <std/mem.pat>
 #include <std/ptr.pat>
-
+#include <std/io.pat>
 //These values are not correct for old MRN files
 
 enum PacketType : u32 {
@@ -254,9 +254,12 @@ struct translation_sample_data {
 struct rotation_bone_data {
     u16 data[3];
 };
+s32 i = -1;
+u32 sample_padding;
 
 struct rotation_sample_data {
     rotation_bone_data data[parent.rotation_bone_count];
+    padding[sample_padding];
 };
 
 // There are deq_info sets for every bone, but the number of sets is always a multiple of 4
@@ -283,6 +286,8 @@ struct nsa_data_second_segment {
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
+    	sample_padding = ((std::mem::read_unsigned($+8, 8) - std::mem::read_unsigned($, 8)) % (samples * rotation_bone_count * 2)) / samples;
+    	std::print("{:3d} sample_padding = {} samples={:2d} rotation_bone_count={:2d}", i, sample_padding, samples, rotation_bone_count);
 	    rotation_sample_data *rotation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 	    dequantization_info *rotation_deq_info[deq_info_sets(rotation_bone_count)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
@@ -416,6 +421,7 @@ struct skeleton_names_data {
 };
 
 struct packet {
+	i = i + 1;
     header head;
     if(head.type == PacketType::skeleton) {
         skeleton_data skeleton;
