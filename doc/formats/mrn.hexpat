@@ -312,7 +312,7 @@ struct end_data {
 	float frame_rate;
 	u32 samples;
 	dequantization_factors factors;
-	float rotation[4];
+	quaternion rotation;
 	checked_ptr translation_data;
 	if(std::mem::read_unsigned($, 8) != 0x00) {
 		translation_bone_data *rotation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
