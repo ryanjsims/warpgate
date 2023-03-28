@@ -1,4 +1,4 @@
-#pragma pattern_limit 2097152
+#pragma pattern_limit 16777216
 
 #include <std/mem.pat>
 #include <std/ptr.pat>
@@ -287,7 +287,7 @@ struct nsa_data_second_segment {
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
     	sample_padding = ((std::mem::read_unsigned($+8, 8) - std::mem::read_unsigned($, 8)) % (samples * rotation_bone_count * 2)) / samples;
-    	std::print("{:3d} sample_padding = {} samples={:2d} rotation_bone_count={:2d}", i, sample_padding, samples, rotation_bone_count);
+    	//std::print("{:3d} sample_padding = {} samples={:2d} rotation_bone_count={:2d}", i, sample_padding, samples, rotation_bone_count);
 	    rotation_sample_data *rotation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 	    dequantization_info *rotation_deq_info[deq_info_sets(rotation_bone_count)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
@@ -304,18 +304,22 @@ struct nsa_data_second_segment {
     }
 };
 
-struct end_data_header {
+struct end_data {
 	u32 version;
 	u32 unk_array[3];
 	u32 size;
 	u32 alignment;
 	float frame_rate;
 	u32 samples;
-};
-
-struct end_data {
-	end_data_header header;
-	u8 data[64];
+	dequantization_factors factors;
+	float rotation[4];
+	checked_ptr translation_data;
+	if(std::mem::read_unsigned($, 8) != 0x00) {
+		translation_bone_data *rotation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	} else {
+		u64 null_rotation_data;
+	}
+	checked_ptr scale_data;
 };
 
 struct nsa_data {
@@ -361,7 +365,11 @@ struct nsa_data {
     } else {
         u64 null_dynamic_data;
     }
-    end_data *end_data_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+    	end_data *end_data_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+    	u64 null_end_data;
+    }
     padding[8];
 };
 
