@@ -4,3 +4,4 @@ testfiles/
 models/
 include/version.h
 export/
+*.lnk
