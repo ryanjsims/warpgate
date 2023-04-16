@@ -311,15 +311,23 @@ struct end_data {
 	u32 alignment;
 	float frame_rate;
 	u32 samples;
-	dequantization_factors factors;
-	quaternion rotation;
-	checked_ptr translation_data;
+	dequantization_factors translation_factors;
+    if(std::mem::read_unsigned($+16, 8) == 0x00) {
+	    quaternion rotation;
+	    padding[8];
+    } else {
+        dequantization_factors rotation_factors;
+    }
 	if(std::mem::read_unsigned($, 8) != 0x00) {
-		translation_bone_data *rotation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+		translation_bone_data *translation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 	} else {
-		u64 null_rotation_data;
+		u64 null_translation_data;
 	}
-	checked_ptr scale_data;
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+	    rotation_bone_data *rotation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    } else {
+        u64 null_rotation_data;
+    }
 };
 
 struct nsa_data {
