@@ -304,7 +304,7 @@ struct nsa_data_second_segment {
     }
 };
 
-struct end_data {
+struct nsa_data_end_segment {
 	u32 version;
 	u32 unk_array[3];
 	u32 size;
@@ -343,7 +343,7 @@ struct nsa_data {
     u16_array_ptr dynamic_translation_bone_indices;
     u16_array_ptr dynamic_rotation_bone_indices;
     u16_array_ptr dynamic_scale_bone_indices;
-    float translation_start_pos_factors[6];
+    dequantization_factors translation_start_pos_factors;
     padding[8];
     u32 translation_anim_deq_count, rotation_anim_deq_count, scale_anim_deq_count;
     padding[4];
@@ -374,7 +374,7 @@ struct nsa_data {
         u64 null_dynamic_data;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	end_data *end_data_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	nsa_data_end_segment *end_data_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
     	u64 null_end_data;
     }
