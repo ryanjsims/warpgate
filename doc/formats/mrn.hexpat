@@ -7,11 +7,12 @@
 
 enum PacketType : u32 {
     skeleton = 0x01,
-    some_other_data = 0x02, // Maybe a network object? Header hashes are interesting
-    name2 = 0x03,
+    skeleton_map = 0x02, // Maybe a network object? Header hashes are interesting
+    event_track = 0x03,
+    event_track_ik = 0x04,
     data = 0x07,
     network_data = 0x0A, // not sure but it has some names in it that sound like it
-    name = 0x0C,
+    plugin_list = 0x0C,
     file_names = 0x0E, // same as above - has some file name data in it alongside other stuff.
     skeleton_names = 0x0F,
     nsa_data = 0x10, // Data that has an index rather than namehash in the header
@@ -77,14 +78,13 @@ struct orientation_subheader {
     padding[4];
     u8* unknown_ptr1 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     orientation_transform_locations* transforms : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8* unknown_ptr3 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* unknown_ptr2 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     padding[while($ < std::mem::read_unsigned(addressof(this) + 32, 8) + addressof(this) + 16)];
     
 };
 
 struct orientation_header {
-    u32 header_size;
-    u32 unknown1;
+    u32* element_type_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     padding[8];
     orientation_subheader subheader;
 };
@@ -132,21 +132,21 @@ struct skeleton_data {
     u8* unknown_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     u32* ptr_bone_count : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     u32 unknown_array1[2];
-    u8* unknown_ptr2 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8* unknown_ptr3 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string_table* ptr_bone_names_table : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* ptr_orientations_packet : u64 [[pointer_base("std::ptr::relative_to_parent")]];
 	u32 unknown_int;
     padding[4];
     u8* ptr_end_data[96] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     u32 unknown_int2;
     padding[4];
+    u8* unknown_ptr3 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     u8* unknown_ptr4 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8* unknown_ptr5 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     padding[8];
     BoneHierarchyEntry chains[chain_count];
     u32 bone_count;
     padding[4];
     u32 unknown_array4[2];
-    u32 indices[bone_count];
+    u32 deform_hierarchy[bone_count];
     string_table bone_names_table;
     padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
     u32 magic;
@@ -436,12 +436,42 @@ struct skeleton_names_data {
 	expanded_string_table_ptr names_table;
 };
 
+struct event_range {
+    float start, stop;
+    u32 unknown;
+};
+
+struct event_track_data {
+    u32 ranges_count;
+    u32 unknown1;
+    string* parameter_name_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u32 unknown2;
+    u32 unknown3;
+    event_range* ranges[ranges_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+};
+
+// struct preskeleton_data {
+//     u32 count;
+//     dequantization_factors factors;
+//     translation_bone_data data[4];
+// };
+
 struct packet {
 	i = i + 1;
     header head;
+    std::print("Packet {}: Type {}", i, head.type);
     if(head.type == PacketType::skeleton) {
         skeleton_data skeleton;
         u8 data[head.datalength - sizeof(skeleton)];
+    } else if(head.type == PacketType::plugin_list) {
+        string_table plugin_list;
+        padding[head.datalength - sizeof(plugin_list)];
+    } else if(head.type == PacketType::event_track) {
+        event_track_data event_data;
+        padding[head.datalength - sizeof(event_data)];
+    } else if(head.type == PacketType::event_track_ik) {
+        event_track_data ik_event_data;
+        padding[head.datalength - sizeof(ik_event_data)];
     } else if(head.type == PacketType::nsa_data) {
         nsa_data nsa;
         padding[head.datalength - sizeof(nsa)];
