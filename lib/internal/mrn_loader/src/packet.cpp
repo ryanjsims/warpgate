@@ -84,3 +84,15 @@ std::shared_ptr<ExpandedStringTable> SkeletonNamesPacket::skeleton_names() const
 SkeletonNamesPacket::ref<uint64_t> SkeletonNamesPacket::skeleton_names_ptr() const {
     return get<uint64_t>(header()->size());
 }
+
+NSAFilePacket::NSAFilePacket(std::shared_ptr<Packet> packet) : Packet(*packet) {
+    m_animation = std::make_shared<NSAFile>(data());
+}
+
+NSAFilePacket::NSAFilePacket(std::span<uint8_t> subspan) : Packet(subspan) {
+    m_animation = std::make_shared<NSAFile>(data());
+}
+
+std::shared_ptr<NSAFile> NSAFilePacket::animation() const {
+    return m_animation;
+}

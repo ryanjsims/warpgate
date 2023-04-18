@@ -7,6 +7,7 @@
 #include "packet_types.h"
 #include "skeleton_data.h"
 #include "file_data.h"
+#include "nsa_file.h"
 
 namespace warpgate::mrn {
     struct Header {
@@ -102,5 +103,14 @@ namespace warpgate::mrn {
         std::shared_ptr<ExpandedStringTable> m_skeleton_names;
 
         ref<uint64_t> skeleton_names_ptr() const;
+    };
+
+    struct NSAFilePacket : Packet {
+        NSAFilePacket(std::shared_ptr<Packet> packet);
+        NSAFilePacket(std::span<uint8_t> subspan);
+
+        std::shared_ptr<NSAFile> animation() const;
+    private:
+        std::shared_ptr<NSAFile> m_animation;
     };
 }

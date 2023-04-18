@@ -13,6 +13,7 @@ MRN::MRN(std::span<uint8_t> subspan, std::string name): buf_(subspan), m_name(na
         std::shared_ptr<SkeletonPacket> skeleton;
         std::shared_ptr<SkeletonNamesPacket> skeleton_names;
         std::shared_ptr<FilenamesPacket> filenames;
+        std::shared_ptr<NSAFilePacket> nsa_file;
         std::vector<std::string> strings;
         switch(packet->header()->type()) {
         case PacketType::Skeleton:
@@ -37,6 +38,10 @@ MRN::MRN(std::span<uint8_t> subspan, std::string name): buf_(subspan), m_name(na
                 spdlog::info("    {}", *it);
             }
             packet = skeleton_names;
+            break;
+        case PacketType::NSAData:
+            nsa_file = std::make_shared<NSAFilePacket>(packet);
+            packet = nsa_file;
             break;
         default:
             // Do nothing
