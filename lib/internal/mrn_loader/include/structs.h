@@ -4,6 +4,15 @@
 namespace warpgate::mrn {
     struct Quaternion {
         float x, y, z, w;
+
+        Quaternion operator*(Quaternion &other) {
+            return {
+                w * other.x + x * other.w - y * other.z + z * other.y, //t1
+                w * other.y + x * other.z + y * other.w - z * other.x, //t2
+                w * other.z - x * other.z + y * other.x + z * other.w, //t3
+                w * other.w - x * other.x - y * other.y - z * other.z, //t0
+            };
+        }
     };
 
     struct Vector4 {
@@ -12,6 +21,10 @@ namespace warpgate::mrn {
 
     struct Vector3 {
         float x, y, z;
+
+        Vector3 operator+(Vector3 &other) {
+            return {x + other.x, y + other.y, z + other.z};
+        }
     };
 
     struct Vector3Short {

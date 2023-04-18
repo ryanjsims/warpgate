@@ -6,6 +6,7 @@
 #include <filesystem>
 #include "mrn_loader.h"
 #include "version.h"
+#include "utils/morpheme_loader.h"
 
 #include <spdlog/spdlog.h>
 

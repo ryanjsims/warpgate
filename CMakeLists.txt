@@ -31,9 +31,12 @@ add_executable(test_cnk
 )
 target_link_libraries(test_cnk PRIVATE cnk_loader spdlog::spdlog)
 
-add_executable(test_mrn src/test_mrn.cpp)
+add_executable(test_mrn
+  src/test_mrn.cpp
+  src/utils/morpheme_loader.cpp
+)
 target_include_directories(test_mrn PUBLIC include/)
-target_link_libraries(test_mrn PRIVATE mrn_loader spdlog::spdlog)
+target_link_libraries(test_mrn PUBLIC mrn_loader spdlog::spdlog)
 
 add_executable(test_zone
   src/test_zone.cpp
