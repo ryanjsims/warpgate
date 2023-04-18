@@ -151,8 +151,8 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
         buffers.push_back(buffer);
     }
     logger::debug("Expanded vertex streams");
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(20ms);
+    // using namespace std::chrono_literals;
+    // std::this_thread::sleep_for(20ms);
 
     for(nlohmann::json entry : input_layout->at("entries")) {
         std::string type = entry.at("type").get<std::string>();
