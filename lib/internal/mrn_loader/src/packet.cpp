@@ -68,3 +68,19 @@ FilenamesPacket::FilenamesPacket(std::span<uint8_t> subspan): Packet(subspan) {
 std::shared_ptr<FileData> FilenamesPacket::files() const {
     return m_files;
 }
+
+SkeletonNamesPacket::SkeletonNamesPacket(std::shared_ptr<Packet> packet) : Packet(*packet) {
+    m_skeleton_names = std::make_shared<ExpandedStringTable>(data().subspan(skeleton_names_ptr()));
+}
+
+SkeletonNamesPacket::SkeletonNamesPacket(std::span<uint8_t> subspan) : Packet(subspan) {
+    m_skeleton_names = std::make_shared<ExpandedStringTable>(data().subspan(skeleton_names_ptr()));
+}
+
+std::shared_ptr<ExpandedStringTable> SkeletonNamesPacket::skeleton_names() const {
+    return m_skeleton_names;
+}
+
+SkeletonNamesPacket::ref<uint64_t> SkeletonNamesPacket::skeleton_names_ptr() const {
+    return get<uint64_t>(header()->size());
+}

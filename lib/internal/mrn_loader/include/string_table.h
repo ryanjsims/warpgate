@@ -38,11 +38,36 @@ namespace warpgate::mrn {
             return m_strings[index];
         }
     
-    private:
+    protected:
         std::span<uint32_t> m_offsets;
         std::vector<std::string> m_strings;
 
-        ref<uint64_t> offsets_ptr() const;
-        ref<uint64_t> strings_ptr() const;
+        StringTable();
+
+        virtual ref<uint64_t> offsets_ptr() const;
+        virtual ref<uint64_t> strings_ptr() const;
+        virtual void set_size() const {
+            buf_ = buf_.first(24 + count() * sizeof(uint32_t) + data_length());
+        }
+    };
+
+    struct ExpandedStringTable : StringTable {
+        ExpandedStringTable(std::span<uint8_t> subspan);
+
+        std::span<const uint32_t> ids() const;
+        std::span<const uint32_t> unknowns() const;
+
+    protected:
+        std::span<uint32_t> m_ids, m_unknowns;
+
+        ref<uint64_t> offsets_ptr() const override;
+        ref<uint64_t> strings_ptr() const override;
+        void set_size() const override {
+            buf_ = buf_.first(40 + 3 * count() * sizeof(uint32_t) + data_length());
+        }
+    
+    private:
+        ref<uint64_t> ids_ptr() const;
+        ref<uint64_t> unknowns_ptr() const;
     };
 }

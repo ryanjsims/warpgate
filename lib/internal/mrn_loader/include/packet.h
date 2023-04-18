@@ -92,4 +92,15 @@ namespace warpgate::mrn {
     private:
         std::shared_ptr<FileData> m_files;
     };
+
+    struct SkeletonNamesPacket : Packet {
+        SkeletonNamesPacket(std::shared_ptr<Packet> packet);
+        SkeletonNamesPacket(std::span<uint8_t> subspan);
+
+        std::shared_ptr<ExpandedStringTable> skeleton_names() const;
+    private:
+        std::shared_ptr<ExpandedStringTable> m_skeleton_names;
+
+        ref<uint64_t> skeleton_names_ptr() const;
+    };
 }

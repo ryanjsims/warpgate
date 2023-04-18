@@ -14,9 +14,9 @@ using namespace warpgate;
 
 int main() {
     logger::info("test_mrn using mrn_loader version {}", WARPGATE_VERSION);
-    std::ifstream input("export/mrn/ThirdPersonX64.mrn", std::ios::binary | std::ios::ate);
+    std::ifstream input("export/mrn/AircraftX64.mrn", std::ios::binary | std::ios::ate);
     if(input.fail()) {
-        logger::error("Failed to open file '{}'", "export/mrn/ThirdPersonX64.mrn");
+        logger::error("Failed to open file '{}'", "export/mrn/AircraftX64.mrn");
         std::exit(2);
     }
     size_t length = input.tellg();
@@ -27,7 +27,7 @@ int main() {
     std::span<uint8_t> data_span = std::span<uint8_t>(data.get(), length);
 
     try {
-        mrn::MRN aircraftX64(data_span, "ThirdPersonX64.mrn");
+        mrn::MRN aircraftX64(data_span, "AircraftX64.mrn");
     } catch(std::exception e) {
         logger::error("{}", e.what());
         return 1;

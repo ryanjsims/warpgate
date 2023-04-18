@@ -11,6 +11,7 @@ MRN::MRN(std::span<uint8_t> subspan, std::string name): buf_(subspan), m_name(na
     while(offset < buf_.size()) {
         std::shared_ptr<Packet> packet = std::make_shared<Packet>(buf_.subspan(offset));
         std::shared_ptr<SkeletonPacket> skeleton;
+        std::shared_ptr<SkeletonNamesPacket> skeleton_names;
         std::shared_ptr<FilenamesPacket> filenames;
         std::vector<std::string> strings;
         switch(packet->header()->type()) {
@@ -27,6 +28,15 @@ MRN::MRN(std::span<uint8_t> subspan, std::string name): buf_(subspan), m_name(na
                 spdlog::info("    {}", *it);
             }
             packet = filenames;
+            break;
+        case PacketType::SkeletonNames:
+            skeleton_names = std::make_shared<SkeletonNamesPacket>(packet);
+            spdlog::info("Skeletons in this MRN:");
+            strings = skeleton_names->skeleton_names()->strings();
+            for(auto it = strings.begin(); it != strings.end(); it++) {
+                spdlog::info("    {}", *it);
+            }
+            packet = skeleton_names;
             break;
         default:
             // Do nothing
