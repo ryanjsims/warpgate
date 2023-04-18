@@ -111,7 +111,7 @@ struct expanded_string_table {
     u32* string_offsets[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     u8* unknown_data[string_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     string* strings[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    padding[string_count * sizeof(u32) + string_data_size];
+    padding[string_count * sizeof(u32) * 3 + string_data_size];
     padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
 };
 
@@ -221,8 +221,7 @@ struct nsa_data_first_segment {
     if(scale_bone_count > 0) {
         dequantization_factors scale_factors;
     }
-    padding[4];
-    u64 unknown;
+    padding[12];
     if(std::mem::read_unsigned($, 8) != 0x00) {
     	vec3_short *translation_data[translation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
     } else {
