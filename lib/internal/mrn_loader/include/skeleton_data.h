@@ -55,7 +55,7 @@ namespace warpgate::mrn {
 
     struct Bone {
         std::string name;
-        uint32_t index;
+        uint32_t index, parent;
         glm::vec3 position;
         glm::quat rotation;
         std::vector<uint32_t> children;
@@ -65,6 +65,11 @@ namespace warpgate::mrn {
     struct Skeleton {
         Skeleton(std::shared_ptr<StringTable> bone_names, std::span<BoneHierarchyEntry> chains, std::shared_ptr<OrientationData> orientations);
         std::vector<Bone> bones;
+
+        void log_recursive();
+    private:
+        void calculate_transforms(uint32_t root_index);
+        void log_recursive_impl(uint32_t root_index, uint32_t depth);
     };
 
     struct SkeletonData {
@@ -104,10 +109,14 @@ namespace warpgate::mrn {
         std::span<BoneHierarchyEntry> chains() const;
         std::shared_ptr<OrientationData> orientations() const;
 
+        std::shared_ptr<Skeleton> skeleton();
+
     private:
         std::shared_ptr<StringTable> m_bone_names;
         std::shared_ptr<OrientationData> m_orientations;
         std::span<BoneHierarchyEntry> m_chains;
+
+        std::shared_ptr<Skeleton> m_skeleton;
 
         ref<uint64_t> bone_count_ptr() const;
         ref<uint64_t> bone_name_table_ptr() const;

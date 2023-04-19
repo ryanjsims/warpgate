@@ -53,7 +53,7 @@ SkeletonPacket::SkeletonPacket(std::span<uint8_t> subspan): Packet(subspan) {
     m_skeleton = std::make_shared<SkeletonData>(data());
 }
 
-std::shared_ptr<SkeletonData> SkeletonPacket::skeleton() const {
+std::shared_ptr<SkeletonData> SkeletonPacket::skeleton_data() const {
     return m_skeleton;
 }
 

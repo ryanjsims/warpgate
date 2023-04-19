@@ -80,7 +80,7 @@ namespace warpgate::mrn {
         SkeletonPacket(std::shared_ptr<Packet> packet);
         SkeletonPacket(std::span<uint8_t> subspan);
 
-        std::shared_ptr<SkeletonData> skeleton() const;
+        std::shared_ptr<SkeletonData> skeleton_data() const;
     private:
         std::shared_ptr<SkeletonData> m_skeleton;
     };

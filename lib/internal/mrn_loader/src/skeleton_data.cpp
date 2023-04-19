@@ -1,4 +1,5 @@
 #include "skeleton_data.h"
+#include <spdlog/spdlog.h>
 
 using namespace warpgate::mrn;
 
@@ -120,4 +121,53 @@ SkeletonData::ref<uint64_t> SkeletonData::bone_count_ptr() const {
 
 SkeletonData::ref<uint64_t> SkeletonData::bone_name_table_ptr() const {
     return get<uint64_t>(64);
+}
+
+std::shared_ptr<Skeleton> SkeletonData::skeleton() {
+    if(m_skeleton == nullptr) {
+        spdlog::debug("Building skeleton...");
+        m_skeleton = std::make_shared<Skeleton>(m_bone_names, m_chains, m_orientations);
+    }
+    return m_skeleton;
+}
+
+
+Skeleton::Skeleton(
+    std::shared_ptr<StringTable> bone_names, 
+    std::span<BoneHierarchyEntry> chains, 
+    std::shared_ptr<OrientationData> orientations
+) {
+    for(uint32_t i = 0; i < bone_names->strings().size(); i++) {
+        bones.push_back({bone_names->strings()[i], i, 0, orientations->offsets()[i], orientations->rotations()[i], {}});
+    }
+    for(uint32_t i = 0; i < chains.size(); i++) {
+        int32_t parent = chains[i].parent_index;
+        for(uint32_t j = 0; j < chains[i].chain_length; j++) {
+            if(parent != -1) {
+                bones[parent].children.push_back(chains[i].start_index + j);
+                bones[chains[i].start_index + j].parent = parent;
+            }
+            parent = chains[i].start_index + j;
+        }
+    }
+}
+
+void Skeleton::calculate_transforms(uint32_t root_index) {
+    for(auto child_index_it = bones[root_index].children.begin(); child_index_it != bones[root_index].children.end(); child_index_it++) {
+        glm::mat4 local_transform = glm::toMat4(bones[*child_index_it].rotation);
+        local_transform = glm::translate(local_transform, bones[*child_index_it].position);
+        bones[*child_index_it].global_transform = local_transform * bones[root_index].global_transform;
+        calculate_transforms(*child_index_it);
+    }
+}
+
+void Skeleton::log_recursive() {
+    log_recursive_impl(0, 0);
+}
+
+void Skeleton::log_recursive_impl(uint32_t root_index, uint32_t depth) {
+    spdlog::info("{:>{}}", bones[root_index].name, depth * 4 + bones[root_index].name.size());
+    for(auto it = bones[root_index].children.begin(); it != bones[root_index].children.end(); it++) {
+        log_recursive_impl(*it, depth + 1);
+    }
 }

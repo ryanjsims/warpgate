@@ -20,7 +20,7 @@ MRN::MRN(std::span<uint8_t> subspan, std::string name): buf_(subspan), m_name(na
         switch(packet->header()->type()) {
         case PacketType::Skeleton:
             skeleton = std::make_shared<SkeletonPacket>(packet);
-            spdlog::info("Found skeleton with name '{}'", skeleton->skeleton()->bone_names()->strings()[1]);
+            spdlog::info("Found skeleton with name '{}'", skeleton->skeleton_data()->bone_names()->strings()[1]);
             packet = skeleton;
             break;
         case PacketType::FileNames:

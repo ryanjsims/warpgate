@@ -38,15 +38,23 @@ int main() {
     for(uint32_t i = 0; i < aircraftX64.packets().size(); i++) {
         std::shared_ptr<mrn::Packet> packet = aircraftX64.packets()[i];
         std::shared_ptr<mrn::NSAFilePacket> nsa_packet;
+        std::shared_ptr<mrn::SkeletonPacket> skeleton_packet;
         switch(packet->header()->type()) {
         case mrn::PacketType::NSAData:
             nsa_packet = std::static_pointer_cast<mrn::NSAFilePacket>(packet);
             break;
+        case mrn::PacketType::Skeleton:
+            skeleton_packet = std::static_pointer_cast<mrn::SkeletonPacket>(packet);
+            break;
         default:
             continue;
         }
-        logger::info("Dequantizing animation {}...", animation_names->files()->animation_names()->strings()[i]);
-        nsa_packet->animation()->dequantize();
+        if(nsa_packet) {
+            logger::info("Dequantizing animation {}...", animation_names->files()->animation_names()->strings()[i]);
+            nsa_packet->animation()->dequantize();
+        } else if(skeleton_packet) {
+            skeleton_packet->skeleton_data()->skeleton()->log_recursive();
+        }
     }
     return 0;
 }
