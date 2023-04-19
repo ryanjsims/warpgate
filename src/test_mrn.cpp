@@ -6,7 +6,6 @@
 #include <filesystem>
 #include "mrn_loader.h"
 #include "version.h"
-#include "utils/morpheme_loader.h"
 
 #include <spdlog/spdlog.h>
 
@@ -26,12 +25,28 @@ int main() {
     input.read((char*)data.get(), length);
     input.close();
     std::span<uint8_t> data_span = std::span<uint8_t>(data.get(), length);
-
+    mrn::MRN aircraftX64;
     try {
-        mrn::MRN aircraftX64(data_span, "AircraftX64.mrn");
+        aircraftX64 = mrn::MRN(data_span, "AircraftX64.mrn");
     } catch(std::exception e) {
         logger::error("{}", e.what());
         return 1;
+    }
+
+
+    std::shared_ptr<mrn::FilenamesPacket> animation_names = aircraftX64.file_names();
+    for(uint32_t i = 0; i < aircraftX64.packets().size(); i++) {
+        std::shared_ptr<mrn::Packet> packet = aircraftX64.packets()[i];
+        std::shared_ptr<mrn::NSAFilePacket> nsa_packet;
+        switch(packet->header()->type()) {
+        case mrn::PacketType::NSAData:
+            nsa_packet = std::static_pointer_cast<mrn::NSAFilePacket>(packet);
+            break;
+        default:
+            continue;
+        }
+        logger::info("Dequantizing animation {}...", animation_names->files()->animation_names()->strings()[i]);
+        nsa_packet->animation()->dequantize();
     }
     return 0;
 }
