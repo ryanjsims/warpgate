@@ -1,4 +1,5 @@
 #include "string_table.h"
+#include <algorithm>
 
 using namespace warpgate::mrn;
 
@@ -41,9 +42,11 @@ ExpandedStringTable::ExpandedStringTable(std::span<uint8_t> subspan) {
     buf_ = subspan;
     m_ids = std::span<uint32_t>((uint32_t*)(buf_.data() + ids_ptr()), count());
     m_offsets = std::span<uint32_t>((uint32_t*)(buf_.data() + offsets_ptr()), count());
+    std::vector<uint32_t> sorted_offsets{m_offsets.begin(), m_offsets.end()};
+    std::sort(sorted_offsets.begin(), sorted_offsets.end());
     m_unknowns = std::span<uint32_t>((uint32_t*)(buf_.data() + ids_ptr()), count());
     uint64_t strings_offset = strings_ptr();
-    for(auto it = m_offsets.begin(); it != m_offsets.end(); it++) {
+    for(auto it = sorted_offsets.begin(); it != sorted_offsets.end(); it++) {
         m_strings.push_back(std::string((char*)(buf_.data() + strings_offset + *it)));
     }
     set_size();

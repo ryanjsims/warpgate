@@ -126,6 +126,12 @@ target_link_libraries(chunk_converter
     tinygltf 
 )
 
+add_executable(mrn_converter
+    src/mrn_converter.cpp
+)
+target_include_directories(mrn_converter PUBLIC include/)
+target_link_libraries(mrn_converter PRIVATE argparse Glob gli mrn_loader spdlog::spdlog synthium::synthium tinygltf)
+
 add_executable(zone_converter 
     src/zone_converter.cpp
     src/utils/gltf/common.cpp

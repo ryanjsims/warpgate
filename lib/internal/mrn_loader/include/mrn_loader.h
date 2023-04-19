@@ -1,5 +1,7 @@
 #pragma once
 #include "mrn.h"
+#include "file_data.h"
+#include "nsa_file.h"
 #include "packet_types.h"
 #include "packet.h"
 #include "skeleton_data.h"

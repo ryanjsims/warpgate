@@ -19,27 +19,28 @@ MRN::MRN(std::span<uint8_t> subspan, std::string name): buf_(subspan), m_name(na
         std::vector<std::string> strings;
         switch(packet->header()->type()) {
         case PacketType::Skeleton:
+            m_skeleton_indices.push_back(m_packets.size());
             skeleton = std::make_shared<SkeletonPacket>(packet);
-            spdlog::info("Found skeleton with name '{}'", skeleton->skeleton_data()->bone_names()->strings()[1]);
+            spdlog::debug("Found skeleton with name '{}'", skeleton->skeleton_data()->bone_names()->strings()[1]);
             packet = skeleton;
             break;
         case PacketType::FileNames:
             m_filenames_index = m_packets.size();
             filenames = std::make_shared<FilenamesPacket>(packet);
             strings = filenames->files()->filenames()->strings();
-            spdlog::info("NSA Files in this MRN:");
+            spdlog::debug("NSA Files in this MRN:");
             for(auto it = strings.begin(); it != strings.end(); it++) {
-                spdlog::info("    {}", *it);
+                spdlog::debug("    {}", *it);
             }
             packet = filenames;
             break;
         case PacketType::SkeletonNames:
-            m_skeletons_index = m_packets.size();
+            m_skeleton_names_index = m_packets.size();
             skeleton_names = std::make_shared<SkeletonNamesPacket>(packet);
-            spdlog::info("Skeletons in this MRN:");
+            spdlog::debug("Skeletons in this MRN:");
             strings = skeleton_names->skeleton_names()->strings();
             for(auto it = strings.begin(); it != strings.end(); it++) {
-                spdlog::info("    {}", *it);
+                spdlog::debug("    {}", *it);
             }
             packet = skeleton_names;
             break;
@@ -69,9 +70,13 @@ std::vector<std::shared_ptr<Packet>> MRN::packets() const {
 }
 
 std::shared_ptr<SkeletonNamesPacket> MRN::skeleton_names() const {
-    return std::static_pointer_cast<SkeletonNamesPacket>(m_packets[m_skeletons_index]);
+    return std::static_pointer_cast<SkeletonNamesPacket>(m_packets[m_skeleton_names_index]);
 }
 
 std::shared_ptr<FilenamesPacket> MRN::file_names() const {
     return std::static_pointer_cast<FilenamesPacket>(m_packets[m_filenames_index]);
+}
+
+std::vector<uint32_t> MRN::skeleton_indices() const {
+    return m_skeleton_indices;
 }

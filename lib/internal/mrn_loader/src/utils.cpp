@@ -22,10 +22,10 @@ glm::quat warpgate::mrn::unpack_rotation(glm::u16vec3 quantized, DequantizationF
     float scalar = 2.0f / (sq_magn + 1.0f);
 
     return {
+        (1.0f - sq_magn) / (1.0f + sq_magn),
         scalar * dequantized.x,
         scalar * dequantized.y,
-        scalar * dequantized.z,
-        (1.0f - sq_magn) / (1.0f + sq_magn)
+        scalar * dequantized.z
     };
 }
 

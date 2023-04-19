@@ -1,6 +1,8 @@
 #include "skeleton_data.h"
 #include <spdlog/spdlog.h>
 
+#include "glm/gtc/type_ptr.hpp"
+
 using namespace warpgate::mrn;
 
 OrientationData::OrientationData(std::span<uint8_t> subspan, size_t bone_count): buf_(subspan) {
@@ -150,13 +152,15 @@ Skeleton::Skeleton(
             parent = chains[i].start_index + j;
         }
     }
+
+    calculate_transforms(0);
 }
 
 void Skeleton::calculate_transforms(uint32_t root_index) {
     for(auto child_index_it = bones[root_index].children.begin(); child_index_it != bones[root_index].children.end(); child_index_it++) {
-        glm::mat4 local_transform = glm::toMat4(bones[*child_index_it].rotation);
-        local_transform = glm::translate(local_transform, bones[*child_index_it].position);
-        bones[*child_index_it].global_transform = local_transform * bones[root_index].global_transform;
+        glm::mat4 local_translation = glm::translate(glm::identity<glm::mat4>(), bones[*child_index_it].position);
+        glm::mat4 local_rotation = glm::toMat4(bones[*child_index_it].rotation);
+        bones[*child_index_it].global_transform = bones[root_index].global_transform *  local_translation * local_rotation;
         calculate_transforms(*child_index_it);
     }
 }

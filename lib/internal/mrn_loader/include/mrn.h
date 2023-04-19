@@ -40,10 +40,12 @@ namespace warpgate::mrn {
 
         std::shared_ptr<SkeletonNamesPacket> skeleton_names() const;
         std::shared_ptr<FilenamesPacket> file_names() const;
+        std::vector<uint32_t> skeleton_indices() const;
 
     private:
         std::vector<std::shared_ptr<Packet>> m_packets;
         std::string m_name;
-        uint32_t m_skeletons_index, m_filenames_index;
+        uint32_t m_skeleton_names_index, m_filenames_index;
+        std::vector<uint32_t> m_skeleton_indices;
     };
 }
