@@ -89,7 +89,7 @@ namespace warpgate::mrn {
     private:
         std::vector<std::span<uint32_t>> m_translation_data, m_scale_data;
         std::vector<std::span<Vector3Short>> m_rotation_data;
-        
+
         ref<uint64_t> translation_data_ptr() const;
         ref<uint64_t> translation_dequantization_info_ptr() const;
 
@@ -194,11 +194,33 @@ namespace warpgate::mrn {
         std::shared_ptr<NSAStaticSegment> static_segment() const;
         std::shared_ptr<NSADynamicSegment> dynamic_segment() const;
         std::shared_ptr<NSARootSegment> root_segment() const;
+
+        void dequantize();
+
+        std::vector<Vector3> static_translation() const;
+        std::vector<Quaternion> static_rotation() const;
+
+        std::vector<std::vector<Vector3>> dynamic_translation() const;
+        std::vector<std::vector<Quaternion>> dynamic_rotation() const;
+
+        std::vector<Vector3> root_translation() const;
+        std::vector<Quaternion> root_rotation() const;
     
     private:
         std::shared_ptr<NSAStaticSegment> m_static_segment;
         std::shared_ptr<NSADynamicSegment> m_dynamic_segment;
         std::shared_ptr<NSARootSegment> m_root_segment;
+
+        std::vector<mrn::Vector3> m_static_translation;
+        std::vector<mrn::Quaternion> m_static_rotation;
+        std::vector<std::vector<mrn::Vector3>> m_dynamic_translation;
+        std::vector<std::vector<mrn::Quaternion>> m_dynamic_rotation;
+        std::vector<mrn::Vector3> m_root_translation;
+        std::vector<mrn::Quaternion> m_root_rotation;
+
+        void dequantize_static_segment();
+        void dequantize_dynamic_segment();
+        void dequantize_root_segment();
 
         ref<uint64_t> static_translation_indices_ptr() const;
         ref<uint64_t> static_rotation_indices_ptr() const;
