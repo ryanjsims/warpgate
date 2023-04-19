@@ -1,0 +1,306 @@
+{
+    "CharacterWorldSpaceTM": {
+        "start": 0,
+        "end": 0
+    },
+    "Male": {
+        "start": 1,
+        "end": 1
+    },
+    "worldRoot": {
+        "start": 2,
+        "end": 2
+    },
+    "COG": {
+        "start": 3,
+        "end": 3
+    },
+    "pelvis": {
+        "start": 4,
+        "end": 4
+    },
+    "R_hip": {
+        "start": 5,
+        "end": 5
+    },
+    "R_knee": {
+        "start": 6,
+        "end": 6
+    },
+    "R_ankle": {
+        "start": 7,
+        "end": 7
+    },
+    "R_ball": {
+        "start": 8,
+        "end": 8
+    },
+    "R_toe": {
+        "start": 9,
+        "end": 70
+    },
+    "L_hip": {
+        "start": 10,
+        "end": 9
+    },
+    "L_knee": {
+        "start": 11,
+        "end": 10
+    },
+    "L_ankle": {
+        "start": 12,
+        "end": 11
+    },
+    "L_ball": {
+        "start": 13,
+        "end": 12
+    },
+    "L_toe": {
+        "start": 14,
+        "end": 43
+    },
+    "spineLower": {
+        "start": 15,
+        "end": 13
+    },
+    "spineMiddle": {
+        "start": 16,
+        "end": 14
+    },
+    "spineUpper": {
+        "start": 17,
+        "end": 15
+    },
+    "L_clavicle": {
+        "start": 18,
+        "end": 16
+    },
+    "L_shoulder": {
+        "start": 19,
+        "end": 17
+    },
+    "L_elbow": {
+        "start": 20,
+        "end": 18
+    },
+    "L_wrist": {
+        "start": 21,
+        "end": 19
+    },
+    "L_middleA": {
+        "start": 22,
+        "end": 45
+    },
+    "L_middleB": {
+        "start": 23,
+        "end": 47
+    },
+    "L_middleC": {
+        "start": 24,
+        "end": 48
+    },
+    "L_middle_end": {
+        "start": 25,
+        "end": 69
+    },
+    "L_ringA": {
+        "start": 26,
+        "end": 71
+    },
+    "L_ringB": {
+        "start": 27,
+        "end": 72
+    },
+    "L_ringC": {
+        "start": 28,
+        "end": 74
+    },
+    "L_ring_end": {
+        "start": 29,
+        "end": 75
+    },
+    "L_pinkyA": {
+        "start": 30,
+        "end": 29
+    },
+    "L_pinkyB": {
+        "start": 31,
+        "end": 30
+    },
+    "L_pinkyC": {
+        "start": 32,
+        "end": 31
+    },
+    "L_pinky_end": {
+        "start": 33,
+        "end": 32
+    },
+    "L_indexA": {
+        "start": 34,
+        "end": 33
+    },
+    "L_indexB": {
+        "start": 35,
+        "end": 34
+    },
+    "L_indexC": {
+        "start": 36,
+        "end": 35
+    },
+    "L_index_end": {
+        "start": 37,
+        "end": 36
+    },
+    "L_thumbA": {
+        "start": 38,
+        "end": 37
+    },
+    "L_thumbB": {
+        "start": 39,
+        "end": 38
+    },
+    "L_thumbC": {
+        "start": 40,
+        "end": 39
+    },
+    "L_thumb_end": {
+        "start": 41,
+        "end": 40
+    },
+    "L_weapon": {
+        "start": 42,
+        "end": 20
+    },
+    "L_forearm": {
+        "start": 43,
+        "end": 41
+    },
+    "L_shoulderRoll": {
+        "start": 44,
+        "end": 42
+    },
+    "R_clavicle": {
+        "start": 45,
+        "end": 21
+    },
+    "R_shoulder": {
+        "start": 46,
+        "end": 22
+    },
+    "R_shoulderRoll": {
+        "start": 47,
+        "end": 46
+    },
+    "R_elbow": {
+        "start": 48,
+        "end": 23
+    },
+    "R_wrist": {
+        "start": 49,
+        "end": 24
+    },
+    "R_middleA": {
+        "start": 50,
+        "end": 49
+    },
+    "R_middleB": {
+        "start": 51,
+        "end": 50
+    },
+    "R_middleC": {
+        "start": 52,
+        "end": 51
+    },
+    "R_middle_end": {
+        "start": 53,
+        "end": 52
+    },
+    "R_indexA": {
+        "start": 54,
+        "end": 53
+    },
+    "R_indexB": {
+        "start": 55,
+        "end": 54
+    },
+    "R_indexC": {
+        "start": 56,
+        "end": 55
+    },
+    "R_index_end": {
+        "start": 57,
+        "end": 56
+    },
+    "R_ringA": {
+        "start": 58,
+        "end": 57
+    },
+    "R_ringB": {
+        "start": 59,
+        "end": 58
+    },
+    "R_ringC": {
+        "start": 60,
+        "end": 59
+    },
+    "R_ring_end": {
+        "start": 61,
+        "end": 60
+    },
+    "R_pinkyA": {
+        "start": 62,
+        "end": 61
+    },
+    "R_pinkyB": {
+        "start": 63,
+        "end": 62
+    },
+    "R_pinkyC": {
+        "start": 64,
+        "end": 63
+    },
+    "R_pinky_end": {
+        "start": 65,
+        "end": 64
+    },
+    "R_thumbA": {
+        "start": 66,
+        "end": 65
+    },
+    "R_thumbB": {
+        "start": 67,
+        "end": 66
+    },
+    "R_thumbC": {
+        "start": 68,
+        "end": 67
+    },
+    "R_thumb_end": {
+        "start": 69,
+        "end": 68
+    },
+    "R_weapon": {
+        "start": 70,
+        "end": 25
+    },
+    "R_forearm": {
+        "start": 71,
+        "end": 44
+    },
+    "neck": {
+        "start": 72,
+        "end": 26
+    },
+    "head": {
+        "start": 73,
+        "end": 27
+    },
+    "head_end": {
+        "start": 74,
+        "end": 73
+    },
+    "trajectory": {
+        "start": 75,
+        "end": 28
+    }
+}
