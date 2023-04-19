@@ -5,6 +5,8 @@ using namespace warpgate::mrn;
 
 constexpr uint32_t PACKET_ALIGNMENT = 16;
 
+MRN::MRN() {}
+
 MRN::MRN(std::span<uint8_t> subspan, std::string name): buf_(subspan), m_name(name) {
     size_t offset = 0;
     spdlog::info("Loading MRN {}...", m_name);
@@ -22,6 +24,7 @@ MRN::MRN(std::span<uint8_t> subspan, std::string name): buf_(subspan), m_name(na
             packet = skeleton;
             break;
         case PacketType::FileNames:
+            m_filenames_index = m_packets.size();
             filenames = std::make_shared<FilenamesPacket>(packet);
             strings = filenames->files()->filenames()->strings();
             spdlog::info("NSA Files in this MRN:");
@@ -31,6 +34,7 @@ MRN::MRN(std::span<uint8_t> subspan, std::string name): buf_(subspan), m_name(na
             packet = filenames;
             break;
         case PacketType::SkeletonNames:
+            m_skeletons_index = m_packets.size();
             skeleton_names = std::make_shared<SkeletonNamesPacket>(packet);
             spdlog::info("Skeletons in this MRN:");
             strings = skeleton_names->skeleton_names()->strings();
@@ -62,4 +66,12 @@ std::string MRN::name() const {
 
 std::vector<std::shared_ptr<Packet>> MRN::packets() const {
     return m_packets;
+}
+
+std::shared_ptr<SkeletonNamesPacket> MRN::skeleton_names() const {
+    return std::static_pointer_cast<SkeletonNamesPacket>(m_packets[m_skeletons_index]);
+}
+
+std::shared_ptr<FilenamesPacket> MRN::file_names() const {
+    return std::static_pointer_cast<FilenamesPacket>(m_packets[m_filenames_index]);
 }

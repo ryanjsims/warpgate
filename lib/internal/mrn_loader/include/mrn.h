@@ -11,6 +11,7 @@ namespace warpgate::mrn {
     struct MRN {
         mutable std::span<uint8_t> buf_;
 
+        MRN();
         MRN(std::span<uint8_t> subspan, std::string name);
 
         template <typename T>
@@ -37,8 +38,12 @@ namespace warpgate::mrn {
             return m_packets[index];
         }
 
+        std::shared_ptr<SkeletonNamesPacket> skeleton_names() const;
+        std::shared_ptr<FilenamesPacket> file_names() const;
+
     private:
         std::vector<std::shared_ptr<Packet>> m_packets;
         std::string m_name;
+        uint32_t m_skeletons_index, m_filenames_index;
     };
 }
