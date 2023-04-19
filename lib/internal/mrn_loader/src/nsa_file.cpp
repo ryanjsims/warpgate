@@ -193,27 +193,27 @@ void NSAFile::dequantize() {
     dequantize_root_segment();
 }
 
-std::vector<Vector3> NSAFile::static_translation() const {
+std::vector<glm::vec3> NSAFile::static_translation() const {
     return m_static_translation;
 }
 
-std::vector<Quaternion> NSAFile::static_rotation() const {
+std::vector<glm::quat> NSAFile::static_rotation() const {
     return m_static_rotation;
 }
 
-std::vector<std::vector<Vector3>> NSAFile::dynamic_translation() const {
+std::vector<std::vector<glm::vec3>> NSAFile::dynamic_translation() const {
     return m_dynamic_translation;
 }
 
-std::vector<std::vector<Quaternion>> NSAFile::dynamic_rotation() const {
+std::vector<std::vector<glm::quat>> NSAFile::dynamic_rotation() const {
     return m_dynamic_rotation;
 }
 
-std::vector<Vector3> NSAFile::root_translation() const {
+std::vector<glm::vec3> NSAFile::root_translation() const {
     return m_root_translation;
 }
 
-std::vector<Quaternion> NSAFile::root_rotation() const {
+std::vector<glm::quat> NSAFile::root_rotation() const {
     return m_root_rotation;
 }
 
@@ -221,17 +221,17 @@ void NSAFile::dequantize_static_segment() {
     if(m_static_segment == nullptr) {
         return;
     }
-    std::span<Vector3Short> quantized_data = m_static_segment->translation_data();
+    std::span<glm::u16vec3> quantized_data = m_static_segment->translation_data();
     DequantizationFactors factors = m_static_segment->translation_factors();
     for(uint32_t i = 0; i < m_static_segment->translation_bone_count(); i++) {
-        Vector3 dequantized = unpack_translation(quantized_data[i], factors);
+        glm::vec3 dequantized = unpack_translation(quantized_data[i], factors);
         m_static_translation.push_back(dequantized);
     }
 
     quantized_data = m_static_segment->rotation_data();
     factors = m_static_segment->rotation_factors();
     for(uint32_t i = 0; i < m_static_segment->rotation_bone_count(); i++) {
-        Quaternion dequantized = unpack_rotation(quantized_data[i], factors);
+        glm::quat dequantized = unpack_rotation(quantized_data[i], factors);
         m_static_rotation.push_back(dequantized);
     }
 }
@@ -245,19 +245,19 @@ void NSAFile::dequantize_dynamic_segment() {
     std::span<DequantizationFactors> dynamic_factors = this->translation_factors();
     DequantizationFactors init_factors = this->initial_translation_factors(), factors = {};
     for(uint32_t sample_index = 0; sample_index < m_dynamic_segment->sample_count() && m_dynamic_segment->translation_bone_count() > 0; sample_index++) {
-        std::vector<Vector3> sample;
+        std::vector<glm::vec3> sample;
         for(uint32_t bone = 0; bone < m_dynamic_segment->translation_bone_count(); bone++) {
             for(uint32_t i = 0; i < 3; i++){
                 factors.a_min[i] = dynamic_factors[dequantization_info[bone].a_factor_index[i]].a_min[i];
                 factors.a_scaled_extent[i] = dynamic_factors[dequantization_info[bone].a_factor_index[i]].a_scaled_extent[i];
             }
-            Vector3 dequantized = unpack_translation(bitpacked_data[sample_index][bone], factors);
+            glm::vec3 dequantized = unpack_translation(bitpacked_data[sample_index][bone], factors);
             
-            Vector3Short quantized_init;
+            glm::u16vec3 quantized_init;
             quantized_init.x = dequantization_info[bone].v_init.x;
             quantized_init.y = dequantization_info[bone].v_init.y;
             quantized_init.z = dequantization_info[bone].v_init.z;
-            Vector3 initial_pos = unpack_translation(quantized_init, init_factors);
+            glm::vec3 initial_pos = unpack_translation(quantized_init, init_factors);
 
             sample.push_back(dequantized + initial_pos);
         }
@@ -267,23 +267,23 @@ void NSAFile::dequantize_dynamic_segment() {
         m_dynamic_translation.push_back(sample);
     }
 
-    std::vector<std::span<Vector3Short>> rotation_data = m_dynamic_segment->rotation_data();
+    std::vector<std::span<glm::u16vec3>> rotation_data = m_dynamic_segment->rotation_data();
     dequantization_info = m_dynamic_segment->rotation_dequantization_info();
     dynamic_factors = this->rotation_factors();
 
-    std::vector<Quaternion> initial_rotations;
+    std::vector<glm::quat> initial_rotations;
     for(uint32_t bone = 0; bone < m_dynamic_segment->rotation_bone_count(); bone++) {
         initial_rotations.push_back(unpack_initial_rotation(dequantization_info[bone].v_init));
     }
 
     for(uint32_t sample_index = 0; sample_index < m_dynamic_segment->sample_count() && m_dynamic_segment->rotation_bone_count() > 0; sample_index++) {
-        std::vector<Quaternion> sample;
+        std::vector<glm::quat> sample;
         for(uint32_t bone = 0; bone < m_dynamic_segment->rotation_bone_count(); bone++) {
             for(uint32_t i = 0; i < 3; i++){
                 factors.a_min[i] = dynamic_factors[dequantization_info[bone].a_factor_index[i]].a_min[i];
                 factors.a_scaled_extent[i] = dynamic_factors[dequantization_info[bone].a_factor_index[i]].a_scaled_extent[i];
             }
-            Quaternion dequantized = unpack_rotation(rotation_data[sample_index][bone], factors);
+            glm::quat dequantized = unpack_rotation(rotation_data[sample_index][bone], factors);
 
             sample.push_back(initial_rotations[bone] * dequantized);
         }
@@ -299,7 +299,7 @@ void NSAFile::dequantize_root_segment() {
         return;
     }
     std::span<uint32_t> bitpacked_data = m_root_segment->translation_data();
-    std::span<Vector3Short> rotation_data = m_root_segment->rotation_data();
+    std::span<glm::u16vec3> rotation_data = m_root_segment->rotation_data();
     DequantizationFactors translation_factors = m_root_segment->translation_factors();
     std::optional<DequantizationFactors> rotation_factors = m_root_segment->rotation_factors();
     for(uint32_t sample_index = 0; sample_index < m_root_segment->sample_count(); sample_index++) {
@@ -318,17 +318,17 @@ void NSAFile::dequantize_root_segment() {
 NSAStaticSegment::NSAStaticSegment(std::span<uint8_t> subspan) : buf_(subspan) {
     uint64_t count = 0;
     if(scale_data_ptr() != 0 && translation_data_ptr() != 0) {
-        count = scale_data_ptr() - translation_data_ptr() + scale_bone_count() * sizeof(Vector3Short);
+        count = scale_data_ptr() - translation_data_ptr() + scale_bone_count() * sizeof(glm::u16vec3);
     } else if(rotation_data_ptr() != 0 && translation_data_ptr() != 0) {
-        count = rotation_data_ptr() - translation_data_ptr() + rotation_bone_count() * sizeof(Vector3Short);
+        count = rotation_data_ptr() - translation_data_ptr() + rotation_bone_count() * sizeof(glm::u16vec3);
     } else if(scale_data_ptr() != 0 && rotation_data_ptr() != 0) {
-        count = scale_data_ptr() - rotation_data_ptr() + scale_bone_count() * sizeof(Vector3Short);
+        count = scale_data_ptr() - rotation_data_ptr() + scale_bone_count() * sizeof(glm::u16vec3);
     } else if(translation_data_ptr() != 0) {
-        count = translation_bone_count() * sizeof(Vector3Short);
+        count = translation_bone_count() * sizeof(glm::u16vec3);
     } else if(rotation_data_ptr() != 0) {
-        count = rotation_bone_count() * sizeof(Vector3Short);
+        count = rotation_bone_count() * sizeof(glm::u16vec3);
     } else if(scale_data_ptr() != 0) {
-        count = scale_bone_count() * sizeof(Vector3Short);
+        count = scale_bone_count() * sizeof(glm::u16vec3);
     }
     count += 16 - count % 16;
     buf_ = buf_.first(96 + count);
@@ -367,16 +367,16 @@ std::optional<NSAStaticSegment::ref<DequantizationFactors>> NSAStaticSegment::sc
     return get<DequantizationFactors>(60);
 }
 
-std::span<Vector3Short> NSAStaticSegment::translation_data() const {
-    return std::span<Vector3Short>((Vector3Short*)(buf_.data() + translation_data_ptr()), translation_bone_count());
+std::span<glm::u16vec3> NSAStaticSegment::translation_data() const {
+    return std::span<glm::u16vec3>((glm::u16vec3*)(buf_.data() + translation_data_ptr()), translation_bone_count());
 }
 
-std::span<Vector3Short> NSAStaticSegment::rotation_data() const {
-    return std::span<Vector3Short>((Vector3Short*)(buf_.data() + rotation_data_ptr()), rotation_bone_count());
+std::span<glm::u16vec3> NSAStaticSegment::rotation_data() const {
+    return std::span<glm::u16vec3>((glm::u16vec3*)(buf_.data() + rotation_data_ptr()), rotation_bone_count());
 }
 
-std::span<Vector3Short> NSAStaticSegment::scale_data() const {
-    return std::span<Vector3Short>((Vector3Short*)(buf_.data() + scale_data_ptr()), scale_bone_count());
+std::span<glm::u16vec3> NSAStaticSegment::scale_data() const {
+    return std::span<glm::u16vec3>((glm::u16vec3*)(buf_.data() + scale_data_ptr()), scale_bone_count());
 }
 
 NSAStaticSegment::ref<uint64_t> NSAStaticSegment::translation_data_ptr() const {
@@ -412,9 +412,9 @@ NSADynamicSegment::NSADynamicSegment(std::span<uint8_t> subspan) : buf_(subspan)
                 + i * sizeof(uint32_t) * _translation_bone_count), 
             _translation_bone_count
         );
-        std::span<Vector3Short> rotation = std::span<Vector3Short>(
-            (Vector3Short*)(buf_.data() + _rotation_data_ptr 
-                + i * (sizeof(Vector3Short) * _rotation_bone_count + sample_padding)), 
+        std::span<glm::u16vec3> rotation = std::span<glm::u16vec3>(
+            (glm::u16vec3*)(buf_.data() + _rotation_data_ptr 
+                + i * (sizeof(glm::u16vec3) * _rotation_bone_count + sample_padding)), 
             _rotation_bone_count
         );
         std::span<uint32_t> scale = std::span<uint32_t>(
@@ -436,7 +436,7 @@ NSADynamicSegment::NSADynamicSegment(std::span<uint8_t> subspan) : buf_(subspan)
         }
     }
     uint64_t length = (sizeof(uint32_t) * _translation_bone_count 
-            + sizeof(Vector3Short) * _rotation_bone_count + sample_padding
+            + sizeof(glm::u16vec3) * _rotation_bone_count + sample_padding
             + sizeof(uint32_t) * _scale_bone_count
         ) * _sample_count
         + (next_multiple_of_4(_translation_bone_count)
@@ -472,7 +472,7 @@ std::span<DequantizationInfo> NSADynamicSegment::translation_dequantization_info
     return std::span<DequantizationInfo>((DequantizationInfo*)(buf_.data() + translation_dequantization_info_ptr()), count);
 }
 
-std::vector<std::span<Vector3Short>> NSADynamicSegment::rotation_data() const {
+std::vector<std::span<glm::u16vec3>> NSADynamicSegment::rotation_data() const {
     return m_rotation_data;
 }
 
@@ -550,11 +550,11 @@ std::optional<NSARootSegment::ref<DequantizationFactors>> NSARootSegment::rotati
     return get<DequantizationFactors>(56);
 }
 
-std::optional<NSARootSegment::ref<Quaternion>> NSARootSegment::constant_rotation() const {
+std::optional<NSARootSegment::ref<glm::quat>> NSARootSegment::constant_rotation() const {
     if(rotation_data_ptr() != 0) {
         return {};
     }
-    return get<Quaternion>(56);
+    return get<glm::quat>(56);
 }
 
 std::span<uint32_t> NSARootSegment::translation_data() const {
@@ -564,11 +564,11 @@ std::span<uint32_t> NSARootSegment::translation_data() const {
     return std::span<uint32_t>((uint32_t*)(buf_.data() + translation_data_ptr()), sample_count());
 }
 
-std::span<Vector3Short> NSARootSegment::rotation_data() const {
+std::span<glm::u16vec3> NSARootSegment::rotation_data() const {
     if(rotation_data_ptr() == 0) {
         return {};
     }
-    return std::span<Vector3Short>((Vector3Short*)(buf_.data() + rotation_data_ptr()), sample_count());
+    return std::span<glm::u16vec3>((glm::u16vec3*)(buf_.data() + rotation_data_ptr()), sample_count());
 }
 
 NSARootSegment::ref<uint64_t> NSARootSegment::translation_data_ptr() const {

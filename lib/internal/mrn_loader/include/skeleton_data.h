@@ -40,17 +40,31 @@ namespace warpgate::mrn {
         ref<uint64_t> unknown_ptr1() const;
         ref<uint64_t> unknown_ptr2() const;
 
-        std::span<const Vector4> offsets();
-        std::span<const Quaternion> rotations();
+        std::span<glm::vec4> offsets();
+        std::span<glm::quat> rotations();
 
     private:
-        std::span<Vector4> m_offsets;
-        std::span<Quaternion> m_rotations;
+        std::span<glm::vec4> m_offsets;
+        std::span<glm::quat> m_rotations;
         ref<uint64_t> element_type_ptr() const;
         ref<uint64_t> transforms_ptr() const;
         uint64_t transforms_ptr_base() const {
             return 16;
         }
+    };
+
+    struct Bone {
+        std::string name;
+        uint32_t index;
+        glm::vec3 position;
+        glm::quat rotation;
+        std::vector<uint32_t> children;
+        glm::mat4 global_transform = glm::identity<glm::mat4>();
+    };
+
+    struct Skeleton {
+        Skeleton(std::shared_ptr<StringTable> bone_names, std::span<BoneHierarchyEntry> chains, std::shared_ptr<OrientationData> orientations);
+        std::vector<Bone> bones;
     };
 
     struct SkeletonData {
@@ -76,8 +90,8 @@ namespace warpgate::mrn {
             return buf_.size();
         }
 
-        ref<Quaternion> rotation() const;
-        ref<Vector4> position() const;
+        ref<glm::quat> rotation() const;
+        ref<glm::vec4> position() const;
         ref<uint32_t> chain_count() const;
         ref<uint32_t> bone_count() const;
 

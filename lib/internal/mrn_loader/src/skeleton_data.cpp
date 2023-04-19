@@ -7,8 +7,8 @@ OrientationData::OrientationData(std::span<uint8_t> subspan, size_t bone_count):
     uint64_t translation_offset = get<uint64_t>(transforms_offset) + transforms_ptr_base();
     uint64_t rotation_offset = get<uint64_t>(transforms_offset + 8) + transforms_ptr_base();
 
-    m_offsets = std::span<Vector4>((Vector4*)(buf_.data() + translation_offset), bone_count);
-    m_rotations = std::span<Quaternion>((Quaternion*)(buf_.data() + rotation_offset), bone_count);
+    m_offsets = std::span<glm::vec4>((glm::vec4*)(buf_.data() + translation_offset), bone_count);
+    m_rotations = std::span<glm::quat>((glm::quat*)(buf_.data() + rotation_offset), bone_count);
 
     buf_ = buf_.first(16 + data_length());
 }
@@ -41,11 +41,11 @@ OrientationData::ref<uint64_t> OrientationData::unknown_ptr2() const {
     return get<uint64_t>(56);
 }
 
-std::span<const Vector4> OrientationData::offsets() {
+std::span<glm::vec4> OrientationData::offsets() {
     return m_offsets;
 }
 
-std::span<const Quaternion> OrientationData::rotations() {
+std::span<glm::quat> OrientationData::rotations() {
     return m_rotations;
 }
 
@@ -66,12 +66,12 @@ SkeletonData::SkeletonData(std::span<uint8_t> subspan): buf_(subspan) {
     m_chains = std::span<BoneHierarchyEntry>((BoneHierarchyEntry*)(buf_.data() + chains_offset()), chain_count());
 }
 
-SkeletonData::ref<Quaternion> SkeletonData::rotation() const {
-    return get<Quaternion>(0);
+SkeletonData::ref<glm::quat> SkeletonData::rotation() const {
+    return get<glm::quat>(0);
 }
 
-SkeletonData::ref<Vector4> SkeletonData::position() const {
-    return get<Vector4>(16);
+SkeletonData::ref<glm::vec4> SkeletonData::position() const {
+    return get<glm::vec4>(16);
 }
 
 SkeletonData::ref<uint32_t> SkeletonData::chain_count() const {

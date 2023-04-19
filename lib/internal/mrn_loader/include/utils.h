@@ -17,8 +17,8 @@ namespace warpgate {
 }
 
 namespace warpgate::mrn {
-    Vector3 unpack_translation(Vector3Short quantized, DequantizationFactors factors);
-    Vector3 unpack_translation(uint32_t bit_packed_value, DequantizationFactors factors);
-    Quaternion unpack_rotation(Vector3Short quantized, DequantizationFactors factors);
-    Quaternion unpack_initial_rotation(Vector3Byte quantized);
+    glm::vec3 unpack_translation(glm::u16vec3 quantized, DequantizationFactors factors);
+    glm::vec3 unpack_translation(uint32_t bit_packed_value, DequantizationFactors factors);
+    glm::quat unpack_rotation(glm::u16vec3 quantized, DequantizationFactors factors);
+    glm::quat unpack_initial_rotation(glm::u8vec3 quantized);
 }
