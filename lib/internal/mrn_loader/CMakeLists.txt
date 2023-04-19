@@ -9,7 +9,7 @@ add_library(
         src/utils.cpp
 )
 target_include_directories(mrn_loader PUBLIC include)
-target_link_libraries(mrn_loader PRIVATE spdlog::spdlog)
+target_link_libraries(mrn_loader PRIVATE spdlog::spdlog PUBLIC gli)
 
 # add_custom_command(
 #         TARGET dme_loader POST_BUILD
