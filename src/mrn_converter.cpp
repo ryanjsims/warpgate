@@ -98,10 +98,11 @@ void add_skeleton_to_gltf(tinygltf::Model &gltf, std::shared_ptr<mrn::Skeleton> 
             remapped[end_index] = skeleton->bones[root];
             remapped[end_index].index = end_index;
             for(uint32_t i = 0; i < skeleton->bones[root].children.size(); i++) {
-                remapped[bone_map[skeleton->bones[root].name]["end"]].children[i] = remap_chain(skeleton->bones[root].children[i]);
+                remapped[end_index].children[i] = remap_chain(skeleton->bones[root].children[i]);
             }
             return end_index;
         };
+        remap_chain(0);
         skeleton->bones = remapped;
     }
 
