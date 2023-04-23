@@ -11,7 +11,11 @@ endif()
 
 set(MATERIALS_JSON_PORTABLE 0 CACHE BOOL "")
 
+set(CMAKE_VERBOSE_MAKEFILE 1 CACHE BOOL "")
+
 add_subdirectory(lib)
+
+find_package(Vulkan REQUIRED)
 
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}" -DMATERIALS_JSON_PORTABLE=${MATERIALS_JSON_PORTABLE})
 
@@ -19,8 +23,12 @@ add_executable(test_adr
   src/test_adr.cpp
   src/utils/adr.cpp
 )
+
+message("${BUILD_SHARED_LIBS}")
+SET(PUGIXML_LINKED_LIBRARY pugixml::static)
+
 target_include_directories(test_adr PUBLIC include/)
-target_link_libraries(test_adr PRIVATE pugixml::static spdlog::spdlog synthium::synthium)
+target_link_libraries(test_adr PRIVATE ${PUGIXML_LINKED_LIBRARY} spdlog::spdlog synthium::synthium)
 
 add_executable(test_dme src/test_dme.cpp)
 target_include_directories(test_dme PUBLIC include/ dme_loader/include/)
@@ -61,7 +69,7 @@ target_include_directories(adr_converter PUBLIC
   lib/external/half/include/
   lib/external/tinygltf/
   lib/external/synthium/include)
-target_link_libraries(adr_converter PRIVATE dme_loader pugixml::static spdlog::spdlog tinygltf argparse synthium::synthium gli)
+target_link_libraries(adr_converter PRIVATE dme_loader ${PUGIXML_LINKED_LIBRARY} spdlog::spdlog tinygltf argparse synthium::synthium gli)
 
 add_executable(decompress
   src/decompress.cpp
@@ -132,6 +140,37 @@ add_executable(mrn_converter
 target_include_directories(mrn_converter PUBLIC include/)
 target_link_libraries(mrn_converter PRIVATE argparse Glob gli mrn_loader spdlog::spdlog synthium::synthium tinygltf)
 
+add_executable(warpgate WIN32 
+  src/warpgate.cpp
+  src/utils/vulkan/model_renderer.cpp
+  src/utils/hikogui/widgets/model_widget.cpp
+)
+
+target_include_directories(warpgate PUBLIC include/ lib/external/half/include/)
+target_link_libraries(warpgate PRIVATE hikogui gli synthium::synthium dme_loader mrn_loader spdlog::spdlog)
+
+#set_property(TARGET warpgate PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+add_custom_target(vulkan_warpgate_shaders)
+add_shader_target(vulkan_warpgate_shaders
+    src/utils/vulkan/shaders/character.vert
+    src/utils/vulkan/shaders/character.frag
+)
+
+
+add_custom_target(vulkan_warpgate_resources
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/lib/external/hikogui/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/lib/external/hikogui/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/src/utils/vulkan/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
+    DEPENDS
+    hikogui vulkan_warpgate_shaders
+    resources/warpgate.png
+)
+
+add_dependencies(warpgate vulkan_warpgate_resources)
+
+
 add_executable(zone_converter 
     src/zone_converter.cpp
     src/utils/gltf/common.cpp
@@ -154,7 +193,7 @@ target_include_directories(zone_converter PUBLIC
   lib/external/tinygltf/
   lib/external/synthium/include
 )
-target_link_libraries(zone_converter PRIVATE cnk_loader dme_loader zone_loader pugixml::static spdlog::spdlog tinygltf argparse synthium::synthium gli Glob)
+target_link_libraries(zone_converter PRIVATE cnk_loader dme_loader zone_loader ${PUGIXML_LINKED_LIBRARY} spdlog::spdlog tinygltf argparse synthium::synthium gli Glob)
 
 find_package(Git)
 add_custom_target(version

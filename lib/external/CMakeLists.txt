@@ -6,6 +6,8 @@ add_subdirectory(gli)
 
 add_subdirectory(glob)
 
+add_subdirectory(hikogui)
+
 add_subdirectory(pugixml)
 
 add_subdirectory(lzham_alpha)
