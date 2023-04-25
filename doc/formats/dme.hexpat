@@ -1,3 +1,4 @@
+#include "semantic.hexpat"
 
 struct vec3 {
     float x, y, z;
@@ -41,29 +42,29 @@ enum D3DXParamType : u32 {
     FORCE_DWORD = 0x7fffffff
 };
 
-enum Semantic : s32 {
-    BASE_COLOR1   = 0xB2C4211E,
-    BASE_COLOR2   = 0xCDC75F30,
-    BASE_COLOR3   = 0x676AA4A8,
-    BASE_COLOR4   = 0xC88FAEE9,
-    EMISSIVE1     = 0x27DEFEEB,
-    NORMAL_MAP1   = 0x2F166A05,
-    NORMAL_MAP2   = 0x286C5A8D,
-    BUMP_MAP1     = 0x9CE15AED,
-    SPECULAR1     = 0x04019150,
-    SPECULAR2     = 0xACF3DE36,
-    SPECULAR3     = 0xD1E9116F,
-    SPECULAR4     = 0xF9055B18,
-    DETAIL_SELECT = 0x664E66B8,
-    DETAIL_CUBE1  = 0xF882E64B,
-    DETAIL_CUBE2  = 0x9153B1F7,
-    OVERLAY0      = 0xB4E325E8,
-    OVERLAY1      = 0x566168EE,
-    OVERLAY2      = 0x1441737C,
-    OVERLAY3      = 0xB4C9B62D,
-    BASE_CAMO     = 0xEDC64529,
-    UNKNOWN       = 0x00000000
-};
+// enum Semantic : s32 {
+//     BASE_COLOR1   = 0xB2C4211E,
+//     BASE_COLOR2   = 0xCDC75F30,
+//     BASE_COLOR3   = 0x676AA4A8,
+//     BASE_COLOR4   = 0xC88FAEE9,
+//     EMISSIVE1     = 0x27DEFEEB,
+//     NORMAL_MAP1   = 0x2F166A05,
+//     NORMAL_MAP2   = 0x286C5A8D,
+//     BUMP_MAP1     = 0x9CE15AED,
+//     SPECULAR1     = 0x04019150,
+//     SPECULAR2     = 0xACF3DE36,
+//     SPECULAR3     = 0xD1E9116F,
+//     SPECULAR4     = 0xF9055B18,
+//     DETAIL_SELECT = 0x664E66B8,
+//     DETAIL_CUBE1  = 0xF882E64B,
+//     DETAIL_CUBE2  = 0x9153B1F7,
+//     OVERLAY0      = 0xB4E325E8,
+//     OVERLAY1      = 0x566168EE,
+//     OVERLAY2      = 0x1441737C,
+//     OVERLAY3      = 0xB4C9B62D,
+//     BASE_CAMO     = 0xEDC64529,
+//     UNKNOWN       = 0x00000000
+// };
 
 union SemanticHash {
     Semantic semantic;
