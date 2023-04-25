@@ -6,6 +6,7 @@
 #include "material.h"
 #include "mesh.h"
 #include "parameter.h"
+#include "semantics.h"
 #include "ps2_bone_map.h"
 #include "structs.h"
 #include "vertexstream.h"

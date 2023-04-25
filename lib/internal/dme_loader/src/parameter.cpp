@@ -7,8 +7,8 @@ Parameter::Parameter(std::span<uint8_t> subspan): buf_(subspan) {
     buf_ = buf_.first(16 + length());
 }
 
-Parameter::ref<int32_t> Parameter::semantic_hash() const {
-    return get<int32_t>(0);
+Parameter::ref<Semantic> Parameter::semantic_hash() const {
+    return get<Semantic>(0);
 }
 
 Parameter::ref<Parameter::D3DXParamClass> Parameter::_class() const {
@@ -27,42 +27,47 @@ std::span<uint8_t> Parameter::data() const {
     return buf_.subspan(16, length());
 }
 
-std::string Parameter::semantic_name(int32_t semantic) {
-    switch(Parameter::Semantic(semantic)) {
-    case Parameter::Semantic::BASE_COLOR1:
-    case Parameter::Semantic::BASE_COLOR2:
-    case Parameter::Semantic::BASE_COLOR3:
-    case Parameter::Semantic::BASE_COLOR4:
+std::string Parameter::semantic_texture_type(int32_t semantic) {
+    switch(Semantic(semantic)) {
+    case Semantic::Diffuse:
+    case Semantic::BaseDiffuse:
+    case Semantic::baseDiffuse:
+    case Semantic::diffuseTexture:
+    case Semantic::DiffuseB:
         return "Base Color";
-    case Parameter::Semantic::EMISSIVE1:
+    case Semantic::HoloTexture:
         return "Emissive";
-    case Parameter::Semantic::NORMAL_MAP1:
-    case Parameter::Semantic::NORMAL_MAP2:
+    case Semantic::Bump:
+    case Semantic::BumpMap:
         return "Normal Map";
-    case Parameter::Semantic::BUMP_MAP1:
-        return "Bump Map";
-    case Parameter::Semantic::SPECULAR1:
-    case Parameter::Semantic::SPECULAR2:
-    case Parameter::Semantic::SPECULAR3:
-    case Parameter::Semantic::SPECULAR4:
+    case Semantic::BlendMask:
+        return "Blend Mask";
+    case Semantic::Spec:
+    case Semantic::SpecMap:
+    case Semantic::SpecGlow:
+    case Semantic::SpecB:
         return "Specular";
-    case Parameter::Semantic::DETAIL_CUBE1:
-    case Parameter::Semantic::DETAIL_CUBE2:
+    case Semantic::detailBump:
+    case Semantic::DetailBump:
         return "Detail Cube";
-    case Parameter::Semantic::DETAIL_SELECT:
+    case Semantic::DetailMask:
         return "Detail Select";
-    case Parameter::Semantic::OVERLAY0:
-    case Parameter::Semantic::OVERLAY1:
-    case Parameter::Semantic::OVERLAY2:
-    case Parameter::Semantic::OVERLAY3:
+    case Semantic::Overlay:
+    case Semantic::Overlay1:
+    case Semantic::Overlay2:
+    case Semantic::Overlay3:
+    case Semantic::Overlay4:
+    case Semantic::TilingOverlay:
         return "Overlay";
-    case Parameter::Semantic::BASE_CAMO:
-        return "Base Camo";
+    case Semantic::DecalTint:
+        return "Decal";
+    case Semantic::TilingTint:
+        return "Tiling Tint";
     default:
         return "Unknown (" + std::to_string(semantic) + ")";
     }
 }
 
-std::string Parameter::semantic_name(Parameter::Semantic semantic) {
-    return semantic_name((int32_t)semantic);
+std::string Parameter::semantic_texture_type(Semantic semantic) {
+    return semantic_texture_type((int32_t)semantic);
 }

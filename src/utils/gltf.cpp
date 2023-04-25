@@ -23,27 +23,27 @@ using half_float::half;
 
 using namespace warpgate;
 
-std::vector<Parameter::Semantic> semantics = {
-    Parameter::Semantic::BASE_COLOR1,
-    Parameter::Semantic::BASE_COLOR2,
-    Parameter::Semantic::BASE_COLOR3,
-    Parameter::Semantic::BASE_COLOR4,
-    Parameter::Semantic::EMISSIVE1,
-    Parameter::Semantic::NORMAL_MAP1,
-    Parameter::Semantic::NORMAL_MAP2,
-    Parameter::Semantic::SPECULAR1,
-    Parameter::Semantic::SPECULAR2,
-    Parameter::Semantic::SPECULAR3,
-    Parameter::Semantic::SPECULAR4,
-    Parameter::Semantic::DETAIL_SELECT,
-    Parameter::Semantic::DETAIL_CUBE1,
-    Parameter::Semantic::DETAIL_CUBE2,
-    Parameter::Semantic::OVERLAY0,
-    Parameter::Semantic::OVERLAY1,
-    Parameter::Semantic::OVERLAY2,
-    Parameter::Semantic::OVERLAY3,
-    Parameter::Semantic::BASE_CAMO,
-};
+// std::vector<Parameter::Semantic> semantics = {
+//     Parameter::Semantic::BASE_COLOR1,
+//     Parameter::Semantic::BASE_COLOR2,
+//     Parameter::Semantic::BASE_COLOR3,
+//     Parameter::Semantic::BASE_COLOR4,
+//     Parameter::Semantic::EMISSIVE1,
+//     Parameter::Semantic::NORMAL_MAP1,
+//     Parameter::Semantic::NORMAL_MAP2,
+//     Parameter::Semantic::SPECULAR1,
+//     Parameter::Semantic::SPECULAR2,
+//     Parameter::Semantic::SPECULAR3,
+//     Parameter::Semantic::SPECULAR4,
+//     Parameter::Semantic::DETAIL_SELECT,
+//     Parameter::Semantic::DETAIL_CUBE1,
+//     Parameter::Semantic::DETAIL_CUBE2,
+//     Parameter::Semantic::OVERLAY0,
+//     Parameter::Semantic::OVERLAY1,
+//     Parameter::Semantic::OVERLAY2,
+//     Parameter::Semantic::OVERLAY3,
+//     Parameter::Semantic::BASE_CAMO,
+// };
 
 int utils::gltf::dmat::add_material_to_gltf(
     tinygltf::Model &gltf, 
@@ -53,7 +53,7 @@ int utils::gltf::dmat::add_material_to_gltf(
     bool export_textures,
     std::unordered_map<uint32_t, uint32_t> &texture_indices,
     std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
-    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+    utils::tsqueue<std::pair<std::string, Semantic>> &image_queue,
     std::filesystem::path output_directory,
     std::string dme_name
 ) {
@@ -92,7 +92,7 @@ int utils::gltf::dmat::add_material_to_gltf(
 
 int utils::gltf::dme::add_dme_to_gltf(
     tinygltf::Model &gltf, const DME &dme,
-    tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+    tsqueue<std::pair<std::string, Semantic>> &image_queue,
     std::filesystem::path output_directory,
     std::unordered_map<uint32_t, uint32_t> &texture_indices, 
     std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
@@ -362,7 +362,7 @@ int utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme
 
 tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
     const DME &dme, 
-    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue, 
+    utils::tsqueue<std::pair<std::string, Semantic>> &image_queue, 
     std::filesystem::path output_directory, 
     bool export_textures, 
     bool include_skeleton,
@@ -390,13 +390,79 @@ tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
     return gltf;
 }
 
+void utils::gltf::dmat::process_images(
+    synthium::Manager& manager, 
+    utils::tsqueue<std::pair<std::string, Semantic>>& queue, 
+    std::filesystem::path output_directory
+) {
+    logger::debug("Got output directory {}", output_directory.string());
+    while(!queue.is_closed()) {
+        auto texture_info = queue.try_dequeue({"", Semantic::UNKNOWN});
+        std::string texture_name = texture_info.first, albedo_name;
+        size_t index;
+        Semantic semantic = texture_info.second;
+        if(semantic == Semantic::UNKNOWN) {
+            logger::info("Got default value from try_dequeue, stopping thread.");
+            break;
+        }
+
+        switch (semantic)
+        {
+        case Semantic::Diffuse:
+        case Semantic::BaseDiffuse:
+        case Semantic::baseDiffuse:
+        case Semantic::diffuseTexture:
+        case Semantic::DiffuseB:
+        case Semantic::HoloTexture:
+        case Semantic::DecalTint:
+        case Semantic::TilingTint:
+        case Semantic::DetailMask:
+        case Semantic::detailMaskTexture:
+        case Semantic::DetailMaskMap:
+        case Semantic::Overlay:
+        case Semantic::Overlay1:
+        case Semantic::Overlay2:
+        case Semantic::Overlay3:
+        case Semantic::Overlay4:
+            utils::textures::save_texture(texture_name, manager.get(texture_name)->get_data(), output_directory);
+            break;
+        case Semantic::Bump:
+        case Semantic::BumpMap:
+        case Semantic::BumpMap1:
+        case Semantic::BumpMap2:
+        case Semantic::BumpMap3:
+        case Semantic::bumpMap:
+            utils::textures::process_normalmap(texture_name, manager.get(texture_name)->get_data(), output_directory);
+            break;
+        case Semantic::Spec:
+        case Semantic::SpecMap:
+        case Semantic::SpecGlow:
+        case Semantic::SpecB:
+            albedo_name = texture_name;
+            index = albedo_name.find_last_of('_');
+            albedo_name[index + 1] = 'C';
+            if(manager.contains(albedo_name)) {
+                utils::textures::process_specular(texture_name, manager.get(texture_name)->get_data(), manager.get(albedo_name)->get_data(), output_directory);
+            }
+            break;
+        case Semantic::detailBump:
+        case Semantic::DetailBump:
+            utils::textures::process_detailcube(texture_name, manager.get(texture_name)->get_data(), output_directory);
+            break;
+        default:
+            logger::warn("Skipping unimplemented semantic: {} ({})", texture_name, semantic_name(semantic));
+            break;
+        }
+    }
+}
+
 void utils::gltf::dmat::build_material(
     tinygltf::Model &gltf, 
     tinygltf::Material &material,
     const DMAT &dmat, 
     uint32_t i, 
     std::unordered_map<uint32_t, uint32_t> &texture_indices,
-    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+    utils::tsqueue<std::pair<std::string, Semantic>> &image_queue,
     std::filesystem::path output_directory,
     int sampler
 ) {
@@ -405,35 +471,51 @@ void utils::gltf::dmat::build_material(
     std::optional<std::string> texture_name, label = {};
     std::filesystem::path temp;
     material.alphaMode = "MASK";
-    for(Parameter::Semantic semantic : semantics) {
+    uint32_t param_count = dmat.material(i)->param_count();
+    for(uint32_t param = 0; param < param_count; param++) {
+        Parameter parameter = dmat.material(i)->parameter(param);
+        if(!(parameter.type() == Parameter::D3DXParamType::TEXTURE
+            || parameter.type() == Parameter::D3DXParamType::TEXTURE1D
+            || parameter.type() == Parameter::D3DXParamType::TEXTURE2D
+            || parameter.type() == Parameter::D3DXParamType::TEXTURE3D
+            || parameter.type() == Parameter::D3DXParamType::TEXTURECUBE
+        )) {
+            continue;
+        }
+        Semantic semantic = parameter.semantic_hash();
         switch(semantic) {
-        case Parameter::Semantic::NORMAL_MAP1:
-        case Parameter::Semantic::NORMAL_MAP2:
+        case Semantic::Bump:
+        case Semantic::BumpMap:
+        case Semantic::BumpMap1:
+        case Semantic::BumpMap2:
+        case Semantic::BumpMap3:
+        case Semantic::bumpMap:
             info = load_texture_info(gltf, dmat, i, texture_indices, image_queue, output_directory, semantic, sampler);
             if(!info)
                 break;
             material.normalTexture.index = info->index;
             break;
-        case Parameter::Semantic::BASE_COLOR1:
-        case Parameter::Semantic::BASE_COLOR2:
-        case Parameter::Semantic::BASE_COLOR3:
-        case Parameter::Semantic::BASE_COLOR4:
+        case Semantic::Diffuse:
+        case Semantic::BaseDiffuse:
+        case Semantic::baseDiffuse:
+        case Semantic::diffuseTexture:
+        case Semantic::DiffuseB:
             info = load_texture_info(gltf, dmat, i, texture_indices, image_queue, output_directory, semantic, sampler);
             if(!info)
                 break;
             material.pbrMetallicRoughness.baseColorTexture = *info;
             break;
-        case Parameter::Semantic::EMISSIVE1:
+        case Semantic::HoloTexture:
             info = load_texture_info(gltf, dmat, i, texture_indices, image_queue, output_directory, semantic, sampler);
             if(!info)
                 break;
             material.emissiveTexture = *info;
             material.emissiveFactor = {25.0, 25.0, 25.0};
             break;
-        case Parameter::Semantic::SPECULAR1:
-        case Parameter::Semantic::SPECULAR2:
-        case Parameter::Semantic::SPECULAR3:
-        case Parameter::Semantic::SPECULAR4:
+        case Semantic::Spec:
+        case Semantic::SpecMap:
+        case Semantic::SpecGlow:
+        case Semantic::SpecB:
             info_pair = load_specular_info(
                 gltf, dmat, i, texture_indices, image_queue, output_directory, semantic, sampler
             );
@@ -445,7 +527,7 @@ void utils::gltf::dmat::build_material(
             break;
         default:
             // Just export the texture
-            label = Parameter::semantic_name(semantic);
+            label = semantic_name(semantic);
             texture_name = dmat.material(i)->texture(semantic);
             if(texture_name) {
                 uint32_t hash = jenkins::oaat(*texture_name);
@@ -454,7 +536,7 @@ void utils::gltf::dmat::build_material(
                 }
                 texture_indices[hash] = (uint32_t)gltf.textures.size();
                 image_queue.enqueue({*texture_name, semantic});
-                if (!(semantic == Parameter::Semantic::DETAIL_CUBE1 || semantic == Parameter::Semantic::DETAIL_CUBE2)) {
+                if (!(semantic == Semantic::detailBump || semantic == Semantic::DetailBump)) {
                     add_texture_to_gltf(gltf, (output_directory / "textures" / *texture_name).replace_extension(".png"), output_directory, sampler, label);
                 } else {
                     temp = std::filesystem::path(*texture_name);
@@ -479,9 +561,9 @@ std::optional<tinygltf::TextureInfo> utils::gltf::dmat::load_texture_info(
     const DMAT &dmat, 
     uint32_t i, 
     std::unordered_map<uint32_t, uint32_t> &texture_indices, 
-    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+    utils::tsqueue<std::pair<std::string, Semantic>> &image_queue,
     std::filesystem::path output_directory,
-    Parameter::Semantic semantic,
+    Semantic semantic,
     int sampler
 ) {
     std::optional<std::string> texture_name = dmat.material(i)->texture(semantic);
@@ -512,9 +594,9 @@ std::optional<std::pair<tinygltf::TextureInfo, tinygltf::TextureInfo>> utils::gl
     const DMAT &dmat, 
     uint32_t i, 
     std::unordered_map<uint32_t, uint32_t> &texture_indices, 
-    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+    utils::tsqueue<std::pair<std::string, Semantic>> &image_queue,
     std::filesystem::path output_directory,
-    Parameter::Semantic semantic,
+    Semantic semantic,
     int sampler
 ) {
     tinygltf::TextureInfo metallic_roughness_info, emissive_info;

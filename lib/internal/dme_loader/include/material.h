@@ -39,7 +39,7 @@ namespace warpgate {
         ref<uint32_t> param_count() const;
         Parameter parameter(uint32_t index) const;
         std::optional<std::string> texture(int32_t semantic) const;
-        std::optional<std::string> texture(Parameter::Semantic semantic) const;
+        std::optional<std::string> texture(Semantic semantic) const;
     private:
         std::vector<Parameter> parameters;
         std::unordered_map<int32_t, std::string> semantic_textures;

@@ -12,6 +12,7 @@
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
 #include "utils/gltf/dme.h"
+#include "utils/gltf/dmat.h"
 #include "utils/materials_3.h"
 #include "utils/textures.h"
 #include "utils/tsqueue.h"
@@ -21,61 +22,6 @@
 
 namespace logger = spdlog;
 using namespace warpgate;
-
-void process_images(
-    synthium::Manager& manager, 
-    utils::tsqueue<std::pair<std::string, Parameter::Semantic>>& queue, 
-    std::filesystem::path output_directory
-) {
-    logger::debug("Got output directory {}", output_directory.string());
-    while(!queue.is_closed()) {
-        auto texture_info = queue.try_dequeue({"", Parameter::Semantic::UNKNOWN});
-        std::string texture_name = texture_info.first, albedo_name;
-        size_t index;
-        Parameter::Semantic semantic = texture_info.second;
-        if(semantic == Parameter::Semantic::UNKNOWN) {
-            logger::info("Got default value from try_dequeue, stopping thread.");
-            break;
-        }
-
-        switch (semantic)
-        {
-        case Parameter::Semantic::BASE_COLOR1:
-        case Parameter::Semantic::BASE_COLOR2:
-        case Parameter::Semantic::BASE_COLOR3:
-        case Parameter::Semantic::BASE_COLOR4:
-        case Parameter::Semantic::EMISSIVE1:
-        case Parameter::Semantic::BASE_CAMO:
-        case Parameter::Semantic::DETAIL_SELECT:
-        case Parameter::Semantic::OVERLAY0:
-        case Parameter::Semantic::OVERLAY1:
-            utils::textures::save_texture(texture_name, manager.get(texture_name)->get_data(), output_directory);
-            break;
-        case Parameter::Semantic::NORMAL_MAP1:
-        case Parameter::Semantic::NORMAL_MAP2:
-            utils::textures::process_normalmap(texture_name, manager.get(texture_name)->get_data(), output_directory);
-            break;
-        case Parameter::Semantic::SPECULAR1:
-        case Parameter::Semantic::SPECULAR2:
-        case Parameter::Semantic::SPECULAR3:
-        case Parameter::Semantic::SPECULAR4:
-            albedo_name = texture_name;
-            index = albedo_name.find_last_of('_');
-            albedo_name[index + 1] = 'C';
-            if(manager.contains(albedo_name)) {
-                utils::textures::process_specular(texture_name, manager.get(texture_name)->get_data(), manager.get(albedo_name)->get_data(), output_directory);
-            }
-            break;
-        case Parameter::Semantic::DETAIL_CUBE1:
-        case Parameter::Semantic::DETAIL_CUBE2:
-            utils::textures::process_detailcube(texture_name, manager.get(texture_name)->get_data(), output_directory);
-            break;
-        default:
-            logger::warn("Skipping unimplemented semantic: {}", texture_name);
-            break;
-        }
-    }
-}
 
 void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
     parser.add_description("C++ DMEv4 to GLTF2 model conversion tool");
@@ -227,7 +173,7 @@ int main(int argc, const char* argv[]) {
         std::exit(3);
     }
 
-    utils::tsqueue<std::pair<std::string, Parameter::Semantic>> image_queue;
+    utils::tsqueue<std::pair<std::string, Semantic>> image_queue;
 
     std::string format = parser.get<std::string>("--format");
     bool include_skeleton = !parser.get<bool>("--no-skeleton");
@@ -239,7 +185,7 @@ int main(int argc, const char* argv[]) {
         logger::info("Using {} image processing thread{}", image_processor_thread_count, image_processor_thread_count == 1 ? "" : "s");
         for(uint32_t i = 0; i < image_processor_thread_count; i++) {
             image_processor_pool.push_back(std::thread{
-                process_images, 
+                utils::gltf::dmat::process_images, 
                 std::ref(manager), 
                 std::ref(image_queue), 
                 output_directory

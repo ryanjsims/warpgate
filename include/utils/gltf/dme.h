@@ -15,7 +15,7 @@
 namespace warpgate::utils::gltf::dme {
     int add_dme_to_gltf(
         tinygltf::Model &gltf, const DME &dme,
-        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        tsqueue<std::pair<std::string, Semantic>> &image_queue,
         std::filesystem::path output_directory,
         std::unordered_map<uint32_t, uint32_t> &texture_indices,
         std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
@@ -29,7 +29,7 @@ namespace warpgate::utils::gltf::dme {
     int add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes, bool rigify);
     tinygltf::Model build_gltf_from_dme(
         const DME &dme, 
-        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue, 
+        tsqueue<std::pair<std::string, Semantic>> &image_queue, 
         std::filesystem::path output_directory, 
         bool export_textures, 
         bool include_skeleton,

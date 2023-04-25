@@ -75,5 +75,5 @@ void utils::tsqueue<T>::close(void) {
     c.notify_all();
 }
 
-template class utils::tsqueue<std::pair<std::string, Parameter::Semantic>>;
+template class utils::tsqueue<std::pair<std::string, Semantic>>;
 template class utils::tsqueue<std::tuple<std::string, std::shared_ptr<uint8_t[]>, uint32_t, std::shared_ptr<uint8_t[]>, uint32_t>>;

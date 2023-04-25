@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <dmat.h>
+#include <synthium/manager.h>
 #include "parameter.h"
 #include "tiny_gltf.h"
 #include "utils/tsqueue.h"
@@ -19,9 +20,15 @@ namespace warpgate::utils::gltf::dmat {
         bool export_textures,
         std::unordered_map<uint32_t, uint32_t> &texture_indices,
         std::unordered_map<uint32_t, std::vector<uint32_t>> &material_indices,
-        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        tsqueue<std::pair<std::string, Semantic>> &image_queue,
         std::filesystem::path output_directory,
         std::string dme_name
+    );
+
+    void process_images(
+        synthium::Manager& manager, 
+        utils::tsqueue<std::pair<std::string, Semantic>>& queue, 
+        std::filesystem::path output_directory
     );
 
     void build_material(
@@ -30,7 +37,7 @@ namespace warpgate::utils::gltf::dmat {
         const DMAT &dmat, 
         uint32_t material_index, 
         std::unordered_map<uint32_t, uint32_t> &texture_indices,
-        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        tsqueue<std::pair<std::string, Semantic>> &image_queue,
         std::filesystem::path output_directory,
         int sampler
     );
@@ -40,9 +47,9 @@ namespace warpgate::utils::gltf::dmat {
         const DMAT &dmat, 
         uint32_t i, 
         std::unordered_map<uint32_t, uint32_t> &texture_indices, 
-        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        tsqueue<std::pair<std::string, Semantic>> &image_queue,
         std::filesystem::path output_filename,
-        Parameter::Semantic semantic,
+        Semantic semantic,
         int sampler
     );
 
@@ -51,9 +58,9 @@ namespace warpgate::utils::gltf::dmat {
         const DMAT &dmat, 
         uint32_t i, 
         std::unordered_map<uint32_t, uint32_t> &texture_indices, 
-        tsqueue<std::pair<std::string, Parameter::Semantic>> &image_queue,
+        tsqueue<std::pair<std::string, Semantic>> &image_queue,
         std::filesystem::path output_filename,
-        Parameter::Semantic semantic,
+        Semantic semantic,
         int sampler
     );
 }
