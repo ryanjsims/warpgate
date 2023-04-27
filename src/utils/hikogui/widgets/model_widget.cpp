@@ -3,6 +3,8 @@
 #include "gli/texture.hpp"
 #include "utils/hikogui/widgets/model_widget.hpp"
 
+#include <fstream>
+
 // Every constructor of a widget starts with a `window` and `parent` argument.
 // In most cases these are automatically filled in when calling a container widget's `make_widget()` function.
 model_widget::model_widget(
@@ -16,6 +18,42 @@ model_widget::model_widget(
 model_widget::~model_widget()
 {
     _surface.remove_delegate(this);
+}
+
+void model_widget::load_model(std::string name) {
+    std::shared_ptr<synthium::Asset2> asset = m_manager->get(name);
+    model_data = asset->get_data();
+    std::shared_ptr<warpgate::DME> model = std::make_shared<warpgate::DME>(model_data, name);
+    std::unordered_map<uint32_t, gli::texture> textures;
+    for(uint32_t material_index = 0; material_index < model->dmat()->material_count(); material_index++) {
+        for(uint32_t parameter_index = 0; parameter_index < model->dmat()->material(material_index)->param_count(); parameter_index++) {
+            const warpgate::Parameter& parameter = model->dmat()->material(material_index)->parameter(parameter_index);
+            switch(parameter.type()){
+                case warpgate::Parameter::D3DXParamType::TEXTURE1D:
+                case warpgate::Parameter::D3DXParamType::TEXTURE2D:
+                case warpgate::Parameter::D3DXParamType::TEXTURE3D:
+                case warpgate::Parameter::D3DXParamType::TEXTURE:
+                case warpgate::Parameter::D3DXParamType::TEXTURECUBE:
+                    break;
+                default:
+                    continue;
+            }
+
+            if(textures.find(parameter.get<uint32_t>(parameter.data_offset())) != textures.end()) {
+                continue;
+            }
+
+            std::optional<std::string> texture_name = model->dmat()->material(material_index)->texture(parameter.semantic_hash());
+            if(!texture_name.has_value()) {
+                continue;
+            }
+            asset = m_manager->get(*texture_name);
+            asset_data = asset->get_data();
+            textures[parameter.get<uint32_t>(parameter.data_offset())] = gli::texture(gli::load_dds((char*)asset_data.data(), asset_data.size()));
+        }
+    }
+
+    m_renderer->loadModel(model, textures);
 }
 
 // The set_constraints() function is called when the window is first initialized,
@@ -113,21 +151,11 @@ void model_widget::build_for_new_device(
     uint32_t graphics_queue_family_index) noexcept
 {
     // In our case if the vulkan-device changes, then we restart the complete "graphics engines".
-    std::shared_ptr<synthium::Asset2> asset = m_manager->get("Armor_TR_Male_Base_LOD0.dme");
-    model_data = asset->get_data();
-    std::shared_ptr<warpgate::DME> model = std::make_shared<warpgate::DME>(model_data, "Armor_TR_Male_Base_LOD0.dme");
-    std::string albedo_name = *model->dmat()->material(0)->texture(warpgate::Parameter::Semantic::BASE_COLOR1);
-    asset = m_manager->get(albedo_name);
-    asset_data = asset->get_data();
-    gli::texture2d texture(gli::load_dds((char*)asset_data.data(), asset_data.size()));
-
     m_renderer = std::make_shared<ModelRenderer>(
         allocator,
         static_cast<VkDevice>(device),
         static_cast<VkQueue>(graphics_queue),
-        graphics_queue_family_index,
-        model,
-        texture
+        graphics_queue_family_index
     );
 }
 

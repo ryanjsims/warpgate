@@ -92,6 +92,7 @@ namespace warpgate {
         ref<D3DXParamType> type() const;
         ref<uint32_t> length() const;
         std::span<uint8_t> data() const;
+        uint32_t data_offset() const;
         static std::string semantic_texture_type(int32_t semantic);
         static std::string semantic_texture_type(Semantic semantic);
     };

@@ -144,10 +144,11 @@ add_executable(warpgate WIN32
   src/warpgate.cpp
   src/utils/vulkan/model_renderer.cpp
   src/utils/hikogui/widgets/model_widget.cpp
+  src/utils/materials_3.cpp
 )
 
 target_include_directories(warpgate PUBLIC include/ lib/external/half/include/)
-target_link_libraries(warpgate PRIVATE hikogui gli synthium::synthium dme_loader mrn_loader spdlog::spdlog)
+target_link_libraries(warpgate PRIVATE hikogui gli synthium::synthium dme_loader mrn_loader spdlog::spdlog tinygltf)
 
 #set_property(TARGET warpgate PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
@@ -163,6 +164,7 @@ add_custom_target(vulkan_warpgate_resources
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/lib/external/hikogui/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/src/utils/vulkan/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
     DEPENDS
     hikogui vulkan_warpgate_shaders
     resources/warpgate.png

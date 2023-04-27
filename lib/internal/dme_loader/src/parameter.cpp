@@ -27,6 +27,10 @@ std::span<uint8_t> Parameter::data() const {
     return buf_.subspan(16, length());
 }
 
+uint32_t Parameter::data_offset() const {
+    return 16;
+}
+
 std::string Parameter::semantic_texture_type(int32_t semantic) {
     switch(Semantic(semantic)) {
     case Semantic::Diffuse:
@@ -34,12 +38,12 @@ std::string Parameter::semantic_texture_type(int32_t semantic) {
     case Semantic::baseDiffuse:
     case Semantic::diffuseTexture:
     case Semantic::DiffuseB:
-        return "Base Color";
+        return "Diffuse";
     case Semantic::HoloTexture:
         return "Emissive";
     case Semantic::Bump:
     case Semantic::BumpMap:
-        return "Normal Map";
+        return "Normal";
     case Semantic::BlendMask:
         return "Blend Mask";
     case Semantic::Spec:

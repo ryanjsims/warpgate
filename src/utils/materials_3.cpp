@@ -37,15 +37,15 @@ std::unordered_map<std::string, std::string> utils::materials3::usages = {
 };
 
 std::unordered_map<std::string, int> utils::materials3::sizes = {
-    {"Float3", 12},
-    {"D3dcolor", 4},
+    {"Float1", 4},
     {"Float2", 8},
+    {"Float3", 12},
     {"Float4", 16},
+    {"D3dcolor", 4},
     {"ubyte4n", 4},
     {"Float16_2", 4},
     {"float16_2", 4},
     {"Short2", 4},
-    {"Float1", 4},
     {"Short4", 8}
 };
 

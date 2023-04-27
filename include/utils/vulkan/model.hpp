@@ -13,7 +13,8 @@ namespace warpgate::vulkan {
         std::vector<VmaAllocation> vertexStreamAllocations;
         VkBuffer indices;
         VmaAllocation indicesAllocation;
-        uint32_t index_count, index_size;
+        uint32_t index_count, index_size, pipeline;
+        VkDescriptorSet descriptorSet;
     };
 
     struct Model {

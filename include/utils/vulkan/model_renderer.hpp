@@ -22,6 +22,7 @@
 #include "glm/gtx/quaternion.hpp"
 #include "half.hpp"
 #include "hikogui/module.hpp"
+#include "json.hpp"
 #include <vulkan/vulkan.h>
 #include <vma/vk_mem_alloc.h>
 #include <span>
@@ -31,6 +32,7 @@
 #include <assert.h>
 #include <fstream>
 #include <vector>
+#include <unordered_map>
 #include <exception>
 #include <filesystem>
 #include <chrono>
@@ -44,11 +46,13 @@
 //  - Uses an externally provided view-port and render-area.
 class ModelRenderer {
 public:
-    ModelRenderer(VmaAllocator allocator, VkDevice device, VkQueue queue, uint32_t queueFamilyIndex, std::shared_ptr<warpgate::DME> model, gli::texture2d albedo);
+    ModelRenderer(VmaAllocator allocator, VkDevice device, VkQueue queue, uint32_t queueFamilyIndex);
     ~ModelRenderer();
 
     void buildForNewSwapchain(std::vector<VkImageView> const& imageViews, VkExtent2D imageSize, VkFormat imageFormat);
     void teardownForLostSwapchain();
+
+    void loadModel(std::shared_ptr<warpgate::DME> model, std::unordered_map<uint32_t, gli::texture> textures);
 
     void render(
         uint32_t currentBuffer,
@@ -94,6 +98,8 @@ private:
 
     warpgate::vulkan::Camera m_camera;
 
+    nlohmann::json m_materials;
+
     Uniform matrices;
 
     bool hasSwapchain = false;
@@ -111,6 +117,10 @@ private:
 
     VkCommandPool cmdPool;
     std::vector<VkCommandBuffer> drawCmdBuffers;
+
+    VmaAllocation msaaImageAllocation;
+    VkImage msaaImage;
+    VkImageView msaaImageView;
 
     VmaAllocation depthImageAllocation;
     VkImage depthImage;
@@ -130,7 +140,7 @@ private:
     // pipeline states upfront So for each combination of non-dynamic pipeline states you need a new pipeline (there are a few
     // exceptions to this not discussed here) Even though this adds a new dimension of planning ahead, it's a great opportunity
     // for performance optimizations by the driver
-    VkPipeline pipeline;
+    std::unordered_map<uint32_t, VkPipeline> pipelines;
 
     VkDescriptorPool descriptorPool;
 
@@ -141,20 +151,21 @@ private:
 
     // The descriptor set stores the resources bound to the binding points in a shader
     // It connects the binding points of the different shaders with the buffers and images used for those bindings
-    VkDescriptorSet descriptorSet;
+    //VkDescriptorSet descriptorSet;
 
     // Fences
     // Used to check the completion of queue operations (e.g. command buffer execution)
     std::vector<VkFence> queueCompleteFences;
 
 
-    VmaAllocation textureImageAllocation;
-    VkImage textureImage;
-    VkImageView textureImageView;
-    VkSampler textureSampler;
-    VkDescriptorImageInfo imageInfo;
+    std::vector<VmaAllocation> textureImageAllocations;
+    std::vector<VkImage> textureImages;
+    std::vector<VkImageView> textureImageViews;
+    std::vector<VkSampler> textureSamplers;
+    std::vector<VkDescriptorImageInfo> imageInfos;
 
-    std::shared_ptr<warpgate::vulkan::Model> m_model;
+    std::vector<std::shared_ptr<warpgate::vulkan::Model>> m_models;
+    bool models_changed = false;
 
     VmaAllocation uniformBufferAllocation;
     VkBuffer uniformBuffer;
@@ -163,36 +174,58 @@ private:
     void calculateMatrices(VkRect2D viewPort);
 
     // The following functions are used in-order when ModelRenderer is constructed.
+    void loadMaterials();
+    void unloadMaterials();
     void createCommandPool();
     void destroyCommandPool();
-    void createVertexBuffer(std::shared_ptr<warpgate::DME> model);
+    void createVertexBuffers(std::shared_ptr<warpgate::vulkan::Model> model);
     void destroyVertexBuffer();
-    void createTextureImage(gli::texture2d texture);
-    void destroyTextureImage();
+    void createTextureImage(gli::texture texture);
+    void destroyTextureImages();
     void createTextureSampler();
-    void destroyTextureSampler();
+    void destroyTextureSamplers();
     void createUniformBuffer();
     void destroyUniformBuffer();
     void createDescriptorPool();
     void destroyDescriptorPool();
-    void createDescriptorSetLayout();
+    void createDescriptorSetLayout(); // Needs modification for generalization
     void destroyDescriptorSetLayout();
-    void createDescriptorSet();
+    void createDescriptorSet(warpgate::vulkan::Mesh &mesh, std::array<int32_t, 6> imageInfoIndices);
     void destroyDescriptorSet();
 
     // The following functions are used in-order when a new swap-chain is created.
     void createRenderPass(VkFormat colorFormat, VkFormat depthFormat);
     void destroyRenderPass();
+    void createMSAARenderTarget(VkExtent2D imageSize, VkFormat format);
+    void destroyMSAARenderTarget();
     void createDepthStencilImage(VkExtent2D imageSize, VkFormat format);
     void destroyDepthStencilImage();
     void createFrameBuffers(std::vector<VkImageView> const& imageViews, VkExtent2D imageSize);
     void destroyFrameBuffers();
-    void createCommandBuffers();
+    void createCommandBuffers(); // Needs modification for generalization
     void destroyCommandBuffers();
     void createFences();
     void destroyFences();
-    void createPipeline();
-    void destroyPipeline();
+    void createPipeline(); // Needs modification for generalization
+    uint32_t createPipeline(
+        VkPipelineLayout layout,
+        nlohmann::json inputLayout,
+        std::unordered_map<uint32_t, uint32_t> model_strides
+    );
+    VkPipeline createPipeline(
+        VkPipelineLayout layout,
+        VkRenderPass renderPass,
+        VkPrimitiveTopology topology,
+        VkPolygonMode polygonMode,
+        VkCullModeFlags cullMode,
+        float rasterizationLineWidth,
+        VkBool32 depthTestEnable,
+        std::vector<VkVertexInputBindingDescription> vertexInputBindings,
+        std::vector<VkVertexInputAttributeDescription> vertexInputAttributes,
+        std::filesystem::path vertexShaderPath,
+        std::filesystem::path fragmentShaderPath
+    );
+    void destroyPipelines();
 
     // The following functions are used during render().
 
@@ -218,6 +251,12 @@ private:
 
     void draw(uint32_t currentBuffer, VkSemaphore presentCompleteSemaphore, VkSemaphore renderCompleteSemaphore);
 
-    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, VkImageViewType viewType);
+    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageViewType viewType);
+    void createImage(
+        uint32_t width, uint32_t height, VkImageViewType viewType,
+        VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
+        VkImageUsageFlags usage, VmaMemoryUsage vmaUsage, VmaAllocation& allocation, VkImage& image
+    );
+    void createImageView(VkImage image, VkImageViewType viewType, VkFormat format, VkImageAspectFlagBits aspect, VkImageView& imageView);
 };

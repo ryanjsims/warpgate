@@ -6,6 +6,7 @@
 #include "hikogui/GFX/RenderDoc.hpp"
 #include "hikogui/GFX/gfx_surface_delegate_vulkan.hpp"
 #include "hikogui/widgets/widget.hpp"
+#include "json.hpp"
 
 #include <synthium/manager.h>
 
@@ -23,6 +24,8 @@ public:
     ) noexcept;
 
     ~model_widget();
+
+    void load_model(std::string name);
 
     // The set_constraints() function is called when the window is first initialized,
     // or when a widget wants to change its constraints.
@@ -90,6 +93,7 @@ private:
     std::shared_ptr<ModelRenderer> m_renderer;
     std::shared_ptr<synthium::Manager> m_manager;
     VkRect2D _view_port;
+    bool swapchainInitialized = false;
 
     bool started_rotation = false, started_pan = false;
 };

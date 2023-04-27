@@ -6,6 +6,10 @@
 #include "hikogui/loop.hpp"
 #include "hikogui/task.hpp"
 #include "hikogui/ranges.hpp"
+#include "hikogui/widgets/text_field_delegate.hpp"
+#include "hikogui/widgets/text_field_widget.hpp"
+#include "hikogui/widgets/momentary_button_widget.hpp"
+#include "hikogui/widgets/row_column_widget.hpp"
 #include "utils/hikogui/widgets/model_widget.hpp"
 #include <ranges>
 #include <cassert>
@@ -13,6 +17,58 @@
 #include <spdlog/spdlog.h>
 
 #include <synthium/manager.h>
+
+namespace hi { inline namespace v1 {
+template<std::convertible_to<std::string> T>
+class default_text_field_delegate<T> : public text_field_delegate {
+public:
+    using value_type = T;
+
+    observer<value_type> value;
+
+    default_text_field_delegate(forward_of<observer<value_type>> auto&& value) noexcept : value(hi_forward(value))
+    {
+        _value_cbt = this->value.subscribe([&](auto...) {
+            this->_notifier();
+        });
+    }
+
+    label validate(text_field_widget& sender, std::string_view text) noexcept override
+    {
+        return {};
+    }
+
+    std::string text(text_field_widget& sender) noexcept override
+    {
+        return *value;
+    }
+
+    void set_text(text_field_widget& sender, std::string_view text) noexcept override
+    {
+        try {
+            value = text;
+        } catch (std::exception const&) {
+            // Ignore the error, don't modify the value.
+            return;
+        }
+    }
+
+private:
+    typename decltype(value)::callback_token _value_cbt;
+};
+
+class default_momentary_button_delegate : public button_delegate {
+public:
+
+    default_momentary_button_delegate() noexcept {}
+
+    void activate(abstract_button_widget& sender) noexcept override
+    {
+        this->_notifier();
+    }
+    /// @endprivatesection
+};
+}}
 
 // This is a co-routine that manages the main window.
 hi::task<> main_window(hi::gui_system& gui)
@@ -30,9 +86,24 @@ hi::task<> main_window(hi::gui_system& gui)
     }
     std::shared_ptr<synthium::Manager> manager = std::make_shared<synthium::Manager>(assets);
 
+    auto &column = window->content().make_widget<hi::column_widget>("A1");
+    hi::observer<std::string> model_name{};
+    auto model_name_delegate = std::make_shared<hi::default_text_field_delegate<std::string>>(model_name);
+    auto& text_widget = column.make_widget<hi::text_field_widget>(model_name_delegate);
+    text_widget.continues = true;
+
+    auto load_delegate = std::make_shared<hi::default_momentary_button_delegate>();
+    column.make_widget<hi::momentary_button_widget>(load_delegate, hi::label{"Load"});
+
+
     // Create the vulkan triangle-widget as the content of the window. The content
     // of the window is a grid, we only use the cell "A1" for this widget.
-    window->content().make_widget<model_widget>("A1", *window->surface, manager);
+    auto& model_view = window->content().make_widget<model_widget>("B1", *window->surface, manager);
+
+    auto load_cb_token = load_delegate->subscribe([&]{
+        spdlog::info("Loading model '{}'", (*text_widget.delegate).text(text_widget));
+        model_view.load_model((*text_widget.delegate).text(text_widget));
+    });
 
     // Wait until the window is "closing" because the operating system says so, or when
     // the X is pressed.
