@@ -33,7 +33,8 @@ namespace warpgate::utils::gltf::dme {
         std::filesystem::path output_directory, 
         bool export_textures, 
         bool include_skeleton,
-        bool rigify
+        bool rigify,
+        int* parentIndexOut = nullptr
     );
     std::vector<uint8_t> expand_vertex_stream(
         nlohmann::json &layout, 

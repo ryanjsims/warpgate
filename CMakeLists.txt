@@ -53,6 +53,7 @@ target_link_libraries(test_zone PRIVATE zone_loader spdlog::spdlog synthium::syn
 
 add_executable(adr_converter 
     src/adr_converter.cpp
+    src/utils/actor_sockets.cpp
     src/utils/adr.cpp
     src/utils/gltf/common.cpp
     src/utils/gltf.cpp

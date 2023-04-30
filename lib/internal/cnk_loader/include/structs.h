@@ -12,7 +12,7 @@ namespace warpgate::chunk {
     };
 
     struct Vertex {
-        int16_t x, y, height_far, height_near;
+        int16_t x, y, height_near, height_far;
         uint32_t color1, color2;
     };
 

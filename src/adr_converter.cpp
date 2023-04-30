@@ -11,6 +11,7 @@
 
 #include "argparse/argparse.hpp"
 #include "dme_loader.h"
+#include "utils/actor_sockets.h"
 #include "utils/adr.h"
 #include "utils/gltf/dme.h"
 #include "utils/gltf/dmat.h"
@@ -121,6 +122,21 @@ void load_asset(synthium::Manager &manager, std::string input_str, std::vector<u
     }
 }
 
+bool isCOG(tinygltf::Node node) {
+    return node.name == "COG";
+}
+
+int findCOGIndex(tinygltf::Model &gltf, tinygltf::Node &node) {
+    int index = -1;
+    for(auto it = node.children.begin(); it != node.children.end() && index == -1; it++) {
+        if(isCOG(gltf.nodes[*it])) {
+            return *it;
+        }
+        index = findCOGIndex(gltf, gltf.nodes[*it]);
+    }
+    return index;
+}
+
 int main(int argc, const char* argv[]) {
     argparse::ArgumentParser parser("adr_converter", WARPGATE_VERSION);
     int log_level = logger::level::warn;
@@ -146,6 +162,7 @@ int main(int argc, const char* argv[]) {
     for(int i = 0; i < 24; i++) {
         assets.push_back(server / ("assets_x64_" + std::to_string(i) + ".pack2"));
     }
+    assets.push_back(server / "data_x64_0.pack2");
     
     logger::info("Loading packs...");
     synthium::Manager manager(assets);
@@ -154,6 +171,13 @@ int main(int argc, const char* argv[]) {
     logger::info("Loading materials.json");
     utils::materials3::init_materials();
     logger::info("Loaded materials.json");
+
+    std::shared_ptr<uint8_t[]> actorsockets_data;
+    std::vector<uint8_t> actorsockets_data_vector;
+    std::span<uint8_t> actorsockets_data_span;
+
+    load_asset(manager, "ActorSockets.xml", actorsockets_data_vector, actorsockets_data_span, actorsockets_data);
+    utils::ActorSockets actorSockets(actorsockets_data_span);
 
     std::shared_ptr<uint8_t[]> data;
     std::vector<uint8_t> data_vector;
@@ -222,7 +246,6 @@ int main(int argc, const char* argv[]) {
     std::span<uint8_t> dme_data_span;
 
     load_asset(manager, *dme_file, dme_data_vector, dme_data_span, dme_data);
-
     
     std::shared_ptr<DME> dme;
     if(dmat != nullptr) {
@@ -230,7 +253,54 @@ int main(int argc, const char* argv[]) {
     } else {
         dme.reset(new DME(dme_data_span, output_filename.stem().string()));
     }
-    tinygltf::Model gltf = utils::gltf::dme::build_gltf_from_dme(*dme, image_queue, output_directory, export_textures, include_skeleton, rigify_skeleton);
+    int parent_index;
+    tinygltf::Model gltf = utils::gltf::dme::build_gltf_from_dme(*dme, image_queue, output_directory, export_textures, include_skeleton, rigify_skeleton, &parent_index);
+
+    std::string basename = std::filesystem::path(input_str).stem().string();
+    if(actorSockets.model_indices.find(basename) != actorSockets.model_indices.end()) {
+        int cog_index = findCOGIndex(gltf, gltf.nodes[parent_index]);
+        if(cog_index != -1) {
+            parent_index = cog_index;
+        }
+        std::vector<utils::SkeletalModel> &models = actorSockets.skeletal_models;
+        uint32_t index = actorSockets.model_indices[basename];
+        logger::info("Adding {} sockets for {}", models[index].sockets.size(), basename);
+        for(auto it = models[index].sockets.begin(); it != models[index].sockets.end(); it++) {
+            int child_index = static_cast<int>(gltf.nodes.size());
+            tinygltf::Node socket;
+            socket.name = it->name.has_value() ? *(it->name) : "";
+            glm::vec3 offset = it->offset.has_value() ? *it->offset : glm::vec3{};
+            if(gltf.nodes[parent_index].translation.size() == 3) {
+                offset -= glm::vec3(
+                    gltf.nodes[parent_index].translation[0],
+                    gltf.nodes[parent_index].translation[1],
+                    gltf.nodes[parent_index].translation[2]
+                );
+            }
+            glm::quat rotation = it->rotation.has_value() ? *it->rotation : glm::quat{};
+            if(gltf.nodes[parent_index].rotation.size() == 4) {
+                rotation *= glm::inverse(glm::quat(
+                    gltf.nodes[parent_index].rotation[3], 
+                    gltf.nodes[parent_index].rotation[0], 
+                    gltf.nodes[parent_index].rotation[1], 
+                    gltf.nodes[parent_index].rotation[2]
+                ));
+            }
+            glm::vec3 scale = it->scale.has_value() ? *it->scale : glm::vec3{};
+            if(gltf.nodes[parent_index].scale.size() == 3) {
+                scale /= glm::vec3(
+                    gltf.nodes[parent_index].scale[0],
+                    gltf.nodes[parent_index].scale[1],
+                    gltf.nodes[parent_index].scale[2]
+                );
+            }
+            socket.translation = std::vector<double>{offset.x, offset.y, offset.z};
+            socket.rotation = std::vector<double>{rotation.x, rotation.y, rotation.z, rotation.w};
+            socket.scale = std::vector<double>{scale.x, scale.y, scale.z};
+            gltf.nodes.push_back(socket);
+            gltf.nodes[parent_index].children.push_back(child_index);
+        }
+    }
     
     logger::info("Writing GLTF2 file {}...", output_filename.filename().string());
     tinygltf::TinyGLTF writer;

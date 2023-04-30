@@ -80,6 +80,7 @@ void utils::materials3::init_materials() {
     #if MATERIALS_JSON_PORTABLE
         material_location = (*executable_location()).parent_path() / material_location;
     #endif
+    spdlog::debug("Loading materials.json from {}", material_location.string());
     std::ifstream materials_file(material_location);
     if(materials_file.fail()) {
         spdlog::error("Could not open materials.json: looking at location {}", material_location.string());

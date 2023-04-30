@@ -28,7 +28,7 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
     parser.add_argument("--output-file", "-o");
     parser.add_argument("--skeleton", "-s")
         .help("Choose the skeleton to export")
-        .default_value("");
+        .default_value(std::string(""));
     parser.add_argument("--animations", "-a")
         .help("Choose the animation(s) to export")
         .nargs(argparse::nargs_pattern::at_least_one);
@@ -43,7 +43,11 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         });
     parser.add_argument("--remap")
         .help("Optional JSON skeleton remap file");
-    
+    parser.add_argument("--lowercase-bones", "-l")
+        .help("Export bones without changing the names to uppercase")
+        .default_value(false)
+        .implicit_value(true)
+        .nargs(0);
     parser.add_argument("--verbose", "-v")
         .help("Increase log level. May be specified multiple times")
         .action([&](const auto &){ 
@@ -82,7 +86,7 @@ std::string uppercase(const std::string input) {
     return temp;
 }
 
-void add_skeleton_to_gltf(tinygltf::Model &gltf, std::shared_ptr<mrn::Skeleton> skeleton, std::string skeleton_name, nlohmann::json bone_map = {}) {
+void add_skeleton_to_gltf(tinygltf::Model &gltf, std::shared_ptr<mrn::Skeleton> skeleton, std::string skeleton_name, nlohmann::json bone_map = {}, bool uppercase_name = true) {
     logger::info("Exporting skeleton {}...", skeleton_name);
     
     std::vector<int> joint_indices;
@@ -111,7 +115,7 @@ void add_skeleton_to_gltf(tinygltf::Model &gltf, std::shared_ptr<mrn::Skeleton> 
         glm::vec3 translation = skeleton->bones[i].position;
         glm::quat rotation = skeleton->bones[i].rotation;
         tinygltf::Node node;
-        node.name = uppercase(skeleton->bones[i].name);
+        node.name = uppercase_name ? uppercase(skeleton->bones[i].name) : skeleton->bones[i].name;
         node.translation = {translation.x, translation.y, translation.z};
         node.rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
         node.children = {skeleton->bones[i].children.begin(), skeleton->bones[i].children.end()};
@@ -157,7 +161,16 @@ void add_animation_to_gltf(tinygltf::Model &gltf, std::shared_ptr<mrn::SkeletonD
     size_t offset = 0;
     uint32_t bone_offset = skeleton->bone_count() - animation->bone_count();
     std::vector<float> sample_times;
-    for(uint32_t i = 0; i < animation->root_segment()->sample_count(); i++) {
+    uint32_t sample_count = 1;
+    if(animation->root_segment() == nullptr && animation->dynamic_segment() != nullptr) {
+        sample_count = animation->dynamic_segment()->sample_count();
+    } else if(animation->root_segment() != nullptr) {
+        sample_count = animation->root_segment()->sample_count();
+    } else {
+        // Leave samples at 1 I guess
+        logger::warn("Neither dynamic nor root segments found, guessing sample count of 1");
+    }
+    for(uint32_t i = 0; i < sample_count; i++) {
         sample_times.push_back(((float)i) / animation->sample_rate());
     }
 
@@ -574,9 +587,12 @@ int main(int argc, const char* argv[]) {
     }
 
     bool rigify_skeleton = parser.get<bool>("--rigify");
+    bool uppercase_name = !parser.get<bool>("--lowercase-bones");
     std::string skeleton_name = parser.get<std::string>("--skeleton");
 
+    logger::info("Parsing MRN...");
     mrn::MRN mrn(data_span, input_filename.filename().string());
+    logger::info("Parsed MRN.");
 
     std::vector<std::string> skeleton_names = mrn.skeleton_names()->skeleton_names()->strings();
     if(!parser.is_used("--output-file")) {
@@ -623,7 +639,8 @@ int main(int argc, const char* argv[]) {
         gltf, 
         skeleton_data->skeleton(),
         skeleton_name,
-        remap
+        remap,
+        uppercase_name
     );
 
     std::unordered_set<std::string> exported_animations;

@@ -245,7 +245,9 @@ int utils::gltf::dme::add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, ui
     int node_index = (int)gltf.nodes.size();
 
     tinygltf::Node node;
+    tinygltf::Value extras(std::map<std::string, tinygltf::Value>({{"faction", tinygltf::Value(1)}}));
     node.mesh = (int)gltf.meshes.size();
+    node.extras = extras;
     gltf.nodes.push_back(node);
     
     gltf_mesh.name = dme.get_name() + " mesh " + std::to_string(index);
@@ -366,7 +368,8 @@ tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
     std::filesystem::path output_directory, 
     bool export_textures, 
     bool include_skeleton,
-    bool rigify
+    bool rigify,
+    int* parentIndexOut
 ) {
     tinygltf::Model gltf;
     tinygltf::Sampler sampler;
@@ -383,8 +386,12 @@ tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
     std::unordered_map<uint32_t, uint32_t> texture_indices;
     std::unordered_map<uint32_t, std::vector<uint32_t>> material_indices;
     
-    add_dme_to_gltf(gltf, dme, image_queue, output_directory, texture_indices, material_indices, sampler_index, export_textures, include_skeleton, rigify);
+    int parent_index = add_dme_to_gltf(gltf, dme, image_queue, output_directory, texture_indices, material_indices, sampler_index, export_textures, include_skeleton, rigify);
     
+    if(parentIndexOut != nullptr) {
+        *parentIndexOut = parent_index;
+    }
+
     gltf.asset.version = "2.0";
     gltf.asset.generator = "warpgate " + std::string(WARPGATE_VERSION) + " via tinygltf";
     return gltf;
@@ -424,6 +431,7 @@ void utils::gltf::dmat::process_images(
         case Semantic::Overlay2:
         case Semantic::Overlay3:
         case Semantic::Overlay4:
+        case Semantic::TilingOverlay:
             utils::textures::save_texture(texture_name, manager.get(texture_name)->get_data(), output_directory);
             break;
         case Semantic::Bump:
@@ -664,6 +672,8 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
     int vert_index_offset = 0;
     bool has_normals = false, bone_remapping = false, weight_conversion = false, expand_normals = false;
 
+    uint32_t byte_stride = 0;
+
     for(int i = 0; i < layout.at("entries").size(); i++) {
         nlohmann::json &entry = layout.at("entries").at(i);
         if(entry.at("stream").get<uint32_t>() != stream) {
@@ -672,9 +682,14 @@ std::vector<uint8_t> utils::gltf::dme::expand_vertex_stream(
                 vert_index_offset++;
             continue;
         }
+        if(byte_stride >= mesh->bytes_per_vertex(stream)) {
+            logger::debug("Skipping entry since byte stride already filled.");
+            continue;
+        }
         logger::debug("{}", entry.dump());
         std::string type = entry.at("type").get<std::string>();
         std::string usage = entry.at("usage").get<std::string>();
+        byte_stride += utils::materials3::sizes.at(type);
         bool needs_conversion = type == "Float16_2" || type == "float16_2";
         offsets.push_back({
             utils::materials3::sizes.at(type), 
