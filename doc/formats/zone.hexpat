@@ -141,7 +141,9 @@ struct Light {
     Rotation rotation;
     Float2 unk_floats;
     Color4ARGB color;
-    u8 unk_data[26];
+    u8 unk_data1[5];
+    Float4 unk_vector;
+    u8 unk_data2[5];
 };
 
 struct Zone {

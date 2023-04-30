@@ -72,7 +72,7 @@ union SemanticHash {
 };
 
 struct Parameter {
-    SemanticHash semantic;
+    Semantic semantic;
     D3DXParamClass class;
     D3DXParamType type;
     u32 length;

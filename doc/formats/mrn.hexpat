@@ -60,6 +60,10 @@ struct string {
 };
 
 fn relative_to_parents_parent(u128 offset) {
+    return addressof(parent.parent.parent);
+};
+
+fn relative_to_parent(u128 offset) {
     return addressof(parent.parent);
 };
 
@@ -76,15 +80,15 @@ struct orientation_subheader {
     padding[3];
     u32 element_type; //maybe
     padding[4];
-    u8* unknown_ptr1 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    orientation_transform_locations* transforms : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8* unknown_ptr2 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* unknown_ptr1 : u64 [[pointer_base("relative_to_parent")]];
+    orientation_transform_locations* transforms : u64 [[pointer_base("relative_to_parent")]];
+    u8* unknown_ptr2 : u64 [[pointer_base("relative_to_parent")]];
     padding[while($ < std::mem::read_unsigned(addressof(this) + 32, 8) + addressof(this) + 16)];
     
 };
 
 struct orientation_header {
-    u32* element_type_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u32* element_type_ptr : u64 [[pointer_base("relative_to_parent")]];
     padding[8];
     orientation_subheader subheader;
 };
@@ -107,10 +111,10 @@ struct orientation_data {
 struct expanded_string_table {
 	u32 string_count;
     u32 string_data_size;
-    u32* string_ids[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u32* string_offsets[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8* unknown_data[string_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    string* strings[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u32* string_ids[string_count] : u64 [[pointer_base("relative_to_parent")]];
+    u32* string_offsets[string_count] : u64 [[pointer_base("relative_to_parent")]];
+    u8* unknown_data[string_count * 4] : u64 [[pointer_base("relative_to_parent")]];
+    string* strings[string_count] : u64 [[pointer_base("relative_to_parent")]];
     padding[string_count * sizeof(u32) * 3 + string_data_size];
     padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
 };
@@ -118,8 +122,8 @@ struct expanded_string_table {
 struct string_table {
     u32 string_count;
     u32 string_data_size;
-    u32* string_offsets[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    string* strings[string_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u32* string_offsets[string_count] : u64 [[pointer_base("relative_to_parent")]];
+    string* strings[string_count] : u64 [[pointer_base("relative_to_parent")]];
     padding[string_count * sizeof(u32) + string_data_size];
     padding[while(std::mem::read_unsigned($, 1) == 0xCD)];
 };
@@ -129,18 +133,18 @@ struct skeleton_data {
     vector4 position;
     u32 chain_count;
     padding[4];
-    u8* unknown_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u32* ptr_bone_count : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* unknown_ptr : u64 [[pointer_base("relative_to_parent")]];
+    u32* ptr_bone_count : u64 [[pointer_base("relative_to_parent")]];
     u32 unknown_array1[2];
-    string_table* ptr_bone_names_table : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8* ptr_orientations_packet : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string_table* ptr_bone_names_table : u64 [[pointer_base("relative_to_parent")]];
+    u8* ptr_orientations_packet : u64 [[pointer_base("relative_to_parent")]];
 	u32 unknown_int;
     padding[4];
-    u8* ptr_end_data[96] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* ptr_end_data[96] : u64 [[pointer_base("relative_to_parent")]];
     u32 unknown_int2;
     padding[4];
-    u8* unknown_ptr3 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    u8* unknown_ptr4 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    u8* unknown_ptr3 : u64 [[pointer_base("relative_to_parent")]];
+    u8* unknown_ptr4 : u64 [[pointer_base("relative_to_parent")]];
     padding[8];
     BoneHierarchyEntry chains[chain_count];
     u32 bone_count;
@@ -165,7 +169,7 @@ struct u16_array_ptr {
     if(std::mem::read_unsigned($, 8) != 0x00) {
         u16_array *ptr: u64 [[pointer_base("relative_to_parents_parent")]];
     } else {
-        u64 null;
+        u64 null_ptr;
     }
 };
 
@@ -173,7 +177,7 @@ struct float6_array_ptr {
     if(std::mem::read_unsigned($, 8) != 0x00) {
         float *ptr[6]: u64 [[pointer_base("relative_to_parents_parent")]];
     } else {
-        u64 null;
+        u64 null_ptr;
     }
 } [[inline]];
 
@@ -182,7 +186,7 @@ struct checked_ptr {
     if(std::mem::read_unsigned($, 8) != 0x00) {
         u8 *ptr : u64 [[pointer_base("relative_to_parents_parent")]];
     } else {
-        u64 null;
+        u64 null_ptr;
     }
 } [[inline]];
 
@@ -223,18 +227,18 @@ struct nsa_data_first_segment {
     }
     padding[12];
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	vec3_short *translation_data[translation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	vec3_short *translation_data[translation_bone_count] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_translation_data;
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	vec3_short *rotation_data[rotation_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	vec3_short *rotation_data[rotation_bone_count] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_rotation_data;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-        vec3_short *scale_data[scale_bone_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+        vec3_short *scale_data[scale_bone_count] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_scale_data;
     }
@@ -277,8 +281,8 @@ struct nsa_data_second_segment {
     u32 rotation_bone_count;
     u32 scale_bone_count;
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    translation_sample_data *translation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-	    dequantization_info *translation_deq_info[deq_info_sets(translation_bone_count)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    translation_sample_data *translation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
+	    dequantization_info *translation_deq_info[deq_info_sets(translation_bone_count)] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_translation_data;
         u64 null_translation_deq_info;
@@ -287,16 +291,16 @@ struct nsa_data_second_segment {
     if(std::mem::read_unsigned($, 8) != 0x00) {
     	sample_padding = ((std::mem::read_unsigned($+8, 8) - std::mem::read_unsigned($, 8)) % (samples * rotation_bone_count * 2)) / samples;
     	//std::print("{:3d} sample_padding = {} samples={:2d} rotation_bone_count={:2d}", i, sample_padding, samples, rotation_bone_count);
-	    rotation_sample_data *rotation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-	    dequantization_info *rotation_deq_info[deq_info_sets(rotation_bone_count)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    rotation_sample_data *rotation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
+	    dequantization_info *rotation_deq_info[deq_info_sets(rotation_bone_count)] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_rotation_data;
         u64 null_rotation_deq_info;
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
-        u8 *scale_data[frames * scale_bone_count * 4] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-        dequantization_info *scale_deq_info : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+        u8 *scale_data[frames * scale_bone_count * 4] : u64 [[pointer_base("relative_to_parent")]];
+        dequantization_info *scale_deq_info : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_scale_data;
         u64 null_scale_deq_info;
@@ -318,12 +322,12 @@ struct nsa_data_end_segment {
         dequantization_factors rotation_factors;
     }
 	if(std::mem::read_unsigned($, 8) != 0x00) {
-		translation_bone_data *translation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+		translation_bone_data *translation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
 	} else {
 		u64 null_translation_data;
 	}
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    rotation_bone_data *rotation_data[samples] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	    rotation_bone_data *rotation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_rotation_data;
     }
@@ -347,33 +351,33 @@ struct nsa_data {
     u32 translation_anim_deq_count, rotation_anim_deq_count, scale_anim_deq_count;
     padding[4];
     if(std::mem::read_unsigned($, 8) != 0x00) {
-        translation_deq_factors *translation_factors: u64 [[pointer_base("std::ptr::relative_to_parent")]];
+        translation_deq_factors *translation_factors: u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_tr;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-        rotation_deq_factors *rotation_factors: u64 [[pointer_base("std::ptr::relative_to_parent")]];
+        rotation_deq_factors *rotation_factors: u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_rot;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-        scale_deq_factors *scale_factors: u64 [[pointer_base("std::ptr::relative_to_parent")]];
+        scale_deq_factors *scale_factors: u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_scl;
     }
 	
 	if(std::mem::read_unsigned($, 8) != 0x00) {
-    	nsa_data_first_segment *static_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	nsa_data_first_segment *static_data : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_static_data;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	nsa_data_second_segment *dynamic_data : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	nsa_data_second_segment *dynamic_data : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_dynamic_data;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	nsa_data_end_segment *end_data_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    	nsa_data_end_segment *end_data_ptr : u64 [[pointer_base("relative_to_parent")]];
     } else {
     	u64 null_end_data;
     }
@@ -385,13 +389,13 @@ struct string_table_ptr {
 } [[inline]];
 
 struct file_data {
-    string_table* filenames : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    string_table* filetypes : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    string_table* source_filenames : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    string_table* animation_names : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string_table* filenames : u64 [[pointer_base("relative_to_parent")]];
+    string_table* filetypes : u64 [[pointer_base("relative_to_parent")]];
+    string_table* source_filenames : u64 [[pointer_base("relative_to_parent")]];
+    string_table* animation_names : u64 [[pointer_base("relative_to_parent")]];
     // Turns out imhex does not allow you to dereference pointers to get values.
     // The count here should be filenames->string_count but unfortunately that is not available in imhex
-    be u32* crc32hashes[std::mem::read_unsigned(addressof(this) + 40, 4)] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    be u32* crc32hashes[std::mem::read_unsigned(addressof(this) + 40, 4)] : u64 [[pointer_base("relative_to_parent")]];
 };
 
 struct expanded_string_table_ptr {
@@ -401,7 +405,7 @@ struct expanded_string_table_ptr {
 struct network_data_offset_table {
 	u32 chunk_count;
 	u32 chunk_size;
-	checked_ptr* ptrs[chunk_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+	checked_ptr* ptrs[chunk_count] : u64 [[pointer_base("relative_to_parent")]];
 };
 
 struct network_data {
@@ -410,18 +414,18 @@ struct network_data {
     u8 unknown2[120];
     checked_ptr ptrs2[5];
     expanded_string_table_ptr ex_string_tables[2];
-    string_table* string_table1 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string_table* string_table1 : u64 [[pointer_base("relative_to_parent")]];
     checked_ptr ptrs3[1];
-    string_table* string_table2 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
-    string_table* string_table3 : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string_table* string_table2 : u64 [[pointer_base("relative_to_parent")]];
+    string_table* string_table3 : u64 [[pointer_base("relative_to_parent")]];
     checked_ptr ptrs4[2];
-    network_data_offset_table* data_chunk_table : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    network_data_offset_table* data_chunk_table : u64 [[pointer_base("relative_to_parent")]];
     u32 unknown_int;
     padding[4];
     checked_ptr ptrs5[1];
     u32 unknown_int2;
     padding[4];
-    checked_ptr* ptr_ptrs[unknown_int2] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    checked_ptr* ptr_ptrs[unknown_int2] : u64 [[pointer_base("relative_to_parent")]];
     checked_ptr ptrs6[1];
     u32 some_data_length;
     u32 unknown_int3;
@@ -443,10 +447,10 @@ struct event_range {
 struct event_track_data {
     u32 ranges_count;
     u32 unknown1;
-    string* parameter_name_ptr : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    string* parameter_name_ptr : u64 [[pointer_base("relative_to_parent")]];
     u32 unknown2;
     u32 unknown3;
-    event_range* ranges[ranges_count] : u64 [[pointer_base("std::ptr::relative_to_parent")]];
+    event_range* ranges[ranges_count] : u64 [[pointer_base("relative_to_parent")]];
 };
 
 // struct preskeleton_data {
