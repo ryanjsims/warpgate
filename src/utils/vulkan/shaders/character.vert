@@ -15,6 +15,8 @@ layout (binding = 0) uniform UBO
 	mat4 projectionMatrix;
 	mat4 modelMatrix;
 	mat4 viewMatrix;
+	mat4 invProjectionMatrix;
+	mat4 invViewMatrix;
 } ubo;
 
 layout (location = 0) out vec2 outTexcoord0;

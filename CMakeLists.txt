@@ -157,6 +157,8 @@ add_custom_target(vulkan_warpgate_shaders)
 add_shader_target(vulkan_warpgate_shaders
     src/utils/vulkan/shaders/character.vert
     src/utils/vulkan/shaders/character.frag
+    src/utils/vulkan/shaders/grid.vert
+    src/utils/vulkan/shaders/grid.frag
 )
 
 

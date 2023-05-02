@@ -94,6 +94,8 @@ private:
         glm::mat4 projectionMatrix;
         glm::mat4 modelMatrix;
         glm::mat4 viewMatrix;
+        glm::mat4 invProjectionMatrix;
+	    glm::mat4 invViewMatrix;
     };
 
     warpgate::vulkan::Camera m_camera;
@@ -164,6 +166,19 @@ private:
     std::vector<VkSampler> textureSamplers;
     std::vector<VkDescriptorImageInfo> imageInfos;
 
+    struct GridUniform {
+        float near_plane, far_plane;
+    };
+
+    std::shared_ptr<warpgate::vulkan::Model> m_grid;
+    VkDescriptorSetLayout gridDescriptorSetLayout;
+    VkPipelineLayout gridPipelineLayout;
+    GridUniform clip_planes;
+    VmaAllocation gridUniformBufferAllocation;
+    VkBuffer gridUniformBuffer;
+    VkDescriptorBufferInfo gridUniformBufferInfo;
+
+
     std::vector<std::shared_ptr<warpgate::vulkan::Model>> m_models;
     bool models_changed = false;
 
@@ -220,6 +235,7 @@ private:
         VkCullModeFlags cullMode,
         float rasterizationLineWidth,
         VkBool32 depthTestEnable,
+        VkBool32 depthWriteEnable,
         std::vector<VkVertexInputBindingDescription> vertexInputBindings,
         std::vector<VkVertexInputAttributeDescription> vertexInputAttributes,
         std::filesystem::path vertexShaderPath,
@@ -247,7 +263,7 @@ private:
     // This function loads such a shader from a binary file and returns a shader module structure
     VkShaderModule loadSPIRVShader(std::filesystem::path filename);
 
-    void updateUniformBuffers(Uniform const& uniform);
+    void updateUniformBuffers(Uniform const& uniform, GridUniform const& gridUniform);
 
     void draw(uint32_t currentBuffer, VkSemaphore presentCompleteSemaphore, VkSemaphore renderCompleteSemaphore);
 

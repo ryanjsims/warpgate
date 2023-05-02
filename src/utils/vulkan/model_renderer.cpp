@@ -260,6 +260,8 @@ void ModelRenderer::createVertexBuffers(std::shared_ptr<warpgate::vulkan::Model>
 
 void ModelRenderer::destroyVertexBuffer()
 {
+    vmaDestroyBuffer(allocator, m_grid->meshes[0].vertexStreams[0], m_grid->meshes[0].vertexStreamAllocations[0]);
+    vmaDestroyBuffer(allocator, m_grid->meshes[0].indices, m_grid->meshes[0].indicesAllocation);
     for(auto model : m_models) {
         for(auto mesh_it = model->meshes.begin(); mesh_it != model->meshes.end(); mesh_it++) {
             vmaDestroyBuffer(allocator, mesh_it->indices, mesh_it->indicesAllocation);
@@ -289,11 +291,30 @@ void ModelRenderer::createUniformBuffer()
     uniformBufferInfo.buffer = uniformBuffer;
     uniformBufferInfo.offset = 0;
     uniformBufferInfo.range = sizeof(Uniform);
+
+    // Vertex shader uniform buffer block
+    VkBufferCreateInfo gridUniformBufferCreateInfo = {};
+    gridUniformBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    gridUniformBufferCreateInfo.size = sizeof(GridUniform);
+    gridUniformBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+    VmaAllocationCreateInfo gridUniformBufferAllocationInfo = {};
+    gridUniformBufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    gridUniformBufferAllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+    VK_CHECK_RESULT(vmaCreateBuffer(
+        allocator, &gridUniformBufferCreateInfo, &gridUniformBufferAllocationInfo, &gridUniformBuffer, &gridUniformBufferAllocation, nullptr));
+
+    // Store information in the uniform's descriptor that is used by the descriptor set.
+    gridUniformBufferInfo.buffer = gridUniformBuffer;
+    gridUniformBufferInfo.offset = 0;
+    gridUniformBufferInfo.range = sizeof(GridUniform);
 }
 
 void ModelRenderer::destroyUniformBuffer()
 {
     vmaDestroyBuffer(allocator, uniformBuffer, uniformBufferAllocation);
+    vmaDestroyBuffer(allocator, gridUniformBuffer, gridUniformBufferAllocation);
 }
 
 void ModelRenderer::createDescriptorPool()
@@ -302,7 +323,7 @@ void ModelRenderer::createDescriptorPool()
     std::array<VkDescriptorPoolSize, 2> typeCounts;
     // This example only uses one descriptor type (uniform buffer) and only requests one descriptor of this type
     typeCounts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    typeCounts[0].descriptorCount = 1;
+    typeCounts[0].descriptorCount = 10;
     // For additional types you need to add new entries in the type count list
     // E.g. for two combined image samplers :
     typeCounts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -339,7 +360,7 @@ void ModelRenderer::createDescriptorSetLayout()
     uboBinding.binding = 0;
     uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     uboBinding.descriptorCount = 1;
-    uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     uboBinding.pImmutableSamplers = nullptr;
 
     // Binding 1: Diffuse Texture Sampler (Fragment shader)
@@ -606,6 +627,184 @@ void ModelRenderer::buildForNewSwapchain(std::vector<VkImageView> const& imageVi
     createFrameBuffers(imageViews, imageSize);
     createCommandBuffers();
     createFences();
+
+    {
+        m_grid = std::make_shared<warpgate::vulkan::Model>();
+        warpgate::vulkan::Mesh mesh;
+        mesh.pipeline = 0;
+
+        // Binding 0: Uniform buffer for matrices
+        VkDescriptorSetLayoutBinding uboBinding = {};
+        uboBinding.binding = 0;
+        uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboBinding.descriptorCount = 1;
+        uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        uboBinding.pImmutableSamplers = nullptr;
+
+        // Binding 1: Uniform buffer for clip planes
+        VkDescriptorSetLayoutBinding ubo2Binding = {};
+        ubo2Binding.binding = 1;
+        ubo2Binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        ubo2Binding.descriptorCount = 1;
+        ubo2Binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        ubo2Binding.pImmutableSamplers = nullptr;
+
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboBinding, ubo2Binding};
+
+        VkDescriptorSetLayoutCreateInfo descriptorLayout = {};
+        descriptorLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        descriptorLayout.pNext = nullptr;
+        descriptorLayout.bindingCount = static_cast<uint32_t>(bindings.size());
+        descriptorLayout.pBindings = bindings.data();
+
+        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &gridDescriptorSetLayout));
+
+        // Create the pipeline layout that is used to generate the rendering pipelines that are based on this descriptor set
+        // layout In a more complex scenario you would have different pipeline layouts for different descriptor set layouts that
+        // could be reused
+        VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo = {};
+        pPipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pPipelineLayoutCreateInfo.pNext = nullptr;
+        pPipelineLayoutCreateInfo.setLayoutCount = 1;
+        pPipelineLayoutCreateInfo.pSetLayouts = &gridDescriptorSetLayout;
+
+        VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &gridPipelineLayout));
+
+        // Allocate a new descriptor set from the global descriptor pool
+        VkDescriptorSetAllocateInfo allocInfo = {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &gridDescriptorSetLayout;
+
+        VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &mesh.descriptorSet));
+
+        // Update the descriptor set determining the shader binding points
+        // For every binding point used in a shader there needs to be one
+        // descriptor set matching that binding point
+
+        std::array<VkWriteDescriptorSet, 2> writeDescriptorSets = {};
+
+        // Binding 0 : Uniform buffer
+        writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptorSets[0].dstSet = mesh.descriptorSet;
+        writeDescriptorSets[0].descriptorCount = 1;
+        writeDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writeDescriptorSets[0].pBufferInfo = &uniformBufferInfo;
+        // Binds this uniform buffer to binding point 0
+        writeDescriptorSets[0].dstBinding = 0;
+
+        // Binding 1 : Uniform buffer
+        writeDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptorSets[1].dstSet = mesh.descriptorSet;
+        writeDescriptorSets[1].descriptorCount = 1;
+        writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writeDescriptorSets[1].pBufferInfo = &gridUniformBufferInfo;
+        // Binds this uniform buffer to binding point 1
+        writeDescriptorSets[1].dstBinding = 1;
+
+        vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+
+        std::vector<float> vertices = {
+            1.0f, 1.0f, 0.0f,
+            -1.0f, -1.0f, 0.0f,
+            -1.0f, 1.0f, 0.0f,
+            1.0f, -1.0f, 0.0f,
+        };
+
+        std::vector<uint32_t> indices = {
+            0, 1, 2,
+            1, 0, 3
+        };
+
+        VkBuffer vertexBuffer;
+        VmaAllocation vertexAllocation;
+
+        // Create the Vertex buffer inside the GPU
+        VkBufferCreateInfo vertexBufferCreateInfo = {};
+        vertexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        vertexBufferCreateInfo.size = vertices.size() * sizeof(float);
+        vertexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+        VmaAllocationCreateInfo vertexBufferAllocationInfo = {};
+        vertexBufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        vertexBufferAllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+        VK_CHECK_RESULT(vmaCreateBuffer(
+            allocator, &vertexBufferCreateInfo, &vertexBufferAllocationInfo, &vertexBuffer, &vertexAllocation, nullptr));
+
+        // Copy vertex data to a buffer visible to the host
+        {
+            void *data = nullptr;
+            VK_CHECK_RESULT(vmaMapMemory(allocator, vertexAllocation, &data));
+            memcpy(data, vertices.data(), vertices.size() * sizeof(float));
+            vmaUnmapMemory(allocator, vertexAllocation);
+        }
+
+        mesh.vertexStreams.push_back(vertexBuffer);
+        mesh.vertexStreamAllocations.push_back(vertexAllocation);
+
+        // Create the Vertex-index buffer inside the GPU
+        VkBufferCreateInfo vertexIndexBufferCreateInfo = {};
+        vertexIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        vertexIndexBufferCreateInfo.size = indices.size() * sizeof(uint32_t);
+        vertexIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+        VmaAllocationCreateInfo vertexIndexBufferAllocationInfo = {};
+        vertexIndexBufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        vertexIndexBufferAllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+        VK_CHECK_RESULT(vmaCreateBuffer(
+            allocator,
+            &vertexIndexBufferCreateInfo,
+            &vertexIndexBufferAllocationInfo,
+            &mesh.indices,
+            &mesh.indicesAllocation,
+            nullptr));
+
+        // Copy index data to a buffer visible to the host
+        {
+            void *data = nullptr;
+            VK_CHECK_RESULT(vmaMapMemory(allocator, mesh.indicesAllocation, &data));
+            memcpy(data, indices.data(), indices.size() * sizeof(uint32_t));
+            vmaUnmapMemory(allocator, mesh.indicesAllocation);
+        }
+
+        mesh.index_count = static_cast<uint32_t>(indices.size());
+        
+        m_grid->meshes.push_back(mesh);
+
+        std::vector<VkVertexInputBindingDescription> vertexInputBindings = {
+            {
+                .binding = 0,
+                .stride = 12,
+                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+            }
+        };
+
+        std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
+            // Attribute location 0: Position
+            {
+                .location = 0,
+                .binding = 0,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = 0
+            }
+        };
+
+        pipelines[0] = createPipeline(
+            gridPipelineLayout, //todo: make this use samplers for multiple textures
+            renderPass,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            VK_POLYGON_MODE_FILL,
+            VK_CULL_MODE_NONE,
+            1.0f, VK_TRUE, VK_TRUE,
+            vertexInputBindings,
+            vertexInputAttributes,
+            hi::URL{"resource:shaders/grid.vert.spv"},
+            hi::URL{"resource:shaders/grid.frag.spv"}
+        );
+    }
 
     for(auto model : m_models) {
         for(uint32_t mesh_index = 0; mesh_index < model->meshes.size(); mesh_index++){
@@ -980,7 +1179,7 @@ void ModelRenderer::createPipeline()
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
         VK_POLYGON_MODE_FILL,
         VK_CULL_MODE_NONE,
-        1.0f, VK_TRUE,
+        1.0f, VK_TRUE, VK_TRUE,
         vertexInputBindings,
         vertexInputAttributes,
         hi::URL{"resource:shaders/character.vert.spv"},
@@ -1009,7 +1208,7 @@ VkFormat getFormat(std::string type, std::string usage) {
         }
     } else if(type == "ubyte4n") {
         if(usage == "Binormal") {
-            return VK_FORMAT_R8G8B8A8_UINT;
+            return VK_FORMAT_R8G8B8A8_SNORM;
             // not really sure but we'll see
         } else if(usage == "Normal" || usage == "Tangent" || usage == "Position") {
             return VK_FORMAT_R8G8B8A8_SNORM;
@@ -1104,7 +1303,7 @@ uint32_t ModelRenderer::createPipeline(VkPipelineLayout layout, nlohmann::json i
             VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
             VK_POLYGON_MODE_FILL,
             VK_CULL_MODE_NONE,
-            1.0f, VK_TRUE,
+            1.0f, VK_TRUE, VK_TRUE,
             vertexInputBindings,
             vertexInputAttributes,
             hi::URL{"resource:shaders/" + inputLayout["name"].get<std::string>() + ".vert.spv"},
@@ -1122,6 +1321,7 @@ VkPipeline ModelRenderer::createPipeline(
     VkCullModeFlags cullMode,
     float rasterizationLineWidth,
     VkBool32 depthTestEnable,
+    VkBool32 depthWriteEnable,
     std::vector<VkVertexInputBindingDescription> vertexInputBindings,
     std::vector<VkVertexInputAttributeDescription> vertexInputAttributes,
     std::filesystem::path vertexShaderPath,
@@ -1163,7 +1363,13 @@ VkPipeline ModelRenderer::createPipeline(
     // We need one blend attachment state per color attachment (even if blending is not used)
     VkPipelineColorBlendAttachmentState blendAttachmentState[1] = {};
     blendAttachmentState[0].colorWriteMask = 0xf;
-    blendAttachmentState[0].blendEnable = VK_FALSE;
+    blendAttachmentState[0].blendEnable = VK_TRUE;
+    blendAttachmentState[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blendAttachmentState[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    blendAttachmentState[0].colorBlendOp = VK_BLEND_OP_ADD;
+    blendAttachmentState[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendAttachmentState[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blendAttachmentState[0].alphaBlendOp = VK_BLEND_OP_ADD;
     VkPipelineColorBlendStateCreateInfo colorBlendState = {};
     colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlendState.attachmentCount = 1;
@@ -1374,6 +1580,31 @@ void ModelRenderer::buildCommandBuffers(VkRect2D renderArea, VkRect2D viewPort)
         VkRect2D scissor = renderArea & viewPort;
         vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
+        // Bind descriptor sets describing shader binding points
+        vkCmdBindDescriptorSets(
+            drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, gridPipelineLayout, 0, 1, &m_grid->meshes[0].descriptorSet, 0, nullptr);
+        
+        // Bind the rendering pipeline
+        // The pipeline (state object) contains all states of the rendering pipeline, binding it will set all the states
+        // specified at pipeline creation time
+        vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines[m_grid->meshes[0].pipeline]);
+
+        // Bind model vertex buffer (contains position and colors)
+        std::vector<VkDeviceSize> offsets(m_grid->meshes[0].vertexStreams.size(), 0ull);
+        vkCmdBindVertexBuffers(
+            drawCmdBuffers[i],
+            0,
+            static_cast<uint32_t>(m_grid->meshes[0].vertexStreams.size()),
+            m_grid->meshes[0].vertexStreams.data(),
+            offsets.data()
+        );
+
+        // Bind model index buffer
+        vkCmdBindIndexBuffer(drawCmdBuffers[i], m_grid->meshes[0].indices, 0, VK_INDEX_TYPE_UINT32);
+
+        // Draw indexed triangle
+        vkCmdDrawIndexed(drawCmdBuffers[i], m_grid->meshes[0].index_count, 1, 0, 0, 1);
+
         if(models_changed) {
             models_changed = false;
         }
@@ -1463,7 +1694,7 @@ VkShaderModule ModelRenderer::loadSPIRVShader(std::filesystem::path filename)
     return shaderModule;
 }
 
-void ModelRenderer::updateUniformBuffers(Uniform const& uniform)
+void ModelRenderer::updateUniformBuffers(Uniform const& uniform, GridUniform const& gridUniform)
 {
     // Map uniform buffer and update it
     void *data;
@@ -1471,6 +1702,10 @@ void ModelRenderer::updateUniformBuffers(Uniform const& uniform)
     VK_CHECK_RESULT(vmaMapMemory(allocator, uniformBufferAllocation, &data));
     memcpy(data, &uniform, sizeof(Uniform));
     vmaUnmapMemory(allocator, uniformBufferAllocation);
+
+    VK_CHECK_RESULT(vmaMapMemory(allocator, gridUniformBufferAllocation, &data));
+    memcpy(data, &gridUniform, sizeof(GridUniform));
+    vmaUnmapMemory(allocator, gridUniformBufferAllocation);
 }
 
 warpgate::vulkan::Camera &ModelRenderer::camera() {
@@ -1478,12 +1713,16 @@ warpgate::vulkan::Camera &ModelRenderer::camera() {
 }
 
 void ModelRenderer::calculateMatrices(VkRect2D viewPort) {
+    clip_planes.near_plane = 0.01f;
+    clip_planes.far_plane = 100.0f;
     matrices.projectionMatrix = glm::scale(
-        glm::perspective(glm::radians(74.0f), (float)viewPort.extent.width / (float)viewPort.extent.height, 0.1f, 100.0f),
+        glm::perspective(glm::radians(74.0f), (float)viewPort.extent.width / (float)viewPort.extent.height, clip_planes.near_plane, clip_planes.far_plane),
         {1.0f, -1.0f, 1.0f}
     );
     matrices.viewMatrix = m_camera.get_view();
     matrices.modelMatrix = glm::identity<glm::mat4>();
+    matrices.invProjectionMatrix = glm::inverse(matrices.projectionMatrix);
+    matrices.invViewMatrix = glm::inverse(matrices.viewMatrix);
 }
 
 void ModelRenderer::render(
@@ -1511,8 +1750,9 @@ void ModelRenderer::render(
         //updateUniformBuffers(matrices);
     } else {
         matrices.viewMatrix = m_camera.get_view();
+        matrices.invViewMatrix = glm::inverse(matrices.viewMatrix);
     }
-    updateUniformBuffers(matrices);
+    updateUniformBuffers(matrices, clip_planes);
 
     if (previousRenderArea != renderArea || previousViewPort != viewPort || models_changed) {
         buildCommandBuffers(renderArea, viewPort);

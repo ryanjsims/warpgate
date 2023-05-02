@@ -22,6 +22,10 @@ namespace warpgate::vulkan {
             return m_view;
         }
 
+        glm::vec3 get_pos() {
+            return m_position;
+        }
+
         void rotate_about_target(float dyaw, float dpitch) {
             m_yaw_temp = m_yaw + glm::radians(dyaw);
             m_pitch_temp = m_pitch + glm::radians(dpitch);
