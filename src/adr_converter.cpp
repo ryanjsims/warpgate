@@ -262,6 +262,35 @@ int main(int argc, const char* argv[]) {
         if(cog_index != -1) {
             parent_index = cog_index;
         }
+        tinygltf::Node sockets;
+        sockets.name = "Sockets";
+        if(gltf.nodes[parent_index].translation.size() == 3) {
+            sockets.translation = {
+                -gltf.nodes[parent_index].translation[0],
+                -gltf.nodes[parent_index].translation[1],
+                -gltf.nodes[parent_index].translation[2]
+            };
+        }
+        if(gltf.nodes[parent_index].rotation.size() == 4) {
+            glm::quat rotation = glm::inverse(glm::quat(
+                gltf.nodes[parent_index].rotation[3], 
+                gltf.nodes[parent_index].rotation[0], 
+                gltf.nodes[parent_index].rotation[1], 
+                gltf.nodes[parent_index].rotation[2]
+            ));
+            sockets.rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
+        }
+        if(gltf.nodes[parent_index].scale.size() == 3) {
+            sockets.scale = {
+                1.0 / gltf.nodes[parent_index].scale[0],
+                1.0 / gltf.nodes[parent_index].scale[1],
+                1.0 / gltf.nodes[parent_index].scale[2]
+            };
+        }
+        int sockets_index = static_cast<int>(gltf.nodes.size());
+        gltf.nodes.push_back(sockets);
+        gltf.nodes[parent_index].children.push_back(sockets_index);
+
         std::vector<utils::SkeletalModel> &models = actorSockets.skeletal_models;
         uint32_t index = actorSockets.model_indices[basename];
         logger::info("Adding {} sockets for {}", models[index].sockets.size(), basename);
@@ -270,35 +299,13 @@ int main(int argc, const char* argv[]) {
             tinygltf::Node socket;
             socket.name = it->name.has_value() ? *(it->name) : "";
             glm::vec3 offset = it->offset.has_value() ? *it->offset : glm::vec3{};
-            if(gltf.nodes[parent_index].translation.size() == 3) {
-                offset -= glm::vec3(
-                    gltf.nodes[parent_index].translation[0],
-                    gltf.nodes[parent_index].translation[1],
-                    gltf.nodes[parent_index].translation[2]
-                );
-            }
             glm::quat rotation = it->rotation.has_value() ? *it->rotation : glm::quat{};
-            if(gltf.nodes[parent_index].rotation.size() == 4) {
-                rotation *= glm::inverse(glm::quat(
-                    gltf.nodes[parent_index].rotation[3], 
-                    gltf.nodes[parent_index].rotation[0], 
-                    gltf.nodes[parent_index].rotation[1], 
-                    gltf.nodes[parent_index].rotation[2]
-                ));
-            }
             glm::vec3 scale = it->scale.has_value() ? *it->scale : glm::vec3{};
-            if(gltf.nodes[parent_index].scale.size() == 3) {
-                scale /= glm::vec3(
-                    gltf.nodes[parent_index].scale[0],
-                    gltf.nodes[parent_index].scale[1],
-                    gltf.nodes[parent_index].scale[2]
-                );
-            }
             socket.translation = std::vector<double>{offset.x, offset.y, offset.z};
             socket.rotation = std::vector<double>{rotation.x, rotation.y, rotation.z, rotation.w};
             socket.scale = std::vector<double>{scale.x, scale.y, scale.z};
             gltf.nodes.push_back(socket);
-            gltf.nodes[parent_index].children.push_back(child_index);
+            gltf.nodes[sockets_index].children.push_back(child_index);
         }
     }
     
