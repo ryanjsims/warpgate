@@ -248,7 +248,7 @@ bitfield translation_bone_data {
     x : 11;
     y : 11;
     z : 10;
-} [[left_to_right]];
+};
 
 struct translation_sample_data {
     translation_bone_data data[parent.translation_bone_count];
@@ -399,19 +399,29 @@ struct file_data {
 };
 
 struct expanded_string_table_ptr {
-	expanded_string_table* table : u64 [[pointer_base("relative_to_parents_parent")]];
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+	    expanded_string_table* table : u64 [[pointer_base("relative_to_parents_parent")]];
+    } else {
+        u64 null_string_table;
+    }
 } [[inline]];
+
+struct network_data_chunk {
+    u64* data[parent.chunk_size] : u64 [[pointer_base("relative_to_parents_parent")]];
+};
 
 struct network_data_offset_table {
 	u32 chunk_count;
 	u32 chunk_size;
-	checked_ptr* ptrs[chunk_count] : u64 [[pointer_base("relative_to_parent")]];
+    network_data_chunk* ptrs[chunk_count] : u64 [[pointer_base("relative_to_parent")]];
 };
 
 struct network_data {
     u8 unknown1[32];
     checked_ptr ptrs[6];
-    u8 unknown2[120];
+    u8 unknown2[104];
+    checked_ptr ptr1;
+    u8 unknown3[8];
     checked_ptr ptrs2[5];
     expanded_string_table_ptr ex_string_tables[2];
     string_table* string_table1 : u64 [[pointer_base("relative_to_parent")]];
@@ -459,6 +469,31 @@ struct event_track_data {
 //     translation_bone_data data[4];
 // };
 
+struct skeleton_map_bitset {
+    u32 bone_count;
+    u32 ints_used;
+    u32 flag_set[ints_used];
+};
+
+struct skeleton_map_index_mapping {
+    u32 end_bone_count;
+    u16 index_unk1; // These look to be end indices?
+    u16 index_unk2;
+    u16 *indices[end_bone_count] : u64 [[pointer_base("relative_to_parent")]];
+    u64 unk1;
+    u8 *end_ptr : u64 [[pointer_base("relative_to_parent")]];
+};
+
+struct skeleton_map_data {
+    u64 version; // Set to 1 in all files examined
+    // Very much a maybe on what this does
+    skeleton_map_bitset* deform_flags : u64 [[pointer_base("relative_to_parent")]];
+    u32 unk1;
+    u32 unk2;
+    u64 unk3;
+    skeleton_map_index_mapping* map_ptr : u64 [[pointer_base("relative_to_parent")]];
+};
+
 struct packet {
 	i = i + 1;
     header head;
@@ -487,6 +522,9 @@ struct packet {
     } else if(head.type == PacketType::skeleton_names) {
     	skeleton_names_data skeletons;
     	padding[head.datalength - sizeof(skeletons)];
+    } else if(head.type == PacketType::skeleton_map) {
+    	skeleton_map_data map;
+    	padding[head.datalength - sizeof(map)];
     } else {
         u8 data[head.datalength];
     }
