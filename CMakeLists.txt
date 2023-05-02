@@ -159,6 +159,8 @@ add_shader_target(vulkan_warpgate_shaders
     src/utils/vulkan/shaders/character.frag
     src/utils/vulkan/shaders/grid.vert
     src/utils/vulkan/shaders/grid.frag
+    src/utils/vulkan/shaders/ModelRigid.vert
+    src/utils/vulkan/shaders/ModelRigid.frag
 )
 
 
