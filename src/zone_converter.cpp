@@ -38,7 +38,7 @@ void process_images(
             std::shared_ptr<uint8_t[]>, uint32_t
         >
     >& chunk_queue,
-    warpgate::utils::tsqueue<std::pair<std::string, warpgate::Parameter::Semantic>> &dme_queue,
+    warpgate::utils::tsqueue<std::pair<std::string, warpgate::Semantic>> &dme_queue,
     std::filesystem::path output_directory
 ) {
     logger::debug("Got output directory {}", output_directory.string());
@@ -59,33 +59,42 @@ void process_images(
             std::shared_ptr<synthium::Asset2> asset, asset2;
             switch (semantic)
             {
-            case warpgate::Parameter::Semantic::BASE_COLOR1:
-            case warpgate::Parameter::Semantic::BASE_COLOR2:
-            case warpgate::Parameter::Semantic::BASE_COLOR3:
-            case warpgate::Parameter::Semantic::BASE_COLOR4:
-            case warpgate::Parameter::Semantic::EMISSIVE1:
-            case warpgate::Parameter::Semantic::BASE_CAMO:
-            case warpgate::Parameter::Semantic::DETAIL_SELECT:
-            case warpgate::Parameter::Semantic::OVERLAY0:
-            case warpgate::Parameter::Semantic::OVERLAY1:
-            case warpgate::Parameter::Semantic::OVERLAY2:
-            case warpgate::Parameter::Semantic::OVERLAY3:
+            case warpgate::Semantic::Diffuse:
+            case warpgate::Semantic::BaseDiffuse:
+            case warpgate::Semantic::baseDiffuse:
+            case warpgate::Semantic::diffuseTexture:
+            case warpgate::Semantic::DiffuseB:
+            case warpgate::Semantic::HoloTexture:
+            case warpgate::Semantic::DecalTint:
+            case warpgate::Semantic::TilingTint:
+            case warpgate::Semantic::DetailMask:
+            case warpgate::Semantic::detailMaskTexture:
+            case warpgate::Semantic::DetailMaskMap:
+            case warpgate::Semantic::Overlay:
+            case warpgate::Semantic::Overlay1:
+            case warpgate::Semantic::Overlay2:
+            case warpgate::Semantic::Overlay3:
+            case warpgate::Semantic::Overlay4:
                 asset = manager.get(texture_name);
                 if(asset) {
                     warpgate::utils::textures::save_texture(texture_name, asset->get_data(), output_directory);
                 }
                 break;
-            case warpgate::Parameter::Semantic::NORMAL_MAP1:
-            case warpgate::Parameter::Semantic::NORMAL_MAP2:
+            case warpgate::Semantic::Bump:
+            case warpgate::Semantic::BumpMap:
+            case warpgate::Semantic::BumpMap1:
+            case warpgate::Semantic::BumpMap2:
+            case warpgate::Semantic::BumpMap3:
+            case warpgate::Semantic::bumpMap:
                 asset = manager.get(texture_name);
                 if(asset) {
                     warpgate::utils::textures::process_normalmap(texture_name, asset->get_data(), output_directory);
                 }
                 break;
-            case warpgate::Parameter::Semantic::SPECULAR1:
-            case warpgate::Parameter::Semantic::SPECULAR2:
-            case warpgate::Parameter::Semantic::SPECULAR3:
-            case warpgate::Parameter::Semantic::SPECULAR4:
+            case warpgate::Semantic::Spec:
+            case warpgate::Semantic::SpecMap:
+            case warpgate::Semantic::SpecGlow:
+            case warpgate::Semantic::SpecB:
                 albedo_name = texture_name;
                 index = albedo_name.find_last_of('_');
                 albedo_name[index + 1] = 'C';
@@ -95,8 +104,8 @@ void process_images(
                     warpgate::utils::textures::process_specular(texture_name, asset->get_data(), asset2->get_data(), output_directory);
                 }
                 break;
-            case warpgate::Parameter::Semantic::DETAIL_CUBE1:
-            case warpgate::Parameter::Semantic::DETAIL_CUBE2:
+            case warpgate::Semantic::detailBump:
+            case warpgate::Semantic::DetailBump:
                 asset = manager.get(texture_name);
                 if(asset) {
                     warpgate::utils::textures::process_detailcube(texture_name, asset->get_data(), output_directory);
@@ -162,6 +171,13 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         .nargs(4)
         //.default_value(std::vector<double>{0.0, 0.0, 0.0, 0.0})
         .scan<'g', double>();
+}
+
+glm::dquat get_quaternion(warpgate::zone::Float4 vector) {
+    glm::dvec3 axis_angle{-vector.y, vector.x + M_PI / 2, -vector.z};
+    //double angle = glm::length(axis_angle);
+    //glm::dvec3 axis = glm::normalize(axis_angle);
+    return glm::normalize(glm::dquat{axis_angle});
 }
 
 int main(int argc, char* argv[]) {
@@ -256,7 +272,7 @@ int main(int argc, char* argv[]) {
             >
         > chunk_image_queue;
 
-        warpgate::utils::tsqueue<std::pair<std::string, warpgate::Parameter::Semantic>> dme_image_queue;
+        warpgate::utils::tsqueue<std::pair<std::string, warpgate::Semantic>> dme_image_queue;
 
         std::vector<std::thread> image_processor_pool;
         if(export_textures) {
@@ -396,7 +412,7 @@ int main(int argc, char* argv[]) {
                 warpgate::zone::Float4 rot = instance.rotation();
                 warpgate::zone::Float4 trans = instance.translation();
                 warpgate::zone::Float4 scale_data = instance.scale();
-                glm::dquat rotation(glm::dvec3(-rot.y, rot.x + M_PI / 2, -rot.z));
+                glm::dquat rotation = get_quaternion(rot);
                 glm::dvec3 translation(trans.z, trans.y, -trans.x + 256);
                 glm::dvec3 scale(scale_data.x, scale_data.y, scale_data.z);
                 if(aabb && !aabb->overlaps(((dme_aabb + translation) * rotation) * scale)) {
@@ -414,12 +430,7 @@ int main(int argc, char* argv[]) {
             warpgate::zone::Float4 trans = object->instance(instances_to_add[0]).translation();
             warpgate::zone::Float4 scale_data = object->instance(instances_to_add[0]).scale();
             gltf.nodes.at(object_index).translation = {trans.z, trans.y, -trans.x};
-            glm::dquat rotation;
-            if(!(std::fabs(rot.x) < 0.001 && std::fabs(rot.y) < 0.001 && std::fabs(rot.z) > 0.001)) {
-                rotation = glm::dquat(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
-            } else {
-                rotation = glm::dquat(glm::dvec3(rot.y, rot.x, rot.z));
-            }
+            glm::dquat rotation = get_quaternion(rot);
             gltf.nodes.at(object_index).rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
             gltf.nodes.at(object_index).scale = {scale_data.x, scale_data.y, scale_data.z};
             for(auto it = instances_to_add.begin() + 1; it != instances_to_add.end(); it++) {
@@ -427,11 +438,7 @@ int main(int argc, char* argv[]) {
                 rot = object->instance(instance).rotation();
                 trans = object->instance(instance).translation();
                 scale_data = object->instance(instance).scale();
-                if(!(std::fabs(rot.x) < 0.001 && std::fabs(rot.y) < 0.001 && std::fabs(rot.z) > 0.001)) {
-                    rotation = glm::dquat(glm::dvec3(rot.y, rot.x + M_PI / 2, rot.z));
-                } else {
-                    rotation = glm::dquat(glm::dvec3(rot.y, rot.x, rot.z));
-                }
+                rotation = get_quaternion(rot);
                 tinygltf::Node parent;
                 int parent_index = (int)gltf.nodes.size();
                 parent.name = dme.get_name() + "_" + std::to_string(instance);
@@ -473,7 +480,7 @@ int main(int argc, char* argv[]) {
         logger::info("Checking {} lights...", lights_count);
         for(uint32_t i = 0; i < lights_count; i++) {
             warpgate::zone::Float4 translation = continent.light(i)->translation();
-            if(aabb && !aabb->contains({translation.z, translation.y, -translation.x + 256})) {
+            if(aabb && !aabb->contains({translation.z, translation.y, -translation.x})) {
                 continue;
             }
             warpgate::zone::Color4ARGB color = continent.light(i)->color();
