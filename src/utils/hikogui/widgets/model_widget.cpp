@@ -22,6 +22,9 @@ model_widget::~model_widget()
 
 void model_widget::load_model(std::string name) {
     std::shared_ptr<synthium::Asset2> asset = m_manager->get(name);
+    if(asset == nullptr) {
+        return;
+    }
     model_data = asset->get_data();
     std::shared_ptr<warpgate::DME> model = std::make_shared<warpgate::DME>(model_data, name);
     std::unordered_map<uint32_t, gli::texture> textures;
