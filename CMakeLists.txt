@@ -9,22 +9,35 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID STREQUAL "Cla
   add_compile_options("-Wno-deprecated")
 endif()
 
-set(MATERIALS_JSON_PORTABLE 0 CACHE BOOL "")
-
-set(CMAKE_VERBOSE_MAKEFILE 1 CACHE BOOL "")
+set(MATERIALS_JSON_PORTABLE 1 CACHE BOOL "")
+set(CMAKE_VERBOSE_MAKEFILE 0 CACHE BOOL "")
+set(BUILD_WARPGATE_GUI 0 CACHE BOOL "Enable experimental Warpgate GUI target. Requires Vulkan and Hikogui")
 
 add_subdirectory(lib)
 
-find_package(Vulkan REQUIRED)
+if(${BUILD_WARPGATE_GUI})
+  find_package(Vulkan REQUIRED)
+endif()
+
+if(${MATERIALS_JSON_PORTABLE})
+  set(MATERIALS_JSON_LOCATION "resources/materials.json")
+else()
+  set(MATERIALS_JSON_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/materials.json")
+endif()
 
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}" -DMATERIALS_JSON_PORTABLE=${MATERIALS_JSON_PORTABLE})
+
+add_custom_target(materials_json
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
+  DEPENDS
+  ${CMAKE_CURRENT_SOURCE_DIR}/resources/materials.json
+)
 
 add_executable(test_adr
   src/test_adr.cpp
   src/utils/adr.cpp
 )
 
-message("${BUILD_SHARED_LIBS}")
 SET(PUGIXML_LINKED_LIBRARY pugixml::static)
 
 target_include_directories(test_adr PUBLIC include/)
@@ -80,9 +93,11 @@ target_link_libraries(decompress PRIVATE spdlog::spdlog argparse ZLIB::ZLIB)
 
 add_executable(export
   src/export.cpp
+  src/utils/textures.cpp
+  src/utils/materials_3.cpp
 )
 target_include_directories(export PUBLIC include/ lib/internal/cnk_loader/include/)
-target_link_libraries(export PRIVATE spdlog::spdlog synthium::synthium argparse Glob cnk_loader)
+target_link_libraries(export PRIVATE spdlog::spdlog synthium::synthium argparse Glob cnk_loader gli tinygltf)
 
 add_executable(dme_converter 
     src/dme_converter.cpp
@@ -141,42 +156,41 @@ add_executable(mrn_converter
 target_include_directories(mrn_converter PUBLIC include/)
 target_link_libraries(mrn_converter PRIVATE argparse Glob gli mrn_loader spdlog::spdlog synthium::synthium tinygltf)
 
-add_executable(warpgate WIN32 
-  src/warpgate.cpp
-  src/utils/vulkan/model_renderer.cpp
-  src/utils/hikogui/widgets/model_widget.cpp
-  src/utils/materials_3.cpp
-)
+if(${BUILD_WARPGATE_GUI})
+  add_executable(warpgate WIN32 
+    src/warpgate.cpp
+    src/utils/vulkan/model_renderer.cpp
+    src/utils/hikogui/widgets/model_widget.cpp
+    src/utils/materials_3.cpp
+  )
 
-target_include_directories(warpgate PUBLIC include/ lib/external/half/include/)
-target_link_libraries(warpgate PRIVATE hikogui gli synthium::synthium dme_loader mrn_loader spdlog::spdlog tinygltf)
+  target_include_directories(warpgate PUBLIC include/ lib/external/half/include/)
+  target_link_libraries(warpgate PRIVATE hikogui gli synthium::synthium dme_loader mrn_loader spdlog::spdlog tinygltf)
 
-#set_property(TARGET warpgate PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  #set_property(TARGET warpgate PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-add_custom_target(vulkan_warpgate_shaders)
-add_shader_target(vulkan_warpgate_shaders
-    src/utils/vulkan/shaders/character.vert
-    src/utils/vulkan/shaders/character.frag
-    src/utils/vulkan/shaders/grid.vert
-    src/utils/vulkan/shaders/grid.frag
-    src/utils/vulkan/shaders/ModelRigid.vert
-    src/utils/vulkan/shaders/ModelRigid.frag
-)
+  add_custom_target(vulkan_warpgate_shaders)
+  add_shader_target(vulkan_warpgate_shaders
+      src/utils/vulkan/shaders/character.vert
+      src/utils/vulkan/shaders/character.frag
+      src/utils/vulkan/shaders/grid.vert
+      src/utils/vulkan/shaders/grid.frag
+      src/utils/vulkan/shaders/ModelRigid.vert
+      src/utils/vulkan/shaders/ModelRigid.frag
+  )
 
 
-add_custom_target(vulkan_warpgate_resources
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/lib/external/hikogui/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/lib/external/hikogui/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/src/utils/vulkan/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
-    DEPENDS
-    hikogui vulkan_warpgate_shaders
-    resources/warpgate.png
-)
-
-add_dependencies(warpgate vulkan_warpgate_resources)
-
+  add_custom_target(vulkan_warpgate_resources
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/lib/external/hikogui/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/lib/external/hikogui/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/src/utils/vulkan/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
+      DEPENDS
+      hikogui vulkan_warpgate_shaders
+      resources/warpgate.png
+  )
+endif()
 
 add_executable(zone_converter 
     src/zone_converter.cpp
@@ -210,12 +224,17 @@ add_custom_target(version
                    -P ${CMAKE_SOURCE_DIR}/lib/external/cmake-git-versioning/GenerateVersionHeader.cmake
 )
 
-add_dependencies(chunk_converter version)
-add_dependencies(export version)
-add_dependencies(dme_converter version)
-add_dependencies(zone_converter version)
+add_dependencies(adr_converter version materials_json)
+add_dependencies(chunk_converter version materials_json)
+add_dependencies(dme_converter version materials_json)
+add_dependencies(export version materials_json)
+add_dependencies(zone_converter version materials_json)
 
 add_dependencies(test_cnk version)
 add_dependencies(test_dme version)
 add_dependencies(test_mrn version)
 add_dependencies(test_zone version)
+
+if(${BUILD_WARPGATE_GUI})
+  add_dependencies(warpgate vulkan_warpgate_resources version)
+endif()

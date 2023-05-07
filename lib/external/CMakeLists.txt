@@ -6,7 +6,9 @@ add_subdirectory(gli)
 
 add_subdirectory(glob)
 
-add_subdirectory(hikogui)
+if(${BUILD_WARPGATE_GUI})
+    add_subdirectory(hikogui)
+endif()
 
 add_subdirectory(pugixml)
 
