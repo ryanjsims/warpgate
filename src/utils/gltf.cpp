@@ -426,6 +426,7 @@ void utils::gltf::dmat::process_images(
         case Semantic::DetailMask:
         case Semantic::detailMaskTexture:
         case Semantic::DetailMaskMap:
+        case Semantic::TintMask:
         case Semantic::Overlay:
         case Semantic::Overlay1:
         case Semantic::Overlay2:
@@ -451,6 +452,8 @@ void utils::gltf::dmat::process_images(
             albedo_name[index + 1] = 'C';
             if(manager.contains(albedo_name)) {
                 utils::textures::process_specular(texture_name, manager.get(texture_name)->get_data(), manager.get(albedo_name)->get_data(), output_directory);
+            } else {
+                utils::textures::save_texture(texture_name, manager.get(texture_name)->get_data(), output_directory);
             }
             break;
         case Semantic::detailBump:

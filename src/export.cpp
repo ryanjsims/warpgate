@@ -7,6 +7,7 @@
 #include <cnk_loader.h>
 #include <glob/glob.h>
 #include <synthium/synthium.h>
+#include <utils/textures.h>
 
 namespace logger = spdlog;
 
@@ -46,6 +47,22 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         .nargs(0)
         .default_value(false)
         .implicit_value(true);
+    
+    parser.add_argument("--bulk-mode", "-b")
+        .help("Switches to bulk mode: <asset_name> is read from disk and used as a list of names to export, and <output_file> is the directory where the files will be stored.")
+        .nargs(0)
+        .default_value(false)
+        .implicit_value(true);
+    
+    parser.add_argument("--convert-dds", "-c")
+        .help("Auto convert dds files to png.")
+        .nargs(0)
+        .default_value(false)
+        .implicit_value(true);
+    
+    parser.add_argument("--extra-packs", "-e")
+        .help("Extra glob patterns to use when loading packs.")
+        .nargs(argparse::nargs_pattern::at_least_one);
 }
 
 int main(int argc, char* argv[]) {
@@ -82,9 +99,22 @@ int main(int argc, char* argv[]) {
         paths.insert(paths.end(), additional.begin(), additional.end());
     }
 
-    synthium::Manager manager(paths);
+    if(parser.is_used("--extra-packs")) {
+        std::vector<std::string> extra_packs = parser.get<std::vector<std::string>>("--extra-packs");
+        for(std::string& pack : extra_packs) {
+            pack = server + pack;
+        }
+        for(std::string& pack : extra_packs) {
+            logger::info("Adding pack expression {}", pack);
+        }
+        std::vector<std::filesystem::path> additional = glob::glob(extra_packs);
+        paths.insert(paths.end(), additional.begin(), additional.end());
+    }
 
-    if(!manager.contains(input_filename)) {
+    synthium::Manager manager(paths);
+    bool bulk_mode = parser.get<bool>("--bulk-mode");
+    
+    if(!manager.contains(input_filename) && !bulk_mode) {
         logger::error("{} not found in loaded assets", input_filename);
         std::exit(1);
     }
@@ -92,12 +122,14 @@ int main(int argc, char* argv[]) {
     std::filesystem::path output_filename(parser.get<std::string>("output_file"));
     output_filename = std::filesystem::weakly_canonical(output_filename);
     std::filesystem::path output_directory;
-    if(output_filename.has_parent_path()) {
+    if(output_filename.has_parent_path() && !bulk_mode) {
         output_directory = output_filename.parent_path();
+    } else if(bulk_mode) {
+        output_directory = output_filename;
     }
 
     try {
-        if(!std::filesystem::exists(output_filename.parent_path())) {
+        if(!std::filesystem::exists(output_directory)) {
             std::filesystem::create_directories(output_directory);
         }
     } catch (std::filesystem::filesystem_error& err) {
@@ -143,18 +175,66 @@ int main(int argc, char* argv[]) {
         logger::info("Exporting raw data");
     }
 
-    std::vector<uint8_t> data = manager.get(input_filename)->get_data(raw);
-    std::unique_ptr<uint8_t[]> decompressed;
-    std::span<uint8_t> data_span(data);
-    if(chunk_file) {
-        warpgate::chunk::Chunk chunk(data);
-        logger::info("Decompressing chunk '{}' of size {} (Compressed size: {})", input_filename, synthium::utils::human_bytes(chunk.decompressed_size()), synthium::utils::human_bytes(chunk.compressed_size()));
-        decompressed = chunk.decompress();
-        data_span = std::span<uint8_t>(decompressed.get(), chunk.decompressed_size());
+    
+    bool dds_to_png = parser.get<bool>("--convert-dds") && !raw; // if we're exporting raw data, no conversions are performed
+
+    if(dds_to_png) {
+        logger::info("Auto converting dds files");
     }
-    std::ofstream output(output_filename, std::ios::binary);
-    output.write((char*)data_span.data(), data_span.size());
-    output.close();
-    logger::info("Wrote {} to {}", synthium::utils::human_bytes(data_span.size()), output_filename.string());
+
+    std::vector<std::string> filenames;
+    if(bulk_mode) {
+        std::ifstream filenames_input(input_filename);
+        if(!filenames_input) {
+            logger::error("Failed to read bulk export file list {}!", input_filename);
+            std::exit(4);
+        }
+        std::string line;
+        while(std::getline(filenames_input, line)) {
+            filenames.push_back(line);
+        }
+        logger::info("Switched to bulk mode. Exporting {} files...", filenames.size());
+    } else {
+        filenames.push_back(input_filename);
+    }
+
+    std::vector<uint8_t> data;
+    std::unique_ptr<uint8_t[]> decompressed;
+    std::span<uint8_t> data_span;
+    std::filesystem::path output_name = output_filename;
+
+    for(std::string& filename : filenames) {
+        data = manager.get(filename)->get_data(raw);
+        data_span = std::span<uint8_t>(data.begin(), data.end());
+        if(chunk_file) {
+            warpgate::chunk::Chunk chunk(data);
+            logger::info("Decompressing chunk '{}' of size {} (Compressed size: {})", input_filename, synthium::utils::human_bytes(chunk.decompressed_size()), synthium::utils::human_bytes(chunk.compressed_size()));
+            decompressed = chunk.decompress();
+            data_span = std::span<uint8_t>(decompressed.get(), chunk.decompressed_size());
+        }
+        if(bulk_mode) {
+            output_name = output_directory / filename;
+        }
+        if(dds_to_png && output_name.extension() == std::filesystem::path(".dds")) {
+            std::optional<gli::texture2d> texture = warpgate::utils::textures::load_texture(filename, data);
+            if(!texture.has_value()) {
+                continue;
+            }
+            output_name.replace_extension(".png");
+            auto extent = texture->extent();
+            if(warpgate::utils::textures::write_texture(
+                std::span<uint32_t>(texture->data<uint32_t>(), texture->size<uint32_t>()),
+                output_name,
+                extent)
+            ){
+                logger::debug("Saved texture to {}", output_name.lexically_relative(output_directory).string());
+            }
+        } else {
+            std::ofstream output(output_name, std::ios::binary);
+            output.write((char*)data_span.data(), data_span.size());
+            output.close();
+        }
+        logger::info("Wrote {} to {}", synthium::utils::human_bytes(data_span.size()), output_name.string());
+    }
     return 0;
 }

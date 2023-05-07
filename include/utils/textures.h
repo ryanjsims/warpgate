@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <span>
+#include <optional>
 
 #include "gli/gli.hpp"
 
@@ -14,6 +15,8 @@ namespace warpgate::utils::textures {
     void process_specular(std::string texture_name, std::vector<uint8_t> specular_data, std::vector<uint8_t> albedo_data, std::filesystem::path output_directory);
 
     void process_detailcube(std::string texture_name, std::vector<uint8_t> texture_data, std::filesystem::path output_directory);
+
+    std::optional<gli::texture2d> load_texture(std::string texture_name, std::vector<uint8_t>& texture_data);
 
     void save_texture(std::string texture_name, std::vector<uint8_t> texture_data, std::filesystem::path output_directory);
 

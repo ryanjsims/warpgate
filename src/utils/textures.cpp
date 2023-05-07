@@ -9,8 +9,11 @@ namespace logger = spdlog;
 using namespace warpgate;
 
 std::string utils::textures::relabel_texture(std::string texture_name, std::string label) {
-    size_t index = texture_name.find_last_of('_') + 1;
-    return texture_name.substr(0, index) + label + texture_name.substr(index + 1);
+    size_t index = texture_name.find_last_of('_');
+    if(index == std::string::npos) {
+        return texture_name;
+    }
+    return texture_name.substr(0, index + 1) + label + texture_name.substr(index + 2);
 }
 
 bool utils::textures::write_texture(std::span<uint32_t> data, std::filesystem::path texture_path, gli::texture2d::extent_type extent) {
@@ -190,23 +193,31 @@ void utils::textures::process_detailcube(std::string texture_name, std::vector<u
     }
 }
 
-void utils::textures::save_texture(std::string texture_name, std::vector<uint8_t> texture_data, std::filesystem::path output_directory) {
-    logger::debug("Saving {} as png...", texture_name);
+std::optional<gli::texture2d> utils::textures::load_texture(std::string texture_name, std::vector<uint8_t>& texture_data) {
     gli::texture2d texture(gli::load_dds((char*)texture_data.data(), texture_data.size()));
     if(texture.format() == gli::format::FORMAT_UNDEFINED) {
         logger::error("Failed to load {} from memory", texture_name);
-        return;
+        return {};
     }
     if(gli::is_compressed(texture.format())) {
         logger::trace("Compressed texture (format {})", (int)texture.format());
         texture = gli::convert(texture, gli::format::FORMAT_RGBA8_UNORM_PACK8);
     }
+    return texture;
+}
+
+void utils::textures::save_texture(std::string texture_name, std::vector<uint8_t> texture_data, std::filesystem::path output_directory) {
+    logger::debug("Saving {} as png...", texture_name);
+    std::optional<gli::texture2d> texture = load_texture(texture_name, texture_data);
+    if(!texture.has_value()) {
+        return;
+    }
     std::filesystem::path texture_path(texture_name);
     texture_path.replace_extension(".png");
     texture_path = output_directory / "textures" / texture_path;
-    auto extent = texture.extent();
+    auto extent = texture->extent();
     logger::trace("Writing image of size ({}, {}) to {}", extent.x, extent.y, texture_path.lexically_relative(output_directory).string());
-    if(write_texture(std::span<uint32_t>(texture.data<uint32_t>(), texture.size<uint32_t>()), texture_path, extent)){
+    if(write_texture(std::span<uint32_t>(texture->data<uint32_t>(), texture->size<uint32_t>()), texture_path, extent)){
         logger::debug("Saved texture to {}", texture_path.lexically_relative(output_directory).string());
     }
 }
