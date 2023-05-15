@@ -132,7 +132,7 @@ void ModelRenderer::loadModel(std::shared_ptr<warpgate::DME> model, std::unorder
 
     std::shared_ptr<const warpgate::DMAT> dmat = wgModel->data->dmat();
     for(uint32_t material_index = 0; material_index < dmat->material_count(); material_index++) {
-        std::array<int32_t, 6> imageInfoIndices = {-1};
+        std::array<int32_t, 6> imageInfoIndices = {-1, -1, -1, -1, -1, -1};
         for(uint32_t param_index = 0; param_index < dmat->material(material_index)->param_count(); param_index++) {
             const warpgate::Parameter &parameter = dmat->material(material_index)->parameter(param_index);
             switch(dmat->material(material_index)->parameter(param_index).type()) {
@@ -195,7 +195,8 @@ void ModelRenderer::createVertexBuffers(std::shared_ptr<warpgate::vulkan::Model>
         std::span<uint8_t> vertexIndexData = mesh->index_data();
         uint32_t vertexIndexDataSize = hi::narrow_cast<uint32_t>(vertexIndexData.size());
         curr_mesh.index_count = mesh->index_count();
-        curr_mesh.index_size = mesh->index_size();
+        curr_mesh.index_size = mesh->index_size() & 0xFF;
+        spdlog::info("Index size: {}", curr_mesh.index_size);
 
         // Create the Vertex-index buffer inside the GPU
         VkBufferCreateInfo vertexIndexBufferCreateInfo = {};
@@ -771,6 +772,7 @@ void ModelRenderer::buildForNewSwapchain(std::vector<VkImageView> const& imageVi
         }
 
         mesh.index_count = static_cast<uint32_t>(indices.size());
+        mesh.index_size = sizeof(uint32_t);
         
         m_grid->meshes.push_back(mesh);
 
@@ -868,7 +870,7 @@ void ModelRenderer::createRenderPass(VkFormat colorFormat, VkFormat depthFormat)
     attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // Same for store
     attachments[0].initialLayout =
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // Reuse the previous draw image, so the layout is already in present mode.
-    attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // Layout to which the attachment is transitioned when the
+    attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // Layout to which the attachment is transitioned when the
                                                                   // render pass is finished As we want to present the color
                                                                   // buffer to the swapchain, we transition to PRESENT_KHR
     // Depth attachment
@@ -986,6 +988,7 @@ void ModelRenderer::createMSAARenderTarget(VkExtent2D imageSize, VkFormat format
     );
 
     createImageView(msaaImage, VK_IMAGE_VIEW_TYPE_2D, format, VK_IMAGE_ASPECT_COLOR_BIT, msaaImageView);
+    //transitionImageLayout(msaaImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_VIEW_TYPE_2D);
 }
 
 void ModelRenderer::destroyMSAARenderTarget() {
@@ -1202,7 +1205,7 @@ VkFormat getFormat(std::string type, std::string usage) {
         } else if(usage == "Normal" || usage == "Tangent") {
             return VK_FORMAT_R8G8B8A8_SNORM;
         } else if(usage == "Color") {
-            return VK_FORMAT_R8G8B8A8_SRGB;
+            return VK_FORMAT_R8G8B8A8_UNORM;
         } else {
             return VK_FORMAT_R8G8B8A8_UNORM;
         }
@@ -1213,7 +1216,7 @@ VkFormat getFormat(std::string type, std::string usage) {
         } else if(usage == "Normal" || usage == "Tangent" || usage == "Position") {
             return VK_FORMAT_R8G8B8A8_SNORM;
         } else if(usage == "Color") {
-            return VK_FORMAT_R8G8B8A8_SRGB;
+            return VK_FORMAT_R8G8B8A8_UNORM;
         } else {
             return VK_FORMAT_R8G8B8A8_UNORM;
         }
@@ -1232,7 +1235,7 @@ VkFormat getFormat(std::string type, std::string usage) {
     return VK_FORMAT_UNDEFINED;
 }
 
-uint32_t ModelRenderer::createPipeline(VkPipelineLayout layout, nlohmann::json inputLayout, std::unordered_map<uint32_t, uint32_t> model_strides) {
+uint32_t ModelRenderer::createPipeline(VkPipelineLayout pipe_layout, nlohmann::json inputLayout, std::unordered_map<uint32_t, uint32_t> model_strides) {
     /**
      * inputLayout has structure:
     {
@@ -1250,14 +1253,6 @@ uint32_t ModelRenderer::createPipeline(VkPipelineLayout layout, nlohmann::json i
             }
         ]
     }
-    TINYGLTF_COMPONENT_TYPE_FLOAT
-    TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE
-    TINYGLTF_COMPONENT_TYPE_SHORT
-
-    TINYGLTF_TYPE_VEC2
-    TINYGLTF_TYPE_VEC3
-    TINYGLTF_TYPE_VEC4
-    TINYGLTF_TYPE_SCALAR
      */
 
     std::vector<VkVertexInputBindingDescription> vertexInputBindings;
@@ -1298,7 +1293,7 @@ uint32_t ModelRenderer::createPipeline(VkPipelineLayout layout, nlohmann::json i
 
     if(pipelines.find(inputLayout["hash"] + stride_sum) == pipelines.end()) {
         pipelines[inputLayout["hash"] + stride_sum] = createPipeline(
-            layout, //todo: make this use samplers for multiple textures
+            pipe_layout, //todo: make this use samplers for multiple textures
             renderPass,
             VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
             VK_POLYGON_MODE_FILL,
@@ -1621,13 +1616,13 @@ void ModelRenderer::buildCommandBuffers(VkRect2D renderArea, VkRect2D viewPort)
                 vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines[mesh.pipeline]);
 
                 // Bind model vertex buffer (contains position and colors)
-                std::vector<VkDeviceSize> offsets(mesh.vertexStreams.size(), 0ull);
+                std::vector<VkDeviceSize> mesh_offsets(mesh.vertexStreams.size(), 0ull);
                 vkCmdBindVertexBuffers(
                     drawCmdBuffers[i],
                     0,
                     static_cast<uint32_t>(mesh.vertexStreams.size()),
                     mesh.vertexStreams.data(),
-                    offsets.data()
+                    mesh_offsets.data()
                 );
 
                 // Bind model index buffer
@@ -1796,7 +1791,13 @@ void ModelRenderer::transitionImageLayout(VkImage image, VkFormat format, VkImag
 
         sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    } else {
+    } /*else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
+        barrier.srcAccessMask = VK_ACCESS_NONE_KHR;
+        barrier.dstAccessMask = VK_ACCESS_NONE_KHR;
+
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_
+    }*/ else {
         throw std::invalid_argument("unsupported layout transition!");
     }
 

@@ -20,12 +20,16 @@ public:
     model_widget(
         hi::widget *parent,
         hi::gfx_surface &surface,
-        std::shared_ptr<synthium::Manager> manager
+        std::shared_ptr<synthium::Manager> manager = nullptr
     ) noexcept;
 
     ~model_widget();
 
+    void set_manager(std::shared_ptr<synthium::Manager> manager);
+
     void load_model(std::string name);
+
+    void set_faction(uint32_t faction);
 
     // The set_constraints() function is called when the window is first initialized,
     // or when a widget wants to change its constraints.

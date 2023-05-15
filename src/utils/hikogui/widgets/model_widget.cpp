@@ -20,7 +20,15 @@ model_widget::~model_widget()
     _surface.remove_delegate(this);
 }
 
+void model_widget::set_manager(std::shared_ptr<synthium::Manager> manager) {
+    m_manager = manager;
+}
+
 void model_widget::load_model(std::string name) {
+    if(m_manager == nullptr) {
+        return;
+    }
+    
     std::shared_ptr<synthium::Asset2> asset = m_manager->get(name);
     if(asset == nullptr) {
         return;
@@ -57,6 +65,10 @@ void model_widget::load_model(std::string name) {
     }
 
     m_renderer->loadModel(model, textures);
+}
+
+void model_widget::set_faction(uint32_t faction) {
+    m_renderer->set_faction(faction);
 }
 
 // The set_constraints() function is called when the window is first initialized,
@@ -254,7 +266,7 @@ bool model_widget::handle_event(hi::gui_event const& event) noexcept
     case hi::gui_event_type::mouse_drag:
         if (*mode >= hi::widget_mode::partial && event.mouse().down.middle_button && (event.keyboard_modifiers == hi::keyboard_modifiers::none || started_rotation) && !started_pan) {
             started_rotation = true;
-            spdlog::info("drag_delta = ({}, {})", event.drag_delta().x(), event.drag_delta().y());
+            spdlog::trace("drag_delta = ({}, {})", event.drag_delta().x(), event.drag_delta().y());
             m_renderer->camera().rotate_about_target(
                 (float)event.drag_delta().x() / (float)_view_port.extent.width * 360.0f,
                 (float)event.drag_delta().y() / (float)_view_port.extent.height * -360.0f
@@ -273,7 +285,7 @@ bool model_widget::handle_event(hi::gui_event const& event) noexcept
     
     case hi::gui_event_type::mouse_wheel:
         if (*mode >= hi::widget_mode::partial) {
-            spdlog::info("wheel_delta = ({}, {})", event.mouse().wheel_delta.x(), event.mouse().wheel_delta.y());
+            spdlog::trace("wheel_delta = ({}, {})", event.mouse().wheel_delta.x(), event.mouse().wheel_delta.y());
             m_renderer->camera().translate(m_renderer->camera().forward() * (float)event.mouse().wheel_delta.y() / std::abs((float)event.mouse().wheel_delta.y()) * -0.1f * m_renderer->camera().radius());
             m_renderer->camera().commit_translate();
             return true;

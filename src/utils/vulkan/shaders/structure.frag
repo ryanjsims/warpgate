@@ -7,12 +7,12 @@
 
 layout (binding = 0) uniform UBO 
 {
-  mat4 projectionMatrix;
-  mat4 modelMatrix;
-  mat4 viewMatrix;
-  mat4 invProjectionMatrix;
-	mat4 invViewMatrix;
-  uint faction;
+    mat4 projectionMatrix;
+    mat4 modelMatrix;
+    mat4 viewMatrix;
+    mat4 invProjectionMatrix;
+    mat4 invViewMatrix;
+    uint faction;
 } ubo;
 
 layout(binding = 1) uniform sampler2D diffuseSampler;
@@ -29,5 +29,5 @@ layout (location = 0) out vec4 outFragColor;
 
 void main() 
 {
-  outFragColor = texture(diffuseSampler, inTexcoord0);
+    outFragColor = texture(diffuseSampler, inTexcoord0);
 }

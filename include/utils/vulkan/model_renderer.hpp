@@ -63,6 +63,13 @@ public:
 
     warpgate::vulkan::Camera &camera();
 
+    void set_faction(uint32_t faction) {
+        if(faction > 3) {
+            return;
+        }
+        matrices.faction = faction;
+    }
+
 private:
     // Vertex layout used in this example
     struct Vertex {
@@ -96,6 +103,7 @@ private:
         glm::mat4 viewMatrix;
         glm::mat4 invProjectionMatrix;
 	    glm::mat4 invViewMatrix;
+        uint32_t faction = 0;
     };
 
     warpgate::vulkan::Camera m_camera;

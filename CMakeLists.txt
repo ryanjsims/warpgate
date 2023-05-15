@@ -177,6 +177,8 @@ if(${BUILD_WARPGATE_GUI})
       src/utils/vulkan/shaders/grid.frag
       src/utils/vulkan/shaders/ModelRigid.vert
       src/utils/vulkan/shaders/ModelRigid.frag
+      src/utils/vulkan/shaders/structure.vert
+      src/utils/vulkan/shaders/structure.frag
   )
 
 
