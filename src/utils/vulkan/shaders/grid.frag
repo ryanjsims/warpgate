@@ -10,6 +10,7 @@ layout (binding = 0) uniform UBO
 	mat4 viewMatrix;
   mat4 invProjectionMatrix;
 	mat4 invViewMatrix;
+  uint faction; 
 } ubo;
 
 layout (binding = 1) uniform ClipPlanes {
