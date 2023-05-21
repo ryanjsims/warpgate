@@ -9,19 +9,11 @@
 
 using namespace warpgate::gtk;
 
-ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}) {
-    set_title("Warpgate");
-    set_default_size(1280, 960);
-    
-    
-    set_child(m_box);
-    
+ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}) {   
     m_renderer.set_expand(true);
     m_renderer.set_size_request(640, 480);
-    m_renderer.set_auto_render(true);
+    m_renderer.set_auto_render(false);
     m_renderer.set_required_version(4, 5);
-
-    m_box.append(m_renderer);
 
     m_renderer.signal_realize().connect(sigc::mem_fun(*this, &ModelRenderer::realize));
     m_renderer.signal_unrealize().connect(sigc::mem_fun(*this, &ModelRenderer::unrealize), false);
@@ -57,7 +49,7 @@ ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec
     m_renderer.add_controller(scroll);
 
     auto key = Gtk::EventControllerKey::create();
-    key->set_propagation_phase(Gtk::PropagationPhase::BUBBLE);
+    key->set_propagation_phase(Gtk::PropagationPhase::TARGET);
     key->signal_key_pressed().connect(sigc::mem_fun(*this, &ModelRenderer::on_key_pressed), false);
     key->signal_key_released().connect(sigc::mem_fun(*this, &ModelRenderer::on_key_released));
     key->signal_modifiers().connect(sigc::mem_fun(*this, &ModelRenderer::on_modifers), false);
@@ -66,8 +58,8 @@ ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec
     m_renderer.set_focusable();
 }
 
-ModelRenderer::~ModelRenderer() {
-
+Gtk::GLArea &ModelRenderer::get_area() {
+    return m_renderer;
 }
 
 void ModelRenderer::realize() {
@@ -169,7 +161,7 @@ void ModelRenderer::on_resize(int width, int height) {
 }
 
 bool ModelRenderer::on_tick(const std::shared_ptr<Gdk::FrameClock> &frameClock) {
-    m_renderer.queue_draw();
+    //m_renderer.queue_draw();
     return true;
 }
 
@@ -198,6 +190,7 @@ void ModelRenderer::on_drag_update(double offset_x, double offset_y) {
             ) * m_camera.radius()
         );
     }
+    m_renderer.queue_render();
 }
 
 void ModelRenderer::on_drag_end(double offset_x, double offset_y) {
@@ -209,6 +202,7 @@ void ModelRenderer::on_drag_end(double offset_x, double offset_y) {
         m_camera.commit_pan();
         m_panning = false;
     }
+    m_renderer.queue_render();
 }
 
 void ModelRenderer::on_scale_changed(double scale) {
@@ -219,6 +213,7 @@ bool ModelRenderer::on_scroll(double delta_x, double delta_y) {
     spdlog::trace("Scroll = {:.2f}, {:.2f}", delta_x, delta_y);
     m_camera.translate(m_camera.forward() * (float)delta_y * 0.1f * m_camera.radius());
     m_camera.commit_translate();
+    m_renderer.queue_render();
     return false;
 }
 
@@ -412,7 +407,6 @@ void ModelRenderer::init_uniforms() {
     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), &m_matrices, GL_STATIC_DRAW);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_ubo_matrices);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     glGenBuffers(1, &m_ubo_planes);
     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
@@ -424,8 +418,7 @@ void ModelRenderer::init_uniforms() {
 void ModelRenderer::update_uniforms() {
     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), &m_matrices, GL_STATIC_DRAW);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
+    
     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), &m_planes, GL_STATIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);

@@ -17,15 +17,16 @@
 #include <chrono>
 
 #include <gtkmm/window.h>
-#include <gtkmm/glarea.h>
 #include <gtkmm/box.h>
+#include <gtkmm/glarea.h>
 #include <epoxy/gl.h>
 
 namespace warpgate::gtk {
-    class ModelRenderer : public Gtk::Window {
+    class ModelRenderer {
     public:
         ModelRenderer();
-        ~ModelRenderer() override;
+
+        Gtk::GLArea &get_area();
     
     protected:
         struct Uniform {
@@ -57,7 +58,6 @@ namespace warpgate::gtk {
         Uniform m_matrices {};
         GridUniform m_planes {};
 
-        Gtk::Box m_box {Gtk::Orientation::HORIZONTAL, 0};
         Gtk::GLArea m_renderer;
 
         std::unordered_map<uint32_t, GLuint> m_programs;

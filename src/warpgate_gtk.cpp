@@ -1,5 +1,6 @@
-#include "utils/gtk/model_renderer.hpp"
+#include "utils/gtk/window.hpp"
 #include <gtkmm/application.h>
+#include <gtkmm/settings.h>
 
 //#ifdef _WIN32
 //int WinMain(void *hInstance, void *hPrevInstance, char **argv, int nCmdShow)
@@ -11,7 +12,11 @@ int main(int argc, char** argv)
     // int argc = __argc;
     // #endif
     std::shared_ptr<Gtk::Application> app = Gtk::Application::create("org.warpgate.exporter");
-    return app->make_window_and_run<warpgate::gtk::ModelRenderer>(argc, argv);
+    //auto source = Gio::SettingsSchemaSource::create("C:\\Users\\ryans\\repos\\warpgate\\build\\share\\glib-2.0\\schemas", true);
+    //auto settings = Gio::Settings::create()
+    auto settings = Gtk::Settings::get_default();
+    settings->set_property<gboolean>("gtk-application-prefer-dark-theme", true);
+    return app->make_window_and_run<warpgate::gtk::Window>(argc, argv);
 }
 
 /* Open GL Area
