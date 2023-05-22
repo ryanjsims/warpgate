@@ -19,45 +19,35 @@ using namespace warpgate::gtk;
 
 class Asset2ListItem : public Glib::Object {
 public:
-    enum class ItemType {
-        UNKNOWN,
-        ACTOR_RUNTIME,
-        ANIMATION,
-        ANIMATION_NETWORK,
-        ANIMATION_SET,
-        MODEL,
-        PALETTE,
-        TEXTURE
-    };
     Glib::ustring m_name, m_namehash_str;
     std::string m_stdname, m_stdnamehash_str;
     uint64_t m_namehash;
     bool m_compressed;
     uint64_t m_data_length;
-    ItemType m_type;
+    AssetType m_type;
 
-    static std::shared_ptr<Asset2ListItem> create(std::string name, ItemType type = ItemType::UNKNOWN, const synthium::Asset2Raw *asset = nullptr) {
+    static std::shared_ptr<Asset2ListItem> create(std::string name, AssetType type = AssetType::UNKNOWN, const synthium::Asset2Raw *asset = nullptr) {
         return Glib::make_refptr_for_instance<Asset2ListItem>(new Asset2ListItem(name, type, asset));
     }
 
-    static ItemType type_from_filename(std::string name) {
+    static AssetType type_from_filename(std::string name) {
         if(name.find(".adr") != std::string::npos) {
-            return ItemType::ACTOR_RUNTIME;
+            return AssetType::ACTOR_RUNTIME;
         }
         if(name.find(".mrn") != std::string::npos) {
-            return ItemType::ANIMATION_NETWORK;
+            return AssetType::ANIMATION_NETWORK;
         }
         if(name.find(".dme") != std::string::npos) {
-            return ItemType::MODEL;
+            return AssetType::MODEL;
         }
         if(name.find(".dma") != std::string::npos) {
-            return ItemType::PALETTE;
+            return AssetType::PALETTE;
         }
-        return ItemType::UNKNOWN;
+        return AssetType::UNKNOWN;
     }
 
 protected:
-    Asset2ListItem(std::string name, ItemType type = ItemType::UNKNOWN, const synthium::Asset2Raw *asset = nullptr) {
+    Asset2ListItem(std::string name, AssetType type = AssetType::UNKNOWN, const synthium::Asset2Raw *asset = nullptr) {
         m_name.assign(name.c_str());
         m_stdname = name;
         m_type = type;
@@ -243,7 +233,7 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
             );
             result->append(item);
         }
-    } else if(col && col->m_type == Asset2ListItem::ItemType::ACTOR_RUNTIME) {
+    } else if(col && col->m_type == AssetType::ACTOR_RUNTIME) {
         std::vector<uint8_t> data = m_manager->get(col->m_stdname)->get_data();
         warpgate::utils::ADR adr(data);
         result = Gio::ListStore<Asset2ListItem>::create();
@@ -253,7 +243,7 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
             result->append(
                 Asset2ListItem::create(
                     *network_name,
-                    Asset2ListItem::ItemType::ANIMATION_NETWORK,
+                    AssetType::ANIMATION_NETWORK,
                     &(*network)
                 )
             );
@@ -264,7 +254,7 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
             result->append(
                 Asset2ListItem::create(
                     *animation_set,
-                    Asset2ListItem::ItemType::ANIMATION_SET
+                    AssetType::ANIMATION_SET
                 )
             );
         }
@@ -275,7 +265,7 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
             result->append(
                 Asset2ListItem::create(
                     *base_model_name,
-                    Asset2ListItem::ItemType::MODEL,
+                    AssetType::MODEL,
                     &(*base_model)
                 )
             );
@@ -287,12 +277,12 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
             result->append(
                 Asset2ListItem::create(
                     *base_palette_name,
-                    Asset2ListItem::ItemType::PALETTE,
+                    AssetType::PALETTE,
                     &(*base_palette)
                 )
             );
         }
-    } else if(col && col->m_type == Asset2ListItem::ItemType::ANIMATION_NETWORK) {
+    } else if(col && col->m_type == AssetType::ANIMATION_NETWORK) {
         std::filesystem::path path(col->m_stdname);
         std::string stem = path.stem().string();
         std::string name;
@@ -312,7 +302,7 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
             spdlog::error("While loading {}: {}", name, e.what());
             return result;
         }
-        
+
         result = Gio::ListStore<Asset2ListItem>::create();
         std::vector<std::string> anim_names = mrn.file_names()->files()->filenames()->strings();
         for(auto it = anim_names.begin(); it != anim_names.end(); it++) {
@@ -320,11 +310,11 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
             result->append(
                 Asset2ListItem::create(
                     value,
-                    Asset2ListItem::ItemType::ANIMATION
+                    AssetType::ANIMATION
                 )
             );
         }
-    } else if(col && col->m_type == Asset2ListItem::ItemType::PALETTE) {
+    } else if(col && col->m_type == AssetType::PALETTE) {
         if(!m_manager->contains(col->m_stdname)) {
             return result;
         }
@@ -338,7 +328,7 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
             result->append(
                 Asset2ListItem::create(
                     value,
-                    Asset2ListItem::ItemType::TEXTURE
+                    AssetType::TEXTURE
                 )
             );
         }
@@ -366,6 +356,11 @@ void Window::on_listview_row_activated(uint32_t index) {
     if (!col)
         return;
     spdlog::info("Activated {}", col->m_stdname);
+    if(m_models_to_load.size() == 0) {
+        Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_load_model));
+    }
+
+    m_models_to_load.push_back(std::make_pair(col->m_stdname, col->m_type));
 }
 
 void Window::on_load_namelist() {
@@ -406,15 +401,26 @@ void Window::on_file_dialog_signal_response(int response) {
         m_namelist.push_back(line);
     }
 
-    Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle));
+    Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_load_namelist));
     m_files_view.set_sensitive(false);
 }
 
-bool Window::on_idle() {
+bool Window::on_idle_load_namelist() {
     m_files_tree = Gtk::TreeListModel::create(create_model(), sigc::mem_fun(*this, &Window::create_model), false, false);
     m_singleselection->set_model(m_files_tree);
     m_files_view.set_sensitive(true);
     return false;
+}
+
+bool Window::on_idle_load_model() {
+    if(m_manager == nullptr) {
+        return true;
+    }
+    auto[model, type] = m_models_to_load.back();
+    m_models_to_load.pop_back();
+
+    m_renderer.load_model(model, type, m_manager);
+    return m_models_to_load.size() > 0;
 }
 
 void Window::on_gen_namelist() {

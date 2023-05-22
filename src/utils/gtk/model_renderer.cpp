@@ -7,6 +7,7 @@
 #include <gtkmm/eventcontrollerkey.h>
 #include <gtkmm/eventcontrollerscroll.h>
 
+#include <utils/adr.h>
 #include <utils/materials_3.h>
 
 #include <glm/gtc/type_ptr.hpp>
@@ -797,13 +798,57 @@ size_t Model::mesh_count() const {
     return m_meshes.size();
 }
 
-void ModelRenderer::load_model(std::string name, std::shared_ptr<warpgate::DME> dme, std::shared_ptr<synthium::Manager> manager) {
+void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr<synthium::Manager> manager) {
     if(m_models.find(name) != m_models.end()) {
         spdlog::warn("{} already loaded", name);
         return;
     }
+    std::shared_ptr<synthium::Asset2> asset = manager->get(name), asset2;
+    std::shared_ptr<warpgate::DME> dme;
+    std::vector<uint8_t> data, data2;
+    switch(type) {
+    case AssetType::ACTOR_RUNTIME:{
+        data = asset->get_data();
+        utils::ADR adr(data);
+        std::optional<std::string> model = adr.base_model();
+        if(!model.has_value()) {
+            spdlog::error("'{}' has no associated DME file!", name);
+            return;
+        }
+        std::optional<std::string> palette = adr.base_palette();
+
+        asset = manager->get(*model);
+        data = asset->get_data();
+        dme = std::make_shared<warpgate::DME>(data, *model);
+
+        if(palette.has_value() && (*palette).size() > 0) {
+            std::filesystem::path model_path = *model;
+            std::filesystem::path palette_path = *palette;
+            if(utils::lowercase(model_path.stem().string()) == utils::lowercase(palette_path.stem().string())) {
+                // Palette is not different than what would already be included in the dme.
+                break;
+            }
+            asset2 = manager->get(*palette);
+            data2 = asset->get_data();
+            std::shared_ptr<warpgate::DMAT> dmat = std::make_shared<warpgate::DMAT>(data2);
+            dme->set_dmat(dmat);
+        }
+        break;
+    }
+    case AssetType::MODEL:
+        data = asset->get_data();
+        dme = std::make_shared<warpgate::DME>(data, name);
+        break;
+    case AssetType::ANIMATION:
+        // Todo...
+    default:
+        spdlog::warn("No method known to load asset '{}' as a model", name);
+        return;
+    }
+     
     std::shared_ptr<Model> model = std::make_shared<Model>(name, dme, m_programs, m_textures, manager);
     m_models[name] = model;
+    m_renderer.queue_render();
 }
 
 void ModelRenderer::destroy_model(std::string name) {

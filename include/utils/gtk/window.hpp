@@ -15,6 +15,7 @@
 #include <synthium/manager.h>
 
 #include "utils/gtk/model_renderer.hpp"
+#include "utils/gtk/asset_type.hpp"
 
 namespace warpgate::gtk {
     class Window : public Gtk::Window {
@@ -39,6 +40,7 @@ namespace warpgate::gtk {
         Gtk::FileChooserDialog m_file_dialog;
 
         std::shared_ptr<Gtk::TreeListModel> m_files_tree;
+        std::vector<std::pair<std::string, AssetType>> m_models_to_load;
 
         void on_setup_listitem(const std::shared_ptr<Gtk::ListItem>& list_item);
         void on_bind_listitem(const std::shared_ptr<Gtk::ListItem>& list_item);
@@ -54,6 +56,7 @@ namespace warpgate::gtk {
         void on_quit();
 
         void on_file_dialog_signal_response(int response);
-        bool on_idle();
+        bool on_idle_load_namelist();
+        bool on_idle_load_model();
     };
 };

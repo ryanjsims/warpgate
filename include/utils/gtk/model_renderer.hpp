@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utils/vulkan/camera.hpp"
+#include "utils/gtk/asset_type.hpp"
 #include <dme_loader.h>
 #include <gli/gli.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -150,7 +151,7 @@ namespace warpgate::gtk {
         ModelRenderer();
 
         Gtk::GLArea &get_area();
-        void load_model(std::string name, std::shared_ptr<warpgate::DME> dme, std::shared_ptr<synthium::Manager> manager);
+        void load_model(std::string name, AssetType type, std::shared_ptr<synthium::Manager> manager);
         void destroy_model(std::string name);
     
     protected:
