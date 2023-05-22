@@ -7,9 +7,15 @@
 #include <gtkmm/eventcontrollerkey.h>
 #include <gtkmm/eventcontrollerscroll.h>
 
+#include <utils/materials_3.h>
+
+#include <glm/gtc/type_ptr.hpp>
+
 using namespace warpgate::gtk;
 
 ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}) {   
+    utils::materials3::init_materials();
+    
     m_renderer.set_expand(true);
     m_renderer.set_size_request(640, 480);
     m_renderer.set_auto_render(false);
@@ -66,10 +72,11 @@ void ModelRenderer::realize() {
     m_renderer.make_current();
     try {
         m_renderer.throw_if_error();
-        init_buffers();
-        init_uniforms();
+        create_grid();
         std::filesystem::path resources = "./resources";
-        m_program = create_shader_program(resources / "shaders" / "grid.vert", resources / "shaders" / "grid.frag");
+        m_programs[0] = std::make_shared<Shader>(resources / "shaders" / "grid.vert", resources / "shaders" / "grid.frag");
+        m_programs[0]->set_matrices(m_matrices);
+        m_programs[0]->set_planes(m_planes);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     } catch(const Gdk::GLError &gle) {
@@ -84,13 +91,10 @@ void ModelRenderer::unrealize() {
         m_renderer.throw_if_error();
         glDeleteBuffers(1, &m_buffer);
         glDeleteBuffers(1, &m_ebo);
-        glDeleteBuffers(1, &m_ubo_matrices);
-        glDeleteBuffers(1, &m_ubo_planes);
         glDeleteVertexArrays(1, &m_vao);
         glDeleteRenderbuffers(1, &m_msaa_rbo);
         glDeleteTextures(1, &m_msaa_tex);
         glDeleteFramebuffers(1, & m_msaa_fbo);
-        glDeleteProgram(m_program);
     } catch(const Gdk::GLError &gle) {
         spdlog::error("ModelRenderer::unrealize:");
         spdlog::error("{} - {} - {}", g_quark_to_string(gle.domain()), gle.code(), gle.what());
@@ -107,9 +111,14 @@ bool ModelRenderer::render(const std::shared_ptr<Gdk::GLContext> &context) {
         glEnable(GL_DEPTH_TEST);
         m_matrices.viewMatrix = m_camera.get_view();
         m_matrices.invViewMatrix = glm::inverse(m_matrices.viewMatrix);
-        update_uniforms();
+        m_programs[0]->set_matrices(m_matrices);
+        m_programs[0]->set_planes(m_planes);
 
         draw_grid();
+
+        for(auto it = m_models.begin(); it != m_models.end(); it++) {
+            it->second->draw(m_programs, m_textures, m_matrices);
+        }
 
         glBindFramebuffer(GL_READ_FRAMEBUFFER, m_msaa_fbo);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gtk_fbo);
@@ -226,9 +235,6 @@ bool ModelRenderer::on_key_pressed(guint keyval, guint keycode, Gdk::ModifierTyp
 
 void ModelRenderer::on_key_released(guint keyval, guint keycode, Gdk::ModifierType state) {
     // todo: Add keyboard controls here...
-
-    // Allow propagation
-    //return false;
 }
 
 bool ModelRenderer::on_modifers(Gdk::ModifierType state) {
@@ -255,7 +261,7 @@ void ModelRenderer::on_mmb_released(int n_buttons, double x, double y) {
     modifiers_state &= state;
 }
 
-void ModelRenderer::init_buffers() {
+void ModelRenderer::create_grid() {
     std::vector<float> vertices = {
         1.0f, 1.0f, 0.0f,
         -1.0f, -1.0f, 0.0f,
@@ -279,15 +285,252 @@ void ModelRenderer::init_buffers() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * indices.size(), indices.data(), GL_STATIC_DRAW);
 
-    // glEnableVertexAttribArray(0);
-    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    // glDisableVertexAttribArray(0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 }
 
-static GLuint create_shader(int type, const char *src) {
+Texture::Texture(gli::texture tex, Semantic semantic)
+    : m_semantic(Parameter::texture_common_semantic(semantic))
+{
+    gli::gl GL(gli::gl::PROFILE_KTX);
+    gli::gl::format const format = GL.translate(tex.format(), tex.swizzles());
+    gli::gl::target const target = GL.translate(tex.target());
+    m_target = target;
+    glGenTextures(1, &m_texture);
+    glBindTexture(target, m_texture);
+    glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    switch(target) {
+    case GL_TEXTURE_1D:
+        glTexImage1D(target, 0, format.Internal, tex.extent().x, 0, format.External, format.Type, tex.data());
+        break;
+    case GL_TEXTURE_2D:
+        glTexImage2D(target, 0, format.Internal, tex.extent().x, tex.extent().y, 0, format.External, format.Type, tex.data());
+        break;
+    case GL_TEXTURE_3D:
+        glTexImage3D(target, 0, format.Internal, tex.extent().x, tex.extent().y, tex.extent().z, 0, format.External, format.Type, tex.data());
+        break;
+    case GL_TEXTURE_1D_ARRAY:
+        glTexImage2D(target, 0, format.Internal, tex.extent().x, tex.layers(), 0, format.External, format.Type, tex.data());
+        break;
+    case GL_TEXTURE_2D_ARRAY:
+        glTexImage3D(target, 0, format.Internal, tex.extent().x, tex.extent().y, tex.layers(), 0, format.External, format.Type, tex.data());
+        break;
+    case GL_TEXTURE_CUBE_MAP:
+        for(uint32_t i = 0; i < tex.faces(); i++) {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format.Internal, tex.extent().x, tex.extent().y, 0, format.External, format.Type, ((gli::texture_cube)tex)[i].data());
+        }
+        break;
+    }
+    glGenerateMipmap(target);
+    glBindTexture(target, 0);
+}
+
+Texture::~Texture() {
+    glDeleteTextures(1, &m_texture);
+}
+
+void Texture::bind() {
+    int32_t unit = get_unit();
+    if(unit < 0) {
+        spdlog::warn("Attempted to bind texture of unknown semantic");
+        return;
+    }
+    glActiveTexture(GL_TEXTURE0 + unit);
+    glBindTexture(m_target, m_texture);
+}
+
+int32_t Texture::get_unit() {
+    switch(m_semantic) {
+    case Parameter::WarpgateSemantic::DIFFUSE:
+        return 0;
+    case Parameter::WarpgateSemantic::NORMAL:
+        return 1;
+    case Parameter::WarpgateSemantic::SPECULAR:
+        return 2;
+    case Parameter::WarpgateSemantic::DETAILCUBE:
+        return 3;
+    case Parameter::WarpgateSemantic::DETAILMASK:
+        return 4;
+    default:
+        return -1;
+    }
+}
+
+GLboolean get_normalized(std::string type, std::string usage) {
+    if(type == "Float1") {
+        return GL_FALSE;
+    } else if(type == "Float2") {
+        return GL_FALSE;
+    } else if(type == "Float3") {
+        return GL_FALSE;
+    } else if(type == "Float4") {
+        return GL_FALSE;
+    } else if(type == "D3dcolor") {
+        if(usage == "BlendIndices") {
+            return GL_FALSE;
+        } else {
+            return GL_TRUE;
+        }
+    } else if(type == "ubyte4n") {
+        return GL_TRUE;
+    } else if(type == "Float16_2" || type == "float16_2") {
+        return GL_FALSE;
+    } else if(type == "Short2") {
+        return GL_TRUE;
+    } else if(type == "Short4") {
+        return GL_TRUE;
+    }
+
+    return GL_FALSE;
+}
+
+Shader::Shader(const std::filesystem::path vertex, const std::filesystem::path fragment) : m_good(false) {
+    std::string vertex_code;
+    std::string fragment_code;
+    std::ifstream vertex_file; 
+    std::ifstream fragment_file; 
+    vertex_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    fragment_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    try {
+        vertex_file.open(vertex);
+        fragment_file.open(fragment);
+        std::stringstream vertex_stream, fragment_stream;
+
+        vertex_stream << vertex_file.rdbuf();
+        fragment_stream << fragment_file.rdbuf();
+
+        vertex_file.close();
+        fragment_file.close();
+
+        vertex_code = vertex_stream.str();
+        fragment_code = fragment_stream.str();
+    } catch(std::ifstream::failure &e) {
+        spdlog::error("Failed to load shader: {}", e.what());
+        return;
+    }
+
+
+    GLuint vertex_shader = create_shader(GL_VERTEX_SHADER, (const char*)vertex_code.c_str());
+
+    if(vertex_shader == 0) {
+        return;
+    }
+
+    GLuint fragment_shader = create_shader(GL_FRAGMENT_SHADER, (const char*)fragment_code.c_str());
+
+    if(fragment_shader == 0) {
+        glDeleteShader(fragment_shader);
+        return;
+    }
+
+    m_program = glCreateProgram();
+    glAttachShader(m_program, vertex_shader);
+    glAttachShader(m_program, fragment_shader);
+
+    glLinkProgram(m_program);
+
+    int status;
+    glGetProgramiv(m_program, GL_LINK_STATUS, &status);
+    if(!status) {
+        int log_len;
+        glGetProgramiv(m_program, GL_INFO_LOG_LENGTH, &log_len);
+
+        std::string log_message(log_len + 1, ' ');
+        glGetProgramInfoLog(m_program, log_len, nullptr, log_message.data());
+
+        spdlog::error("Failed to link shader program:");
+        spdlog::error("Vertex: {}\n{}\n", vertex.string(), vertex_code);
+        spdlog::error("Fragment: {}\n{}\n", fragment.string(), fragment_code);
+        spdlog::error(log_message);
+
+        glDeleteProgram(m_program);
+        return;
+    }
+    glDetachShader(m_program, vertex_shader);
+    glDetachShader(m_program, fragment_shader);
+    glDeleteShader(vertex_shader);
+    glDeleteShader(fragment_shader);
+    m_good = true;
+
+    glGenBuffers(1, &m_ubo_matrices);
+    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), nullptr, GL_STATIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_ubo_matrices);
+
+    glGenBuffers(1, &m_ubo_planes);
+    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), nullptr, GL_STATIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_ubo_planes);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+Shader::~Shader() {
+    
+}
+
+bool Shader::good() const {
+    return m_good;
+}
+
+bool Shader::bad() const {
+    return !m_good;
+}
+
+void Shader::use() const {
+    glUseProgram(m_program);
+}
+
+void Shader::set_model(const glm::mat4& model) {
+    use();
+    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
+    glBufferSubData(GL_UNIFORM_BUFFER, offsetof(Uniform, modelMatrix), sizeof(model), glm::value_ptr(model));
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+void Shader::set_matrices(const Uniform& ubo) {
+    use();
+    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), &ubo, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+void Shader::set_planes(const GridUniform& planes) {
+    use();
+    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), &planes, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+// void Shader::init_uniforms() {
+//     glGenBuffers(1, &m_ubo_matrices);
+//     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
+//     glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), &m_matrices, GL_STATIC_DRAW);
+//     glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_ubo_matrices);
+
+//     glGenBuffers(1, &m_ubo_planes);
+//     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
+//     glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), &m_planes, GL_STATIC_DRAW);
+//     glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_ubo_planes);
+//     glBindBuffer(GL_UNIFORM_BUFFER, 0);
+// }
+
+// void ModelRenderer::update_uniforms() {
+//     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
+//     glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), &m_matrices, GL_STATIC_DRAW);
+    
+//     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
+//     glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), &m_planes, GL_STATIC_DRAW);
+//     glBindBuffer(GL_UNIFORM_BUFFER, 0);
+// }
+
+GLuint Shader::create_shader(int type, const char *src) {
     spdlog::debug("create shader from source:\n{}", src);
     GLuint shader = glCreateShader(type);
     glShaderSource(shader, 1, &src, nullptr);
@@ -312,83 +555,263 @@ static GLuint create_shader(int type, const char *src) {
     return shader;
 }
 
-GLuint ModelRenderer::create_shader_program(const std::filesystem::path vertex, const std::filesystem::path fragment) {
-    std::ifstream vertex_file(vertex, std::ios::ate);
-    if(!vertex_file) {
-        spdlog::error("Failed to load vertex shader {}", vertex.string());
-        return 0;
-    }
-    size_t length = vertex_file.tellg();
-    vertex_file.seekg(0);
-    std::unique_ptr<uint8_t[]> data;
-    try {
-        data = std::make_unique<uint8_t[]>(length + 1);
-    } catch(std::bad_alloc) {
-        spdlog::error("init_shaders: Failed to allocate memory for vertex shader!");
-        std::exit(1);
-    }
-    //memset(data.get(), 0, length + 1);
-    data[length] = 0;
-    vertex_file.read((char*)data.get(), length);
-    vertex_file.close();
+Mesh::Mesh(
+    std::shared_ptr<const warpgate::Mesh> mesh,
+    std::shared_ptr<const warpgate::Material> material,
+    nlohmann::json layout,
+    std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures,
+    std::shared_ptr<synthium::Manager> manager
 
-    GLuint vertex_shader = create_shader(GL_VERTEX_SHADER, (const char*)data.get());
+) : m_index_count(mesh->index_count())
+  , m_index_size(mesh->index_size() & 0xFF)
+  , material_hash(layout["hash"])
+  , material_name(layout["name"])
+{
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
 
-    if(vertex_shader == 0) {
-        return 0;
-    }
+    std::span<uint8_t> index_data = mesh->index_data();
 
-    std::ifstream fragment_file(fragment, std::ios::ate);
-    if(!fragment_file) {
-        spdlog::error("Failed to load fragment shader {}", fragment.string());
-        return 0;
-    }
-    length = fragment_file.tellg();
-    fragment_file.seekg(0);
-    try {
-        data = std::make_unique<uint8_t[]>(length + 1);
-    } catch(std::bad_alloc) {
-        spdlog::error("init_shaders: Failed to allocate memory for fragment shader!");
-        std::exit(1);
-    }
-    //memset(data.get(), 0, length + 1);
-    data[length] = 0;
-    fragment_file.read((char*)data.get(), length);
-    fragment_file.close();
+    glGenBuffers(1, &indices);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_data.size(), index_data.data(), GL_STATIC_DRAW);
 
-    GLuint fragment_shader = create_shader(GL_FRAGMENT_SHADER, (const char*)data.get());
-
-    if(fragment_shader == 0) {
-        glDeleteShader(vertex_shader);
-        return 0;
+    vertex_streams.resize(mesh->vertex_stream_count());
+    glGenBuffers(mesh->vertex_stream_count(), vertex_streams.data());
+    for(uint32_t vs_index = 0; vs_index < mesh->vertex_stream_count(); vs_index++) {
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_streams[vs_index]);
+        std::span<uint8_t> vs_data = mesh->vertex_stream(vs_index);
+        glBufferData(GL_ARRAY_BUFFER, vs_data.size(), vs_data.data(), GL_STATIC_DRAW);
     }
 
-    GLuint to_return = glCreateProgram();
-    glAttachShader(to_return, vertex_shader);
-    glAttachShader(to_return, fragment_shader);
+    std::unordered_map<uint32_t, uint32_t> stream_strides;
+        
+    uint32_t pointer = 0;
+    for(nlohmann::json entry : layout["entries"]) {
+        uint32_t vs_index = entry["stream"];
+        if(stream_strides.find(vs_index) == stream_strides.end()) {
+            stream_strides[vs_index] = 0;
+        }
+        int32_t stride = mesh->bytes_per_vertex(vs_index);
+        if(stream_strides[vs_index] >= stride) {
+            continue;
+        }
 
-    glLinkProgram(to_return);
-
-    int status;
-    glGetProgramiv(to_return, GL_LINK_STATUS, &status);
-    if(!status) {
-        int log_len;
-        glGetProgramiv(to_return, GL_INFO_LOG_LENGTH, &log_len);
-
-        std::string log_message(log_len + 1, ' ');
-        glGetProgramInfoLog(to_return, log_len, nullptr, log_message.data());
-
-        spdlog::error("Failed to link shader program:");
-        spdlog::error(log_message);
-
-        glDeleteProgram(to_return);
-        return 0;
+        uint32_t entry_size = utils::materials3::sizes[entry["type"]];
+        int32_t entry_count = utils::materials3::types[entry["type"]];
+        GLenum entry_type = utils::materials3::component_types[entry["type"]];
+        if(entry_type == GL_SHORT && entry["usage"] == "Texcoord") {
+            entry_type = GL_UNSIGNED_SHORT;
+        }
+        if(entry_type == GL_UNSIGNED_BYTE && (
+            entry["usage"] == "Binormal" ||
+            entry["usage"] == "Normal" ||
+            entry["usage"] == "Tangent" ||
+            entry["usage"] == "Position"
+        )) {
+            entry_type = GL_BYTE;
+        }
+        
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_streams[vs_index]);
+        glEnableVertexAttribArray(pointer);
+        GLboolean normalized = get_normalized(entry["type"], entry["usage"]);
+        void* offset = (void*)stream_strides[vs_index];
+        glVertexAttribPointer(pointer, entry_count, entry_type, normalized, stride, offset);
+        vertex_layouts.push_back(Layout{vs_index, pointer, entry_count, entry_type, normalized, stride, offset});
+        
+        pointer++;
+        stream_strides[vs_index] += entry_size;
     }
-    glDetachShader(to_return, vertex_shader);
-    glDetachShader(to_return, fragment_shader);
-    glDeleteShader(vertex_shader);
-    glDeleteShader(fragment_shader);
-    return to_return;
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    for(uint32_t param = 0; param < material->param_count(); param++) {
+        const warpgate::Parameter &parameter = material->parameter(param);
+        Parameter::D3DXParamType type = parameter.type();
+        switch(type) {
+        case warpgate::Parameter::D3DXParamType::TEXTURE1D:
+        case warpgate::Parameter::D3DXParamType::TEXTURE2D:
+        case warpgate::Parameter::D3DXParamType::TEXTURE3D:
+        case warpgate::Parameter::D3DXParamType::TEXTURE:
+        case warpgate::Parameter::D3DXParamType::TEXTURECUBE:
+            break;
+        default:
+            continue;
+        }
+
+
+        Parameter::WarpgateSemantic semantic = Parameter::texture_common_semantic(parameter.semantic_hash());
+        switch(semantic) {
+        case Parameter::WarpgateSemantic::DIFFUSE:
+        case Parameter::WarpgateSemantic::NORMAL:
+        case Parameter::WarpgateSemantic::SPECULAR:
+        case Parameter::WarpgateSemantic::DETAILCUBE:
+        case Parameter::WarpgateSemantic::DETAILMASK:
+            break;
+        default:
+            continue;
+        }
+
+        uint32_t texture_hash = parameter.get<uint32_t>(parameter.data_offset());
+        m_texture_hashes.push_back(texture_hash);
+        if(textures.find(texture_hash) != textures.end()) {
+            continue;
+        }
+
+        std::optional<std::string> texture_name = material->texture(parameter.semantic_hash());
+        if(!texture_name.has_value()) {
+            continue;
+        }
+
+        std::shared_ptr<synthium::Asset2> asset = manager->get(*texture_name);
+        std::vector<uint8_t> asset_data = asset->get_data();
+        gli::texture texture = gli::load_dds((char*)asset_data.data(), asset_data.size());
+        textures[texture_hash] = std::make_shared<Texture>(texture, parameter.semantic_hash());
+    }
+}
+
+Mesh::~Mesh() {
+    glDeleteBuffers(1, &indices);
+    glDeleteBuffers(vertex_streams.size(), vertex_streams.data());
+    glDeleteVertexArrays(1, &vao);
+}
+
+void Mesh::bind() const {
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices);
+    for(uint32_t i = 0; i < vertex_layouts.size(); i++) {
+        const Layout& layout = vertex_layouts[i];
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_streams[layout.vs_index]);
+        glEnableVertexAttribArray(layout.pointer);
+        glVertexAttribPointer(layout.pointer, layout.count, layout.type, layout.normalized, layout.stride, layout.offset);
+    }
+}
+
+std::vector<uint32_t> Mesh::get_texture_hashes() const {
+    return m_texture_hashes;
+}
+
+uint32_t Mesh::get_material_hash() const {
+    return material_hash;
+}
+
+uint32_t Mesh::index_count() const {
+    return m_index_count;
+}
+
+uint32_t Mesh::index_size() const {
+    return m_index_size;
+}
+
+std::pair<std::filesystem::path, std::filesystem::path> Mesh::get_shader_paths() const {
+    std::filesystem::path resources = "./resources";
+    std::filesystem::path vertex, fragment;
+    vertex = fragment = resources / "shaders" / material_name;
+    vertex.replace_extension("vert");
+    fragment.replace_extension("frag");
+    return std::make_pair(vertex, fragment);
+}
+
+Model::Model(
+    std::string name,
+    std::shared_ptr<warpgate::DME> dme,
+    std::unordered_map<uint32_t, std::shared_ptr<Shader>> &shaders,
+    std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures,
+    std::shared_ptr<synthium::Manager> manager
+) {
+    m_name = name;
+    m_uname.assign(name.c_str());
+    m_model = glm::identity<glm::mat4>();
+    std::shared_ptr<const warpgate::DMAT> dmat = dme->dmat();
+    for(uint32_t mesh_index = 0; mesh_index < dme->mesh_count(); mesh_index++) {
+        uint32_t material_definition = dmat->material(mesh_index)->definition();
+        std::string layout_name = utils::materials3::materials["materialDefinitions"][std::to_string(material_definition)]["drawStyles"][0]["inputLayout"];
+        
+        std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>(
+            dme->mesh(mesh_index),
+            dmat->material(mesh_index),
+            utils::materials3::materials["inputLayouts"][layout_name],
+            textures,
+            manager
+        );
+        
+        if(shaders.find(mesh->get_material_hash()) == shaders.end()) {
+            auto[vertex, fragment] = mesh->get_shader_paths();
+            std::shared_ptr<Shader> shader = std::make_shared<Shader>(vertex, fragment);
+            if(shader->bad()) {
+                continue;
+            }
+            shaders[mesh->get_material_hash()] = shader;
+        }
+        m_meshes.push_back(mesh);
+    }
+}
+
+Model::~Model() {
+    m_meshes.clear();
+}
+
+void Model::draw(
+    std::unordered_map<uint32_t, std::shared_ptr<Shader>> &shaders,
+    std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures,
+    const Uniform &ubo
+) const {
+    for(uint32_t i = 0; i < m_meshes.size(); i++) {
+        if(shaders.find(m_meshes[i]->get_material_hash()) == shaders.end()) {
+            continue;
+        }
+        shaders[m_meshes[i]->get_material_hash()]->use();
+        shaders[m_meshes[i]->get_material_hash()]->set_matrices(ubo);
+        shaders[m_meshes[i]->get_material_hash()]->set_model(m_model);
+
+        m_meshes[i]->bind();
+        std::vector<uint32_t> texture_hashes = m_meshes[i]->get_texture_hashes();
+        for(uint32_t j = 0; j < texture_hashes.size(); j++) {
+            if(textures.find(texture_hashes[j]) == textures.end()) {
+                continue;
+            }
+            textures[texture_hashes[j]]->bind();
+        }
+
+        glDrawElements(GL_TRIANGLES, m_meshes[i]->index_count(), m_meshes[i]->index_size() == 4 ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT, 0);
+    }
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+Glib::ustring Model::uname() const {
+    return m_uname;
+}
+
+std::string Model::name() const {
+    return m_name;
+}
+
+std::shared_ptr<const Mesh> Model::mesh(uint32_t index) const {
+    return m_meshes[index];
+}
+
+size_t Model::mesh_count() const {
+    return m_meshes.size();
+}
+
+void ModelRenderer::load_model(std::string name, std::shared_ptr<warpgate::DME> dme, std::shared_ptr<synthium::Manager> manager) {
+    if(m_models.find(name) != m_models.end()) {
+        spdlog::warn("{} already loaded", name);
+        return;
+    }
+    std::shared_ptr<Model> model = std::make_shared<Model>(name, dme, m_programs, m_textures, manager);
+    m_models[name] = model;
+}
+
+void ModelRenderer::destroy_model(std::string name) {
+    if(m_models.find(name) == m_models.end()) {
+        spdlog::warn("{} already destroyed", name);
+        return;
+    }
+    m_models.erase(name);
 }
 
 void ModelRenderer::calculateMatrices(int width, int height) {
@@ -402,41 +825,16 @@ void ModelRenderer::calculateMatrices(int width, int height) {
     m_matrices.invViewMatrix = glm::inverse(m_matrices.viewMatrix);
 }
 
-void ModelRenderer::init_uniforms() {
-    glGenBuffers(1, &m_ubo_matrices);
-    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), &m_matrices, GL_STATIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_ubo_matrices);
-
-    glGenBuffers(1, &m_ubo_planes);
-    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), &m_planes, GL_STATIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_ubo_planes);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-}
-
-void ModelRenderer::update_uniforms() {
-    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), &m_matrices, GL_STATIC_DRAW);
-    
-    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), &m_planes, GL_STATIC_DRAW);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-}
-
 void ModelRenderer::draw_grid() {
-    glUseProgram(m_program);
-
+    m_programs[0]->use();
+    glBindVertexArray(m_vao);
     glBindBuffer(GL_ARRAY_BUFFER, m_buffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ebo);
-
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-    glDisableVertexAttribArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
     glUseProgram(0);
 }

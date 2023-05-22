@@ -65,6 +65,20 @@ namespace warpgate {
         //     UNKNOWN = 0
         // };
 
+        enum class WarpgateSemantic {
+            UNKNOWN,
+            DIFFUSE,
+            SPECULAR,
+            NORMAL,
+            DETAILMASK,
+            DETAILCUBE,
+            EMISSIVE,
+            BLENDMASK,
+            OVERLAY,
+            DECAL,
+            TILINGTINT
+        };
+
         mutable std::span<uint8_t> buf_;
 
         Parameter(std::span<uint8_t> subspan);
@@ -95,6 +109,8 @@ namespace warpgate {
         uint32_t data_offset() const;
         static std::string semantic_texture_type(int32_t semantic);
         static std::string semantic_texture_type(Semantic semantic);
+        static WarpgateSemantic texture_common_semantic(int32_t semantic);
+        static WarpgateSemantic texture_common_semantic(Semantic semantic);
     };
 }
 

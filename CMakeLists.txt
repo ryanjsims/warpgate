@@ -208,10 +208,23 @@ if(${BUILD_WARPGATE_GUI})
     src/utils/gtk/model_renderer.cpp
     src/utils/gtk/window.cpp
     src/utils/adr.cpp
+    src/utils/materials_3.cpp
   )
 
   target_link_directories(warpgate_gtk PRIVATE ${GTKMM_LIBRARY_DIRS} ${EPOXY_LIBRARY_DIRS})
-  target_link_libraries(warpgate_gtk PRIVATE gli synthium::synthium dme_loader mrn_loader spdlog::spdlog tinygltf ${PUGIXML_LINKED_LIBRARY} ${GTKMM_LIBRARIES} ${EPOXY_LIBRARIES} ${Vulkan_LIBRARY})
+  target_link_libraries(warpgate_gtk 
+    PRIVATE 
+      gli 
+      synthium::synthium
+      dme_loader
+      mrn_loader
+      spdlog::spdlog
+      tinygltf
+      ${PUGIXML_LINKED_LIBRARY}
+      ${GTKMM_LIBRARIES}
+      ${EPOXY_LIBRARIES}
+      ${Vulkan_LIBRARY}
+  )
   target_include_directories(warpgate_gtk PRIVATE include/ lib/external/half/include/ ${GTKMM_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIR})
   target_compile_options(warpgate_gtk PRIVATE ${GTKMM_CFLAGS_OTHER} ${EPOXY_CFLAGS_OTHER})
   copy_gtk_dlls(warpgate_gtk)

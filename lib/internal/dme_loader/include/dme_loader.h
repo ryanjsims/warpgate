@@ -10,3 +10,4 @@
 #include "ps2_bone_map.h"
 #include "structs.h"
 #include "vertexstream.h"
+#include "utils.h"

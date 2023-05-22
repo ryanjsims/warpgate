@@ -12,6 +12,7 @@
 #include <giomm/datainputstream.h>
 
 #include <dme_loader.h>
+#include <mrn_loader.h>
 #include "utils/adr.h"
 
 using namespace warpgate::gtk;
@@ -21,10 +22,12 @@ public:
     enum class ItemType {
         UNKNOWN,
         ACTOR_RUNTIME,
+        ANIMATION,
         ANIMATION_NETWORK,
         ANIMATION_SET,
         MODEL,
-        PALETTE
+        PALETTE,
+        TEXTURE
     };
     Glib::ustring m_name, m_namehash_str;
     std::string m_stdname, m_stdnamehash_str;
@@ -198,22 +201,14 @@ void Window::on_bind_listitem(const std::shared_ptr<Gtk::ListItem>& list_item) {
     auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(list_item->get_item());
     if (!row)
         return;
-    spdlog::debug("after row");
-    // Only leaves in the tree can be selected.
-    list_item->set_selectable(true); // 18ms
-    spdlog::debug("set selectable");
+    list_item->set_selectable(true);
     auto col = std::dynamic_pointer_cast<Asset2ListItem>(row->get_item());
-    spdlog::debug("get item");
     if (!col)
         return;
-    spdlog::debug("after col");
     auto expander = dynamic_cast<Gtk::TreeExpander*>(list_item->get_child());
-    spdlog::debug("get li child");
     if (!expander)
         return;
-    spdlog::debug("check expander");
-    expander->set_list_row(row); // 17ms
-    spdlog::debug("set expander row");
+    expander->set_list_row(row);
     auto label = dynamic_cast<Gtk::Label*>(expander->get_child());
     if (!label)
         return;
@@ -222,7 +217,6 @@ void Window::on_bind_listitem(const std::shared_ptr<Gtk::ListItem>& list_item) {
     } else {
         label->set_text(col->m_namehash_str);
     }
-    spdlog::debug("after label\n");
 }
 
 std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib::ObjectBase>& item) {
@@ -295,6 +289,56 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
                     *base_palette_name,
                     Asset2ListItem::ItemType::PALETTE,
                     &(*base_palette)
+                )
+            );
+        }
+    } else if(col && col->m_type == Asset2ListItem::ItemType::ANIMATION_NETWORK) {
+        std::filesystem::path path(col->m_stdname);
+        std::string stem = path.stem().string();
+        std::string name;
+        if(utils::lowercase(stem.substr(stem.size() - 3)) != "x64") {
+            name = stem + "x64" + path.extension().string();
+        } else {
+            name = col->m_stdname;
+        }
+        if(!m_manager->contains(name)) {
+            return result;
+        }
+        std::vector<uint8_t> data = m_manager->get(name)->get_data();
+        warpgate::mrn::MRN mrn;
+        try {
+            mrn = warpgate::mrn::MRN(data, name);
+        } catch(std::runtime_error e) {
+            spdlog::error("While loading {}: {}", name, e.what());
+            return result;
+        }
+        
+        result = Gio::ListStore<Asset2ListItem>::create();
+        std::vector<std::string> anim_names = mrn.file_names()->files()->filenames()->strings();
+        for(auto it = anim_names.begin(); it != anim_names.end(); it++) {
+            std::string value = *it;
+            result->append(
+                Asset2ListItem::create(
+                    value,
+                    Asset2ListItem::ItemType::ANIMATION
+                )
+            );
+        }
+    } else if(col && col->m_type == Asset2ListItem::ItemType::PALETTE) {
+        if(!m_manager->contains(col->m_stdname)) {
+            return result;
+        }
+        std::vector<uint8_t> data = m_manager->get(col->m_stdname)->get_data();
+        warpgate::DMAT dmat(data);
+
+        result = Gio::ListStore<Asset2ListItem>::create();
+        std::vector<std::string> texture_names = dmat.textures();
+        for(auto it = texture_names.begin(); it != texture_names.end(); it++) {
+            std::string value = *it;
+            result->append(
+                Asset2ListItem::create(
+                    value,
+                    Asset2ListItem::ItemType::TEXTURE
                 )
             );
         }

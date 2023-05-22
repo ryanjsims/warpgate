@@ -15,6 +15,17 @@ std::string utils::uppercase(const std::string input) {
     return temp;
 }
 
+std::string utils::lowercase(const std::string input) {
+    std::string temp = input;
+    std::transform(temp.begin(), temp.end(), temp.begin(), [](const char value) -> char {
+        if(value >= 'A' && value <= 'Z') {
+            return value + (char)('a' - 'A');
+        }
+        return value;
+    });
+    return temp;
+}
+
 void utils::normalize(float vector[3]) {
     float length = std::sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
     if(std::fabs(length) > 0) {

@@ -29,6 +29,10 @@ Header::ref<uint32_t> Header::data_length() const {
 }
 
 Header::ref<uint32_t> Header::alignment() const {
+    uint32_t val = get<uint32_t>(36);
+    if(val == 0) {
+        throw std::runtime_error("Alignment value was zero!");
+    }
     return get<uint32_t>(36);
 }
 
