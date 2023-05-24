@@ -65,12 +65,10 @@ protected:
     }
 };
 
-
-
 Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", Gtk::FileChooser::Action::OPEN) {
     set_title("Warpgate");
     set_default_size(1280, 960);
-    set_child(m_vbox);
+    set_child(m_box_root);
 
     auto win_menu = Gio::Menu::create();
 
@@ -114,45 +112,52 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     m_menubar.set_can_focus(false);
     m_menubar.set_focusable(false);
 
-    m_vbox.append(m_menubar);
-    m_vbox.append(m_pane);
+    m_box_root.append(m_menubar);
+    m_box_root.append(m_pane_root);
+    m_box_root.append(m_status_bar);
+
+    m_pane_lists.set_orientation(Gtk::Orientation::VERTICAL);
     
     auto factory = Gtk::SignalListItemFactory::create();
-    factory->signal_setup().connect(sigc::mem_fun(*this, &Window::on_setup_listitem));
-    factory->signal_bind().connect(sigc::mem_fun(*this, &Window::on_bind_listitem));
+    factory->signal_setup().connect(sigc::mem_fun(*this, &Window::on_setup_namelist_item));
+    factory->signal_bind().connect(sigc::mem_fun(*this, &Window::on_bind_namelist_item));
 
-    auto root = create_model();
+    auto root = create_namelist_model();
 
-    m_files_tree = Gtk::TreeListModel::create(root, sigc::mem_fun(*this, &Window::create_model), false, false);
-    m_singleselection = Gtk::SingleSelection::create(m_files_tree);
-    m_singleselection->signal_selection_changed().connect(sigc::mem_fun(*this, &Window::on_selection_changed));
+    m_tree_namelist = Gtk::TreeListModel::create(root, sigc::mem_fun(*this, &Window::create_namelist_model), false, false);
+    m_select_namelist = Gtk::SingleSelection::create(m_tree_namelist);
+    m_select_namelist->signal_selection_changed().connect(sigc::mem_fun(*this, &Window::on_namelist_selection_changed));
 
-    m_files_view.set_model(m_singleselection);
-    m_files_view.set_factory(factory);
-    m_files_view.signal_activate().connect(sigc::mem_fun(*this, &Window::on_listview_row_activated));
+    m_view_namelist.set_model(m_select_namelist);
+    m_view_namelist.set_factory(factory);
+    m_view_namelist.signal_activate().connect(sigc::mem_fun(*this, &Window::on_namelist_row_activated));
 
-    m_files_view.set_size_request(200, -1);
+    m_view_namelist.set_size_request(200, -1);
 
-    m_files_pane.set_child(m_files_view);
-    m_files_pane.set_can_focus(false);
-    m_files_pane.set_focusable(false);
-    m_pane.set_start_child(m_files_pane);
-    m_pane.set_end_child(m_renderer.get_area());
+    m_scroll_namelist.set_child(m_view_namelist);
+    m_scroll_namelist.set_can_focus(false);
+    m_scroll_namelist.set_focusable(false);
+    m_scroll_namelist.set_vexpand(true);
+    
+    m_label_namelist.set_margin(5);
 
-    load_manager = std::jthread([&](){
-        std::filesystem::path server("C:/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/");
-        std::vector<std::filesystem::path> assets;
-        for(int i = 0; i < 24; i++) {
-            assets.push_back(server / ("assets_x64_" + std::to_string(i) + ".pack2"));
-        }
-        try {
-            m_manager = std::make_shared<synthium::Manager>(assets);
-            on_manager_loaded(true);
-        } catch(std::exception &e) {
-            spdlog::error("Failed to load manager: {}", e.what());
-            on_manager_loaded(false);
-        }
-    });
+    m_search_namelist.set_placeholder_text("Filter...");
+    m_box_namelist.append(m_label_namelist);
+    m_box_namelist.append(m_search_namelist);
+    m_box_namelist.append(m_scroll_namelist);
+    m_pane_lists.set_start_child(m_box_namelist);
+
+    m_label_modellist.set_margin(5);
+
+    m_box_modellist.append(m_label_modellist);
+    m_pane_lists.set_end_child(m_box_modellist);
+
+    m_pane_root.set_start_child(m_pane_lists);
+    m_pane_root.set_end_child(m_renderer.get_area());
+
+    //Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_load_manager));
+    load_manager = std::jthread(sigc::mem_fun(*this, &Window::on_idle_load_manager));
+    m_status_bar.push("Loading Manager...");
 }
 
 Window::~Window() {
@@ -160,34 +165,25 @@ Window::~Window() {
 }
 
 void Window::on_manager_loaded(bool success) {
-    if(success)
+    if(success) {
         spdlog::info("Manager loaded");
-    else
-        spdlog::error("Manager failed to load");
+        m_status_bar.push("Manager loaded");
+    } else {
+        m_status_bar.push("Manager failed to load");
+    }
 }
 
 
-void Window::on_setup_listitem(const std::shared_ptr<Gtk::ListItem>& list_item) {
-    //spdlog::info("on_setup_listitem");
+void Window::on_setup_namelist_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
+    spdlog::trace("on_setup_namelist_item");
     auto expander = Gtk::make_managed<Gtk::TreeExpander>();
     auto label = Gtk::make_managed<Gtk::Label>();
     expander->set_child(*label);
     list_item->set_child(*expander);
 }
 
-/*
-[2023-05-20 14:00:44.417] [info] on_bind_listitem
-[2023-05-20 14:00:44.417] [info] after row
-[2023-05-20 14:00:44.435] [info] set selectable
-[2023-05-20 14:00:44.436] [info] get item
-[2023-05-20 14:00:44.444] [info] after col
-[2023-05-20 14:00:44.446] [info] get li child
-[2023-05-20 14:00:44.463] [info] set expander row
-[2023-05-20 14:00:44.464] [info] after label
-*/
-
-void Window::on_bind_listitem(const std::shared_ptr<Gtk::ListItem>& list_item) {
-    spdlog::debug("on_bind_listitem");
+void Window::on_bind_namelist_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
+    spdlog::trace("on_bind_namelist_item");
     auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(list_item->get_item());
     if (!row)
         return;
@@ -209,8 +205,19 @@ void Window::on_bind_listitem(const std::shared_ptr<Gtk::ListItem>& list_item) {
     }
 }
 
-std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib::ObjectBase>& item) {
-    spdlog::debug("Create model");
+void Window::on_setup_models_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
+    spdlog::trace("on_setup_models_item");
+    auto label = Gtk::make_managed<Gtk::Label>();
+    list_item->set_child(*label);
+}
+
+void Window::on_bind_models_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
+    spdlog::trace("on_bind_models_item");
+    //auto row = 
+}
+
+std::shared_ptr<Gio::ListModel> Window::create_namelist_model(const std::shared_ptr<Glib::ObjectBase>& item) {
+    spdlog::trace("Create model");
     auto col = std::dynamic_pointer_cast<Asset2ListItem>(item);
     
     std::shared_ptr<Gio::ListStore<Asset2ListItem>> result;
@@ -336,8 +343,8 @@ std::shared_ptr<Gio::ListModel> Window::create_model(const std::shared_ptr<Glib:
     return result;
 }
 
-void Window::on_selection_changed(uint32_t idx, uint32_t length) {
-    auto item = m_singleselection->get_selected_item();
+void Window::on_namelist_selection_changed(uint32_t idx, uint32_t length) {
+    auto item = m_select_namelist->get_selected_item();
     auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(item);
     if (!row)
         return;
@@ -347,8 +354,8 @@ void Window::on_selection_changed(uint32_t idx, uint32_t length) {
     spdlog::info("Selected {}", col->m_stdname.size() > 0 ? col->m_stdname : col->m_stdnamehash_str);
 }
 
-void Window::on_listview_row_activated(uint32_t index) {
-    auto item = std::dynamic_pointer_cast<Gio::ListModel>(m_files_view.get_model())->get_object(index);
+void Window::on_namelist_row_activated(uint32_t index) {
+    auto item = std::dynamic_pointer_cast<Gio::ListModel>(m_view_namelist.get_model())->get_object(index);
     auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(item);
     if (!row)
         return;
@@ -402,13 +409,29 @@ void Window::on_file_dialog_signal_response(int response) {
     }
 
     Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_load_namelist));
-    m_files_view.set_sensitive(false);
+    m_view_namelist.set_sensitive(false);
+}
+
+bool Window::on_idle_load_manager() {
+    std::filesystem::path server("C:/Users/Public/Daybreak Game Company/Installed Games/Planetside 2 Test/Resources/Assets/");
+    std::vector<std::filesystem::path> assets;
+    for(int i = 0; i < 24; i++) {
+        assets.push_back(server / ("assets_x64_" + std::to_string(i) + ".pack2"));
+    }
+    try {
+        m_manager = std::make_shared<synthium::Manager>(assets);
+        on_manager_loaded(true);
+    } catch(std::exception &e) {
+        spdlog::error("Failed to load manager: {}", e.what());
+        on_manager_loaded(false);
+    }
+    return false;
 }
 
 bool Window::on_idle_load_namelist() {
-    m_files_tree = Gtk::TreeListModel::create(create_model(), sigc::mem_fun(*this, &Window::create_model), false, false);
-    m_singleselection->set_model(m_files_tree);
-    m_files_view.set_sensitive(true);
+    m_tree_namelist = Gtk::TreeListModel::create(create_namelist_model(), sigc::mem_fun(*this, &Window::create_namelist_model), false, false);
+    m_select_namelist->set_model(m_tree_namelist);
+    m_view_namelist.set_sensitive(true);
     return false;
 }
 

@@ -6,7 +6,7 @@ add_subdirectory(gli)
 
 add_subdirectory(glob)
 
-if(${BUILD_WARPGATE_GUI})
+if(${BUILD_WARPGATE_HIKOGUI})
     add_subdirectory(hikogui)
 endif()
 

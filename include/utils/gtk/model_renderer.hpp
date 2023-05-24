@@ -38,6 +38,8 @@ namespace warpgate::gtk {
         Gtk::GLArea &get_area();
         void load_model(std::string name, AssetType type, std::shared_ptr<synthium::Manager> manager);
         void destroy_model(std::string name);
+
+        std::vector<std::string> get_model_names() const;
     
     protected:
         Gdk::ModifierType modifiers_state {0};

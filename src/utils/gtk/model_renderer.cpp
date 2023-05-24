@@ -369,6 +369,14 @@ void ModelRenderer::destroy_model(std::string name) {
     m_models.erase(name);
 }
 
+std::vector<std::string> ModelRenderer::get_model_names() const {
+    std::vector<std::string> to_return;
+    std::for_each(m_models.begin(), m_models.end(), [&to_return](std::pair<std::string, std::shared_ptr<Model>> kv_pair){
+        to_return.push_back(kv_pair.first);
+    });
+    return to_return;
+}
+
 void ModelRenderer::calculateMatrices(int width, int height) {
     m_planes.near_plane = 0.01f;
     m_planes.far_plane = 100.0f;

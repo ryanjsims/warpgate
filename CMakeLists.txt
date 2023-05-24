@@ -11,12 +11,15 @@ endif()
 
 set(MATERIALS_JSON_PORTABLE 1 CACHE BOOL "")
 set(CMAKE_VERBOSE_MAKEFILE 0 CACHE BOOL "")
-set(BUILD_WARPGATE_GUI 0 CACHE BOOL "Enable experimental Warpgate GUI target. Requires Vulkan and Hikogui")
+set(BUILD_WARPGATE_HIKOGUI 0 CACHE BOOL "Enable experimental Warpgate Hikogui target. Requires Vulkan and Hikogui")
+set(BUILD_WARPGATE_GUI 0 CACHE BOOL "Enable experimental Warpgate GTK target. Requires pkg-config files and dynamic libraries for gtkmm4.0 and dependencies (see FindGTKMM.cmake)")
 
 add_subdirectory(lib)
 
-if(${BUILD_WARPGATE_GUI})
+if(${BUILD_WARPGATE_HIKOGUI})
   find_package(Vulkan REQUIRED)
+endif()
+if(${BUILD_WARPGATE_GUI})
   include(cmake/FindGTKMM.cmake)
 endif()
 
@@ -157,9 +160,9 @@ add_executable(mrn_converter
 target_include_directories(mrn_converter PUBLIC include/)
 target_link_libraries(mrn_converter PRIVATE argparse Glob gli mrn_loader spdlog::spdlog synthium::synthium tinygltf)
 
-if(${BUILD_WARPGATE_GUI})
-  add_executable(warpgate WIN32 
-    src/warpgate.cpp
+if(${BUILD_WARPGATE_HIKOGUI})
+  add_executable(warpgate_hi WIN32 
+    src/warpgate_hi.cpp
     src/utils/vulkan/model_renderer.cpp
     src/utils/hikogui/widgets/model_widget.cpp
     src/utils/materials_3.cpp
@@ -192,7 +195,8 @@ if(${BUILD_WARPGATE_GUI})
       hikogui vulkan_warpgate_shaders
       resources/warpgate.png
   )
-
+endif()
+if(${BUILD_WARPGATE_GUI})
   add_executable(hello_gtk WIN32
     src/hello_gtk.cpp  
   )
@@ -203,8 +207,8 @@ if(${BUILD_WARPGATE_GUI})
   target_compile_options(hello_gtk PRIVATE ${GTKMM_CFLAGS_OTHER})
   copy_gtk_dlls(hello_gtk)
 
-  add_executable(warpgate_gtk
-    src/warpgate_gtk.cpp
+  add_executable(warpgate
+    src/warpgate.cpp
     src/utils/gtk/common.cpp
     src/utils/gtk/mesh.cpp
     src/utils/gtk/model_renderer.cpp
@@ -216,8 +220,8 @@ if(${BUILD_WARPGATE_GUI})
     src/utils/materials_3.cpp
   )
 
-  target_link_directories(warpgate_gtk PRIVATE ${GTKMM_LIBRARY_DIRS} ${EPOXY_LIBRARY_DIRS})
-  target_link_libraries(warpgate_gtk 
+  target_link_directories(warpgate PRIVATE ${GTKMM_LIBRARY_DIRS} ${EPOXY_LIBRARY_DIRS})
+  target_link_libraries(warpgate 
     PRIVATE 
       gli 
       synthium::synthium
@@ -230,15 +234,15 @@ if(${BUILD_WARPGATE_GUI})
       ${EPOXY_LIBRARIES}
       ${Vulkan_LIBRARY}
   )
-  target_include_directories(warpgate_gtk PRIVATE include/ lib/external/half/include/ ${GTKMM_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIR})
-  target_compile_options(warpgate_gtk PRIVATE ${GTKMM_CFLAGS_OTHER} ${EPOXY_CFLAGS_OTHER})
-  copy_gtk_dlls(warpgate_gtk)
+  target_include_directories(warpgate PRIVATE include/ lib/external/half/include/ ${GTKMM_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIR})
+  target_compile_options(warpgate PRIVATE ${GTKMM_CFLAGS_OTHER} ${EPOXY_CFLAGS_OTHER})
+  copy_gtk_dlls(warpgate)
 
   add_custom_target(opengl_warpgate_resources
       COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/utils/vulkan/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
   )
 
-  add_dependencies(warpgate_gtk opengl_warpgate_resources)
+  add_dependencies(warpgate opengl_warpgate_resources)
 endif()
     
 add_executable(zone_converter 
@@ -284,6 +288,6 @@ add_dependencies(test_dme version)
 add_dependencies(test_mrn version)
 add_dependencies(test_zone version)
 
-if(${BUILD_WARPGATE_GUI})
-  add_dependencies(warpgate vulkan_warpgate_resources version)
+if(${BUILD_WARPGATE_HIKOGUI})
+  add_dependencies(warpgate_hi vulkan_warpgate_resources version)
 endif()
