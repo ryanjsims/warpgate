@@ -139,10 +139,6 @@ void ModelRenderer::unrealize() {
         glDeleteTextures(1, &m_msaa_depth_tex);
         glDeleteTextures(1, &m_msaa_tex);
         glDeleteFramebuffers(1, & m_msaa_fbo);
-
-        glDeleteTextures(1, &m_grid_depth_tex);
-        glDeleteTextures(1, &m_grid_tex);
-        glDeleteFramebuffers(1, & m_grid_fbo);
     } catch(const Gdk::GLError &gle) {
         spdlog::error("ModelRenderer::unrealize:");
         spdlog::error("{} - {} - {}", g_quark_to_string(gle.domain()), gle.code(), gle.what());
@@ -165,28 +161,16 @@ bool ModelRenderer::render(const std::shared_ptr<Gdk::GLContext> &context) {
         for(auto it = m_models.begin(); it != m_models.end(); it++) {
             it->second->draw(m_programs, m_textures, m_matrices, m_planes);
         }
-
-        glFlush();
         
-        glBindFramebuffer(GL_FRAMEBUFFER, m_grid_fbo);
-        glEnable(GL_BLEND);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glCheckError("Set Grid FBO");
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, m_msaa_depth_tex);
-        glCheckError("Set depth sampler");
-        glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, m_msaa_tex);
-        glCheckError("Set color sampler");
-
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
         m_programs[0]->set_matrices(m_matrices);
         m_programs[0]->set_planes(m_planes);
         draw_grid();
         glCheckError("Draw grid");
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_grid_fbo);
+        
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_msaa_fbo);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gtk_fbo);
         glBlitFramebuffer(0, 0, viewport.width, viewport.height, 0, 0, viewport.width, viewport.height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
         glCheckError("Blit grid fbo");
@@ -237,19 +221,8 @@ void ModelRenderer::on_resize(int width, int height) {
     if(m_msaa_fbo != 0) {
         glDeleteFramebuffers(1, &m_msaa_fbo);
     }
-
-    if(m_grid_depth_tex != 0) {
-        glDeleteTextures(1, &m_grid_depth_tex);
-    }
-    if(m_grid_tex != 0) {
-        glDeleteTextures(1, &m_grid_tex);
-    }
-    if(m_grid_fbo != 0) {
-        glDeleteFramebuffers(1, &m_grid_fbo);
-    }
     
     std::tie(m_msaa_fbo, m_msaa_tex, m_msaa_depth_tex) = generate_msaa_framebuffer(16, viewport.width, viewport.height);
-    std::tie(m_grid_fbo, m_grid_tex, m_grid_depth_tex) = generate_msaa_framebuffer(16, viewport.width, viewport.height);
 
     glBindFramebuffer(GL_FRAMEBUFFER, gtk_fbo);
 }

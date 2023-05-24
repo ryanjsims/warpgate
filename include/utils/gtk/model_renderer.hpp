@@ -179,9 +179,6 @@ namespace warpgate::gtk {
         GLuint m_msaa_fbo = 0;
         GLuint m_msaa_tex = 0;
         GLuint m_msaa_depth_tex = 0;
-        GLuint m_grid_fbo = 0;
-        GLuint m_grid_tex = 0;
-        GLuint m_grid_depth_tex = 0;
         GLuint m_vao = 0;
         GLuint m_ebo = 0;
         GLuint m_buffer = 0;
