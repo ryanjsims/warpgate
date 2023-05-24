@@ -205,7 +205,12 @@ if(${BUILD_WARPGATE_GUI})
 
   add_executable(warpgate_gtk
     src/warpgate_gtk.cpp
+    src/utils/gtk/common.cpp
+    src/utils/gtk/mesh.cpp
     src/utils/gtk/model_renderer.cpp
+    src/utils/gtk/model.cpp
+    src/utils/gtk/shader.cpp
+    src/utils/gtk/texture.cpp
     src/utils/gtk/window.cpp
     src/utils/adr.cpp
     src/utils/materials_3.cpp
