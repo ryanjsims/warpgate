@@ -41,11 +41,23 @@ layout (location = 2) in vec2 inTexcoord2;
 
 layout (location = 0) out vec4 outFragColor;
 
+float near = 0.1;
+float far = 10.0;
+
+float linear_depth(float depth) {
+  float z = depth * 2.0 - 1.0; // back to NDC 
+  return (2.0 * near * far) / (far + near - z * (far - near));
+}
+
 void main() 
 {
-  vec4 normalSample = texture(normalSampler, inTexcoord0);
-  float primary = float(normalSample.b < 0.25);
-  float secondary = float(normalSample.r < 0.25);
-  vec4 mixed_primary = mix(texture(diffuseSampler, inTexcoord0), vec4(primaries[ubo.faction], 1.0), primary);
-  outFragColor = mix(mixed_primary, vec4(secondaries[ubo.faction], 1.0), secondary);
+  // vec4 normalSample = texture(normalSampler, inTexcoord0);
+  // float primary = float(normalSample.b < 0.25);
+  // float secondary = float(normalSample.r < 0.25);
+  // vec4 mixed_primary = mix(texture(diffuseSampler, inTexcoord0), vec4(primaries[ubo.faction], 1.0), primary);
+  // outFragColor = mix(mixed_primary, vec4(secondaries[ubo.faction], 1.0), secondary);
+  outFragColor = texture(diffuseSampler, inTexcoord0);
+  // outFragColor.a = 1.0;
+  // float depth = linear_depth(gl_FragCoord.z) / far;
+  // outFragColor = vec4(vec3(depth), 1.0);
 }

@@ -13,6 +13,7 @@
 #include <string>
 #include <fstream>
 #include <vector>
+#include <tuple>
 #include <unordered_map>
 #include <exception>
 #include <filesystem>
@@ -49,6 +50,7 @@ namespace warpgate::gtk {
         ~Texture();
     
         void bind();
+        void unbind();
     private:
         GLuint m_texture;
         Parameter::WarpgateSemantic m_semantic;
@@ -96,6 +98,7 @@ namespace warpgate::gtk {
         std::vector<uint32_t> get_texture_hashes() const;
 
         void bind() const;
+        void unbind() const;
         uint32_t index_count() const;
         uint32_t index_size() const;
 
@@ -133,7 +136,8 @@ namespace warpgate::gtk {
         void draw(
             std::unordered_map<uint32_t, std::shared_ptr<Shader>> &shaders,
             std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures,
-            const Uniform &ubo
+            const Uniform &ubo,
+            const GridUniform &planes
         ) const;
         Glib::ustring uname() const;
         std::string name() const;
@@ -174,7 +178,10 @@ namespace warpgate::gtk {
         GLint gtk_fbo = 0;
         GLuint m_msaa_fbo = 0;
         GLuint m_msaa_tex = 0;
-        GLuint m_msaa_rbo = 0;
+        GLuint m_msaa_depth_tex = 0;
+        GLuint m_grid_fbo = 0;
+        GLuint m_grid_tex = 0;
+        GLuint m_grid_depth_tex = 0;
         GLuint m_vao = 0;
         GLuint m_ebo = 0;
         GLuint m_buffer = 0;
@@ -194,6 +201,15 @@ namespace warpgate::gtk {
         bool on_modifers(Gdk::ModifierType state);
         void on_mmb_pressed(int n_buttons, double x, double y);
         void on_mmb_released(int n_buttons, double x, double y);
+
+        /**
+         * generate_msaa_framebuffer(uint32_t samples)
+         * 
+         * Generates a framebuffer, texture, depth texture triplet with <samples>x multisampling
+         * 
+         * @returns std::tuple of framebuffer, texture, and depth texture names
+         */
+        std::tuple<GLuint, GLuint, GLuint> generate_msaa_framebuffer(uint32_t samples, uint32_t width, uint32_t height);
 
         void create_grid();
 

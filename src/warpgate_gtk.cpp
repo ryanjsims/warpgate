@@ -2,6 +2,101 @@
 #include <gtkmm/application.h>
 #include <gtkmm/settings.h>
 
+#include <chrono>
+#include <windows.h>
+#include "utils/renderdoc_app.h"
+
+using namespace std::chrono_literals;
+
+class RenderDoc {
+public:
+    RenderDoc() {
+         auto dll_urls = std::vector{
+            std::filesystem::path{"renderdoc.dll"},
+            std::filesystem::path{"C:/Program Files/RenderDoc/renderdoc.dll"},
+            std::filesystem::path{"C:/Program Files (x86)/RenderDoc/renderdoc.dll"}};
+
+        auto mod = [&]() -> HMODULE {
+            for (auto& dll_url : dll_urls) {
+                spdlog::debug("Trying to load: {}", dll_url.string());
+
+                if (auto mod = LoadLibraryW(dll_url.native().c_str())) {
+                    return mod;
+                }
+            }
+            return nullptr;
+        }();
+
+        if (mod == nullptr) {
+            spdlog::warn("Could not load renderdoc.dll");
+            return;
+        }
+
+        auto RENDERDOC_GetAPI = (pRENDERDOC_GetAPI)GetProcAddress(mod, "RENDERDOC_GetAPI");
+        if (RENDERDOC_GetAPI == nullptr) {
+            spdlog::error("Could not find RENDERDOC_GetAPI in renderdoc.dll");
+            return;
+        }
+
+        int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_4_1, &api);
+        if (ret != 1) {
+            spdlog::error("RENDERDOC_GetAPI returns invalid value {}", ret);
+            api = nullptr;
+        }
+
+        // At init, on linux/android.
+        // For android replace librenderdoc.so with libVkLayer_GLES_RenderDoc.so
+        // if(void *mod = dlopen("librenderdoc.so", RTLD_NOW | RTLD_NOLOAD))
+        //{
+        //    pRENDERDOC_GetAPI RENDERDOC_GetAPI = (pRENDERDOC_GetAPI)dlsym(mod, "RENDERDOC_GetAPI");
+        //    int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
+        //    assert(ret == 1);
+        //}
+
+        set_overlay(false, false, false);
+    }
+
+    void set_overlay(bool frameRate, bool frameNumber, bool captureList) noexcept {
+        if (not api) {
+            return;
+        }
+
+        uint32_t or_mask = eRENDERDOC_Overlay_None;
+        uint32_t and_mask = eRENDERDOC_Overlay_None;
+
+        if (frameRate || frameNumber || captureList) {
+            or_mask |= eRENDERDOC_Overlay_Enabled;
+        } else {
+            and_mask |= eRENDERDOC_Overlay_Enabled;
+        }
+
+        if (frameRate) {
+            or_mask |= eRENDERDOC_Overlay_FrameRate;
+        } else {
+            and_mask |= eRENDERDOC_Overlay_FrameRate;
+        }
+
+        if (frameNumber) {
+            or_mask |= eRENDERDOC_Overlay_FrameNumber;
+        } else {
+            and_mask |= eRENDERDOC_Overlay_FrameNumber;
+        }
+
+        if (captureList) {
+            or_mask |= eRENDERDOC_Overlay_CaptureList;
+        } else {
+            and_mask |= eRENDERDOC_Overlay_CaptureList;
+        }
+
+        auto& api_ = *static_cast<RENDERDOC_API_1_4_1 *>(api);
+
+        and_mask = ~and_mask;
+        api_.MaskOverlayBits(and_mask, or_mask);
+    }
+private:
+    void* api;
+};
+
 //#ifdef _WIN32
 //int WinMain(void *hInstance, void *hPrevInstance, char **argv, int nCmdShow)
 //#else
@@ -11,12 +106,20 @@ int main(int argc, char** argv)
     // #ifdef _WIN32
     // int argc = __argc;
     // #endif
+    RenderDoc doc{};
+
     std::shared_ptr<Gtk::Application> app = Gtk::Application::create("org.warpgate.exporter");
     //auto source = Gio::SettingsSchemaSource::create("C:\\Users\\ryans\\repos\\warpgate\\build\\share\\glib-2.0\\schemas", true);
     //auto settings = Gio::Settings::create()
     auto settings = Gtk::Settings::get_default();
     settings->set_property<gboolean>("gtk-application-prefer-dark-theme", true);
-    return app->make_window_and_run<warpgate::gtk::Window>(argc, argv);
+    try {
+        return app->make_window_and_run<warpgate::gtk::Window>(argc, argv);
+    } catch(Glib::Error &e) {
+        spdlog::error("Glib error: {} - {} - {}", e.code(), g_quark_to_string(e.domain()), e.what());
+        std::this_thread::sleep_for(30s);
+        return e.code();
+    }
 }
 
 /* Open GL Area

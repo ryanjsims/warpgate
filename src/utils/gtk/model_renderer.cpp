@@ -9,10 +9,54 @@
 
 #include <utils/adr.h>
 #include <utils/materials_3.h>
+#include <synthium/utils.h>
 
 #include <glm/gtc/type_ptr.hpp>
 
 using namespace warpgate::gtk;
+
+std::unordered_map<std::string, int> component_types = {
+    {"Float3", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"D3dcolor", TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE},
+    {"Float2", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"Float4", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"ubyte4n", TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE},
+    {"Float16_2", GL_HALF_FLOAT},
+    {"float16_2", GL_HALF_FLOAT},
+    {"Short2", TINYGLTF_COMPONENT_TYPE_SHORT},
+    {"Float1", TINYGLTF_COMPONENT_TYPE_FLOAT},
+    {"Short4", TINYGLTF_COMPONENT_TYPE_SHORT}
+};
+
+GLenum glCheckError(std::string name) {
+    GLenum error = glGetError();
+    if(error != GL_NO_ERROR) {
+        switch(error) {
+        case GL_INVALID_ENUM:
+            spdlog::error("{}: Invalid enum (code {})", name, error);
+            break;
+        case GL_INVALID_VALUE:
+            spdlog::error("{}: Invalid value (code {})", name, error);
+            break;
+        case GL_INVALID_OPERATION:
+            spdlog::error("{}: Invalid operation (code {})", name, error);
+            break;
+        case GL_STACK_OVERFLOW:
+            spdlog::error("{}: Stack overflow (code {})", name, error);
+            break;
+        case GL_STACK_UNDERFLOW:
+            spdlog::error("{}: Stack underflow (code {})", name, error);
+            break;
+        case GL_OUT_OF_MEMORY:
+            spdlog::error("{}: Out of memory (code {})", name, error);
+            break;
+        case GL_INVALID_FRAMEBUFFER_OPERATION:
+            spdlog::error("{}: Invalid framebuffer operation (code {})", name, error);
+            break;
+        }
+    }
+    return error;
+}
 
 ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}) {   
     utils::materials3::init_materials();
@@ -78,8 +122,7 @@ void ModelRenderer::realize() {
         m_programs[0] = std::make_shared<Shader>(resources / "shaders" / "grid.vert", resources / "shaders" / "grid.frag");
         m_programs[0]->set_matrices(m_matrices);
         m_programs[0]->set_planes(m_planes);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        // glFrontFace(GL_CW);
     } catch(const Gdk::GLError &gle) {
         spdlog::error("ModelRenderer::realize:");
         spdlog::error("{} - {} - {}", g_quark_to_string(gle.domain()), gle.code(), gle.what());
@@ -93,9 +136,13 @@ void ModelRenderer::unrealize() {
         glDeleteBuffers(1, &m_buffer);
         glDeleteBuffers(1, &m_ebo);
         glDeleteVertexArrays(1, &m_vao);
-        glDeleteRenderbuffers(1, &m_msaa_rbo);
+        glDeleteTextures(1, &m_msaa_depth_tex);
         glDeleteTextures(1, &m_msaa_tex);
         glDeleteFramebuffers(1, & m_msaa_fbo);
+
+        glDeleteTextures(1, &m_grid_depth_tex);
+        glDeleteTextures(1, &m_grid_tex);
+        glDeleteFramebuffers(1, & m_grid_fbo);
     } catch(const Gdk::GLError &gle) {
         spdlog::error("ModelRenderer::unrealize:");
         spdlog::error("{} - {} - {}", g_quark_to_string(gle.domain()), gle.code(), gle.what());
@@ -107,25 +154,42 @@ bool ModelRenderer::render(const std::shared_ptr<Gdk::GLContext> &context) {
         //spdlog::info("Render called");
         m_renderer.throw_if_error();
         glBindFramebuffer(GL_FRAMEBUFFER, m_msaa_fbo);
-        glClearColor(0.051f, 0.051f, 0.051f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LESS);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         m_matrices.viewMatrix = m_camera.get_view();
         m_matrices.invViewMatrix = glm::inverse(m_matrices.viewMatrix);
-        m_programs[0]->set_matrices(m_matrices);
-        m_programs[0]->set_planes(m_planes);
-
-        draw_grid();
 
         for(auto it = m_models.begin(); it != m_models.end(); it++) {
-            it->second->draw(m_programs, m_textures, m_matrices);
+            it->second->draw(m_programs, m_textures, m_matrices, m_planes);
         }
 
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_msaa_fbo);
+        glFlush();
+        
+        glBindFramebuffer(GL_FRAMEBUFFER, m_grid_fbo);
+        glEnable(GL_BLEND);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glCheckError("Set Grid FBO");
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, m_msaa_depth_tex);
+        glCheckError("Set depth sampler");
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, m_msaa_tex);
+        glCheckError("Set color sampler");
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        m_programs[0]->set_matrices(m_matrices);
+        m_programs[0]->set_planes(m_planes);
+        draw_grid();
+        glCheckError("Draw grid");
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_grid_fbo);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gtk_fbo);
         glBlitFramebuffer(0, 0, viewport.width, viewport.height, 0, 0, viewport.width, viewport.height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-        glFlush();
+        glCheckError("Blit grid fbo");
         return true;
     } catch(const Gdk::GLError &gle) {
         spdlog::error("ModelRenderer::render:");
@@ -134,14 +198,38 @@ bool ModelRenderer::render(const std::shared_ptr<Gdk::GLContext> &context) {
     }
 }
 
+std::tuple<GLuint, GLuint, GLuint> ModelRenderer::generate_msaa_framebuffer(uint32_t samples, uint32_t width, uint32_t height) {
+    GLuint msaa_fbo, msaa_tex, msaa_depth_tex;
+    glGenFramebuffers(1, &msaa_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, msaa_fbo);
+    glGenTextures(1, &msaa_tex);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, msaa_tex);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, GL_RGBA, width, height, GL_TRUE);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, msaa_tex, 0);
+    
+    glGenTextures(1, &msaa_depth_tex);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, msaa_depth_tex);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, GL_DEPTH_COMPONENT24, width, height, GL_TRUE);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D_MULTISAMPLE, msaa_depth_tex, 0);
+    int fbo_status;
+    if((fbo_status = glCheckFramebufferStatus(GL_FRAMEBUFFER)) != GL_FRAMEBUFFER_COMPLETE) {
+        spdlog::error("Failed to create MSAA frame buffer (code {})", fbo_status);
+    }
+
+    return std::make_tuple(msaa_fbo, msaa_tex, msaa_depth_tex);
+}
+
 void ModelRenderer::on_resize(int width, int height) {
     viewport.width = width;
     viewport.height = height;
     calculateMatrices(width, height);
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &gtk_fbo);
 
-    if(m_msaa_rbo != 0) {
-        glDeleteRenderbuffers(1, &m_msaa_rbo);
+    if(m_msaa_depth_tex != 0) {
+        glDeleteTextures(1, &m_msaa_depth_tex);
     }
     if(m_msaa_tex != 0) {
         glDeleteTextures(1, &m_msaa_tex);
@@ -149,23 +237,19 @@ void ModelRenderer::on_resize(int width, int height) {
     if(m_msaa_fbo != 0) {
         glDeleteFramebuffers(1, &m_msaa_fbo);
     }
-    glGenFramebuffers(1, &m_msaa_fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, m_msaa_fbo);
-    glGenTextures(1, &m_msaa_tex);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, m_msaa_tex);
-    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 16, GL_RGBA, width, height, GL_TRUE);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, m_msaa_tex, 0);
-    
-    glGenRenderbuffers(1, &m_msaa_rbo);
-    glBindRenderbuffer(GL_RENDERBUFFER, m_msaa_rbo);
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 16, GL_DEPTH_COMPONENT24, width, height);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_msaa_rbo);
-    int fbo_status;
-    if((fbo_status = glCheckFramebufferStatus(GL_FRAMEBUFFER)) != GL_FRAMEBUFFER_COMPLETE) {
-        spdlog::error("Failed to create MSAA frame buffer (code {})", fbo_status);
+
+    if(m_grid_depth_tex != 0) {
+        glDeleteTextures(1, &m_grid_depth_tex);
     }
+    if(m_grid_tex != 0) {
+        glDeleteTextures(1, &m_grid_tex);
+    }
+    if(m_grid_fbo != 0) {
+        glDeleteFramebuffers(1, &m_grid_fbo);
+    }
+    
+    std::tie(m_msaa_fbo, m_msaa_tex, m_msaa_depth_tex) = generate_msaa_framebuffer(16, viewport.width, viewport.height);
+    std::tie(m_grid_fbo, m_grid_tex, m_grid_depth_tex) = generate_msaa_framebuffer(16, viewport.width, viewport.height);
 
     glBindFramebuffer(GL_FRAMEBUFFER, gtk_fbo);
 }
@@ -297,7 +381,7 @@ void ModelRenderer::create_grid() {
 Texture::Texture(gli::texture tex, Semantic semantic)
     : m_semantic(Parameter::texture_common_semantic(semantic))
 {
-    gli::gl GL(gli::gl::PROFILE_KTX);
+    gli::gl GL(gli::gl::PROFILE_GL33);
     gli::gl::format const format = GL.translate(tex.format(), tex.swizzles());
     gli::gl::target const target = GL.translate(tex.target());
     m_target = target;
@@ -307,28 +391,91 @@ Texture::Texture(gli::texture tex, Semantic semantic)
     glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexParameteri(target, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, tex.levels() - 1);
+    glTexParameteriv(target, GL_TEXTURE_SWIZZLE_RGBA, &format.Swizzles[0]);
+    spdlog::info("Texture size: ({}, {}) - {}", tex.extent().x, tex.extent().y, synthium::utils::human_bytes(tex.size()));
+
     switch(target) {
     case GL_TEXTURE_1D:
-        glTexImage1D(target, 0, format.Internal, tex.extent().x, 0, format.External, format.Type, tex.data());
-        break;
-    case GL_TEXTURE_2D:
-        glTexImage2D(target, 0, format.Internal, tex.extent().x, tex.extent().y, 0, format.External, format.Type, tex.data());
-        break;
-    case GL_TEXTURE_3D:
-        glTexImage3D(target, 0, format.Internal, tex.extent().x, tex.extent().y, tex.extent().z, 0, format.External, format.Type, tex.data());
-        break;
-    case GL_TEXTURE_1D_ARRAY:
-        glTexImage2D(target, 0, format.Internal, tex.extent().x, tex.layers(), 0, format.External, format.Type, tex.data());
-        break;
-    case GL_TEXTURE_2D_ARRAY:
-        glTexImage3D(target, 0, format.Internal, tex.extent().x, tex.extent().y, tex.layers(), 0, format.External, format.Type, tex.data());
-        break;
-    case GL_TEXTURE_CUBE_MAP:
-        for(uint32_t i = 0; i < tex.faces(); i++) {
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format.Internal, tex.extent().x, tex.extent().y, 0, format.External, format.Type, ((gli::texture_cube)tex)[i].data());
+        glTexStorage1D(target, tex.levels(), format.Internal, tex.extent().x);
+        for(size_t level = 0; level < tex.levels(); level++) {
+            glm::tvec3<GLsizei> extent(tex.extent(level));
+            if(gli::is_compressed(tex.format())) {
+                glCompressedTexSubImage1D(target, level, 0, extent.x, format.Internal, tex.size(level), tex.data(0, 0, level));
+            } else {
+                glTexSubImage1D(target, level, 0, extent.x, format.Internal, format.Type, tex.data(0, 0, level));
+            }
         }
         break;
+    case GL_TEXTURE_2D:
+        glTexStorage2D(target, tex.levels(), format.Internal, tex.extent().x, tex.extent().y);
+        for(size_t level = 0; level < tex.levels(); level++) {
+            glm::tvec3<GLsizei> extent(tex.extent(level));
+            if(gli::is_compressed(tex.format())) {
+                glCompressedTexSubImage2D(target, level, 0, 0, extent.x, extent.y, format.Internal, tex.size(level), tex.data(0, 0, level));
+            } else {
+                glTexSubImage2D(target, level, 0, 0, extent.x, extent.y, format.Internal, format.Type, tex.data(0, 0, level));
+            }
+        }
+        break;
+    case GL_TEXTURE_3D:
+        glTexStorage3D(target, tex.levels(), format.Internal, tex.extent().x, tex.extent().y, tex.extent().z);
+        for(size_t level = 0; level < tex.levels(); level++) {
+            glm::tvec3<GLsizei> extent(tex.extent(level));
+            if(gli::is_compressed(tex.format())) {
+                glCompressedTexSubImage3D(target, level, 0, 0, 0, extent.x, extent.y, extent.z, format.Internal, tex.size(level), tex.data(0, 0, level));
+            } else {
+                glTexSubImage3D(target, level, 0, 0, 0, extent.x, extent.y, extent.z, format.Internal, format.Type, tex.data(0, 0, level));
+            }
+        }
+        break;
+    case GL_TEXTURE_1D_ARRAY:
+        glTexStorage2D(target, tex.levels(), format.Internal, tex.extent().x, tex.layers());
+        for(size_t level = 0; level < tex.levels(); level++) {
+            glm::tvec3<GLsizei> extent(tex.extent(level));
+            if(gli::is_compressed(tex.format())) {
+                glCompressedTexSubImage2D(target, level, 0, 0, extent.x, tex.layers(), format.Internal, tex.size(level), tex.data(0, 0, level));
+            } else {
+                glTexSubImage2D(target, level, 0, 0, extent.x, tex.layers(), format.Internal, format.Type, tex.data(0, 0, level));
+            }
+        }
+        break;
+    case GL_TEXTURE_2D_ARRAY:
+        glTexStorage3D(target, tex.levels(), format.Internal, tex.extent().x, tex.extent().y, tex.layers());
+        for(size_t level = 0; level < tex.levels(); level++) {
+            glm::tvec3<GLsizei> extent(tex.extent(level));
+            if(gli::is_compressed(tex.format())) {
+                glCompressedTexSubImage3D(target, level, 0, 0, 0, extent.x, extent.y, tex.layers(), format.Internal, tex.size(level), tex.data(0, 0, level));
+            } else {
+                glTexSubImage3D(target, level, 0, 0, 0, extent.x, extent.y, tex.layers(), format.Internal, format.Type, tex.data(0, 0, level));
+            }
+        }
+        break;
+    case GL_TEXTURE_CUBE_MAP:{
+        gli::texture_cube cube_tex = (gli::texture_cube)tex;
+        glTexStorage2D(GL_TEXTURE_CUBE_MAP, cube_tex.levels(), format.Internal, cube_tex.extent().x, cube_tex.extent().y);
+
+        glCheckError("Cubemap storage");
+        for(size_t level = 0; level < tex.levels(); level++) {
+            glm::tvec3<GLsizei> extent(tex.extent(level));
+            if(gli::is_compressed(cube_tex.format())) {
+                for(uint32_t i = 0; i < cube_tex.faces(); i++) {
+                    glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, level, 0, 0, cube_tex[i].extent(level).x, cube_tex[i].extent(level).y, format.Internal, cube_tex[i].size(level), cube_tex[i].data(0, 0, level));
+                }
+            } else {
+                for(uint32_t i = 0; i < cube_tex.faces(); i++) {
+                    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, level, 0, 0, cube_tex[i].extent(level).x, cube_tex[i].extent(level).y, format.Internal, format.Type, cube_tex[i].data(0, 0, level));
+                }
+            }
+            glCheckError("Cubemap SubImage " + std::to_string(level));
+        }
     }
+        break;
+    }
+    glCheckError("Texture loaded");
+
     glGenerateMipmap(target);
     glBindTexture(target, 0);
 }
@@ -343,8 +490,18 @@ void Texture::bind() {
         spdlog::warn("Attempted to bind texture of unknown semantic");
         return;
     }
-    glActiveTexture(GL_TEXTURE0 + unit);
+    glActiveTexture(GL_TEXTURE1 + unit);
     glBindTexture(m_target, m_texture);
+}
+
+void Texture::unbind() {
+    int32_t unit = get_unit();
+    if(unit < 0) {
+        spdlog::warn("Attempted to unbind texture of unknown semantic");
+        return;
+    }
+    glActiveTexture(GL_TEXTURE1 + unit);
+    glBindTexture(m_target, 0);
 }
 
 int32_t Texture::get_unit() {
@@ -600,7 +757,7 @@ Mesh::Mesh(
 
         uint32_t entry_size = utils::materials3::sizes[entry["type"]];
         int32_t entry_count = utils::materials3::types[entry["type"]];
-        GLenum entry_type = utils::materials3::component_types[entry["type"]];
+        GLenum entry_type = component_types[entry["type"]];
         if(entry_type == GL_SHORT && entry["usage"] == "Texcoord") {
             entry_type = GL_UNSIGNED_SHORT;
         }
@@ -669,6 +826,7 @@ Mesh::Mesh(
         std::shared_ptr<synthium::Asset2> asset = manager->get(*texture_name);
         std::vector<uint8_t> asset_data = asset->get_data();
         gli::texture texture = gli::load_dds((char*)asset_data.data(), asset_data.size());
+        spdlog::info("Texture is {}compressed", gli::is_compressed(texture.format()) ? "" : "not ");
         textures[texture_hash] = std::make_shared<Texture>(texture, parameter.semantic_hash());
     }
 }
@@ -688,6 +846,16 @@ void Mesh::bind() const {
         glEnableVertexAttribArray(layout.pointer);
         glVertexAttribPointer(layout.pointer, layout.count, layout.type, layout.normalized, layout.stride, layout.offset);
     }
+}
+
+void Mesh::unbind() const {
+    for(uint32_t i = 0; i < vertex_layouts.size(); i++) {
+        const Layout& layout = vertex_layouts[i];
+        glDisableVertexAttribArray(layout.pointer);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 }
 
 std::vector<uint32_t> Mesh::get_texture_hashes() const {
@@ -757,7 +925,8 @@ Model::~Model() {
 void Model::draw(
     std::unordered_map<uint32_t, std::shared_ptr<Shader>> &shaders,
     std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures,
-    const Uniform &ubo
+    const Uniform &ubo,
+    const GridUniform &planes
 ) const {
     for(uint32_t i = 0; i < m_meshes.size(); i++) {
         if(shaders.find(m_meshes[i]->get_material_hash()) == shaders.end()) {
@@ -765,6 +934,7 @@ void Model::draw(
         }
         shaders[m_meshes[i]->get_material_hash()]->use();
         shaders[m_meshes[i]->get_material_hash()]->set_matrices(ubo);
+        shaders[m_meshes[i]->get_material_hash()]->set_planes(planes);
         shaders[m_meshes[i]->get_material_hash()]->set_model(m_model);
 
         m_meshes[i]->bind();
@@ -777,6 +947,14 @@ void Model::draw(
         }
 
         glDrawElements(GL_TRIANGLES, m_meshes[i]->index_count(), m_meshes[i]->index_size() == 4 ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT, 0);
+    
+        for(uint32_t j = 0; j < texture_hashes.size(); j++) {
+            if(textures.find(texture_hashes[j]) == textures.end()) {
+                continue;
+            }
+            textures[texture_hashes[j]]->unbind();
+        }
+        m_meshes[i]->unbind();
     }
     glBindVertexArray(0);
     glUseProgram(0);
@@ -803,6 +981,7 @@ void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr
         spdlog::warn("{} already loaded", name);
         return;
     }
+    m_renderer.make_current();
     std::shared_ptr<synthium::Asset2> asset = manager->get(name), asset2;
     std::shared_ptr<warpgate::DME> dme;
     std::vector<uint8_t> data, data2;
@@ -856,6 +1035,7 @@ void ModelRenderer::destroy_model(std::string name) {
         spdlog::warn("{} already destroyed", name);
         return;
     }
+    m_renderer.make_current();
     m_models.erase(name);
 }
 

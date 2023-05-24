@@ -13,6 +13,25 @@ layout (binding = 0) uniform UBO
   uint faction; 
 } ubo;
 
+layout(binding = 2) uniform sampler2DMS depthSampler;
+layout(binding = 3) uniform sampler2DMS colorSampler;
+uint texSamples = 16;
+ivec2 texSize = textureSize(depthSampler);
+
+vec4 textureMultisample(sampler2DMS tex, ivec2 coord)
+{
+  // ivec2 texSize = textureSize(tex);
+  // ivec2 coord = ivec2(uv * texSize);
+  vec4 color = vec4(0.0);
+
+  for (int i = 0; i < texSamples; i++)
+    color += texelFetch(tex, coord, i);
+
+  color /= float(texSamples);
+
+  return color;
+}
+
 layout (binding = 1) uniform ClipPlanes {
   float near;
   float far;
@@ -20,7 +39,7 @@ layout (binding = 1) uniform ClipPlanes {
 
 layout (location = 0) out vec4 outFragColor;
 
-vec4 grid(vec3 fragPos3D, float scale, bool drawAxis) {
+vec4 grid(vec3 fragPos3D, float scale) {
     vec2 coord = fragPos3D.xz * scale;
     vec2 derivative = fwidth(coord);
     vec2 grid = abs(fract(coord - 0.5) - 0.5) / derivative;
@@ -51,21 +70,29 @@ float computeLinearDepth(vec3 pos) {
 
 void main() 
 {
+  vec4 renderedDepthSample = textureMultisample(depthSampler, ivec2(gl_FragCoord.xy));
+  vec4 renderedColor = textureMultisample(colorSampler, ivec2(gl_FragCoord.xy));
   float t = -nearPoint.y / (farPoint.y - nearPoint.y);
-
   vec3 fragPos3D = nearPoint + t * (farPoint - nearPoint);
-
+  float depth = computeDepth(fragPos3D);
+  float renderedDepth = 2.0 * renderedDepthSample.x - 1.0;
+  vec4 gridColor = (grid(fragPos3D, 10) + grid(fragPos3D, 1)) * float(t > 0); // adding multiple resolution for the grid
   float linearDepth = computeLinearDepth(fragPos3D);
   float fading = max(0, (0.5 - linearDepth));
-
-  outFragColor = (grid(fragPos3D, 10, true) + grid(fragPos3D, 1, true)) * float(t > 0); // adding multiple resolution for the grid
-  if(outFragColor.a > 0.01) {
-    gl_FragDepth = computeDepth(fragPos3D);
+  float gridAlpha = gridColor.a * fading * float(t > 0);
+  if(renderedDepth < depth || t > 1) {
+    outFragColor = renderedColor;
+    //gl_FragDepth = gl_FragCoord.z;
   } else {
-    gl_FragDepth = 1.0;
+    //outFragColor = vec4(mix(gridColor.rgb, renderedColor.rgb, renderedColor.a * (1.0 - gridAlpha)), 1.0);
+    outFragColor = vec4(mix(gridColor.rgb, renderedColor.rgb, 1.0 - gridAlpha), 1.0);
+    //outFragColor = vec4(vec3(linearDepth), 1.0);
+    //outFragColor = vec4(vec3(clipPlanes.far), 1.0);
+    //gl_FragDepth = depth;
   }
-  if(gl_FragDepth > 0.99999) {
-    outFragColor.a = 0.0;
-  }
-  outFragColor.a *= fading * float(t > 0);
+
+
+  //float linear_depth = (2.0 * clipPlanes.near * clipPlanes.far) / (clipPlanes.far + clipPlanes.near - depth.x * (clipPlanes.far - clipPlanes.near));
+
+  //outFragColor = vec4(vec3(renderedDepth.x < 0), 1.0);
 }
