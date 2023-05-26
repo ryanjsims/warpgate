@@ -9,6 +9,8 @@ namespace warpgate::gtk {
         ANIMATION_SET,
         MODEL,
         PALETTE,
-        TEXTURE
+        SKELETON,
+        TEXTURE,
+        VIRTUAL
     };
 }

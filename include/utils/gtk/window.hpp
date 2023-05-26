@@ -18,6 +18,8 @@
 #include <gtkmm/searchbar.h>
 #include <gtkmm/searchentry.h>
 #include <gtkmm/label.h>
+#include <gtkmm/icontheme.h>
+#include <gtkmm/iconpaintable.h>
 #include <glibmm/main.h>
 #include <giomm/liststore.h>
 
@@ -34,7 +36,6 @@ class LoadedListItem;
 class NamelistFilter;
 
 namespace warpgate::gtk {
-
     class Window : public Gtk::Window {
     public:
         Window();

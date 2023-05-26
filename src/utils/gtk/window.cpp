@@ -27,6 +27,9 @@ public:
     uint64_t m_data_length;
     AssetType m_type;
 
+    std::optional<std::string> virtual_parent;
+    std::optional<std::string> virtual_type;
+
     static std::shared_ptr<Asset2ListItem> create(std::string name, AssetType type = AssetType::UNKNOWN, const synthium::Asset2Raw *asset = nullptr) {
         return Glib::make_refptr_for_instance<Asset2ListItem>(new Asset2ListItem(name, type, asset));
     }
@@ -45,6 +48,31 @@ public:
             return AssetType::PALETTE;
         }
         return AssetType::UNKNOWN;
+    }
+
+    static Glib::ustring icon_from_asset_type(AssetType atype) {
+        switch(atype) {
+        case AssetType::ACTOR_RUNTIME:
+            return "package-x-generic-symbolic";
+        case AssetType::ANIMATION:
+            return "media-playback-start-symbolic";
+        case AssetType::ANIMATION_NETWORK:
+            return "network-wired-symbolic";
+        case AssetType::MODEL:
+            return "application-x-appliance-symbolic";
+        case AssetType::PALETTE:
+            return "view-paged-symbolic";
+        case AssetType::ANIMATION_SET:
+        case AssetType::SKELETON:
+            return "emblem-shared-symbolic";
+        case AssetType::TEXTURE:
+            return "image-x-generic-symbolic";
+        case AssetType::VIRTUAL:
+            return "folder-symbolic";
+        case AssetType::UNKNOWN:
+        default:
+            return "emblem-important-symbolic";
+        }
     }
 
 protected:
@@ -72,11 +100,62 @@ public:
     std::string m_stdname;
     AssetType m_type;
 
+    using stack_t = std::vector<std::string>;
+
     static std::shared_ptr<LoadedListItem> create(std::string name, AssetType type = AssetType::UNKNOWN) {
         return Glib::make_refptr_for_instance<LoadedListItem>(new LoadedListItem(name, type));
     }
 
+    stack_t find_child(std::shared_ptr<LoadedListItem> search) {
+        stack_t to_return;
+        if(search.get() == this) {
+            to_return.push_back(m_stdname);
+        } else {
+            for(auto it = m_children_by_name.begin(); it != m_children_by_name.end() && to_return.size() == 0; it++) {
+                to_return = it->second->find_child(search);
+            }
+            to_return.push_back(m_stdname);
+        }
+        return to_return;
+    }
+
+    bool add_child(std::shared_ptr<LoadedListItem> child) {
+        if(m_children_by_name.find(child->m_stdname) != m_children_by_name.end()) {
+            spdlog::warn("Child '{}' already exists in this tree", child->m_stdname);
+            return false;
+        }
+        m_children.push_back(child);
+        m_children_by_name[child->m_stdname] = child;
+        return true;
+    }
+
+    std::shared_ptr<LoadedListItem> get_child(stack_t path) {
+        if(path.empty()) {
+            return nullptr;
+        }
+        if(path.back() == m_stdname) {
+            path.pop_back();
+        }
+        auto iter = m_children_by_name.find(path.back());
+        if(iter == m_children_by_name.end()) {
+            spdlog::error("Path corrupt: '{}' not in '{}'", path.back(), m_stdname);
+            return nullptr;
+        }
+        path.pop_back();
+        if(path.size() == 0) {
+            return iter->second;
+        }
+        return iter->second->get_child(path);
+    }
+
+    std::vector<std::shared_ptr<LoadedListItem>> children() const {
+        return m_children;
+    }
+
 protected:
+    std::vector<std::shared_ptr<LoadedListItem>> m_children;
+    std::unordered_map<std::string, std::shared_ptr<LoadedListItem>> m_children_by_name;
+
     LoadedListItem(std::string name, AssetType type) {
         m_name.assign(name.c_str());
         m_stdname = name;
@@ -297,7 +376,11 @@ void Window::on_setup_namelist_item(const std::shared_ptr<Gtk::ListItem>& list_i
     spdlog::trace("on_setup_namelist_item");
     auto expander = Gtk::make_managed<Gtk::TreeExpander>();
     auto label = Gtk::make_managed<Gtk::Label>();
-    expander->set_child(*label);
+    auto icon = Gtk::make_managed<Gtk::Image>();
+    auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 5);
+    box->append(*icon);
+    box->append(*label);
+    expander->set_child(*box);
     list_item->set_child(*expander);
 }
 
@@ -306,15 +389,21 @@ void Window::on_bind_namelist_item(const std::shared_ptr<Gtk::ListItem>& list_it
     auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(list_item->get_item());
     if (!row)
         return;
-    list_item->set_selectable(true);
     auto col = std::dynamic_pointer_cast<Asset2ListItem>(row->get_item());
+    list_item->set_selectable(col->m_type != AssetType::VIRTUAL);
     if (!col)
         return;
     auto expander = dynamic_cast<Gtk::TreeExpander*>(list_item->get_child());
     if (!expander)
         return;
     expander->set_list_row(row);
-    auto label = dynamic_cast<Gtk::Label*>(expander->get_child());
+    auto box = dynamic_cast<Gtk::Box*>(expander->get_child());
+    if(!box)
+        return;
+    auto icon = dynamic_cast<Gtk::Image*>(box->get_first_child());
+    if(!icon)
+        return;
+    auto label = dynamic_cast<Gtk::Label*>(icon->get_next_sibling());
     if (!label)
         return;
     if(col->m_name.size() != 0) {
@@ -322,13 +411,18 @@ void Window::on_bind_namelist_item(const std::shared_ptr<Gtk::ListItem>& list_it
     } else {
         label->set_text(col->m_namehash_str);
     }
+    icon->set_from_icon_name(Asset2ListItem::icon_from_asset_type(col->m_type));
 }
 
 void Window::on_setup_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
     spdlog::trace("on_setup_loaded_list_item");
     auto expander = Gtk::make_managed<Gtk::TreeExpander>();
     auto label = Gtk::make_managed<Gtk::Label>();
-    expander->set_child(*label);
+    auto icon = Gtk::make_managed<Gtk::Image>();
+    auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 5);
+    box->append(*icon);
+    box->append(*label);
+    expander->set_child(*box);
     list_item->set_child(*expander);
 }
 
@@ -345,12 +439,19 @@ void Window::on_bind_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& list
     if (!expander)
         return;
     expander->set_list_row(row);
-    auto label = dynamic_cast<Gtk::Label*>(expander->get_child());
+    auto box = dynamic_cast<Gtk::Box*>(expander->get_child());
+    if(!box)
+        return;
+    auto icon = dynamic_cast<Gtk::Image*>(box->get_first_child());
+    if(!icon)
+        return;
+    auto label = dynamic_cast<Gtk::Label*>(icon->get_next_sibling());
     if (!label)
         return;
     if(col->m_name.size() != 0) {
         label->set_text(col->m_name);
     }
+    icon->set_from_icon_name(Asset2ListItem::icon_from_asset_type(col->m_type));
 }
 
 void Window::add_namelist_to_store_filtered(
@@ -388,7 +489,10 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
     if(!col){
         result = Gio::ListStore<Asset2ListItem>::create();
         add_namelist_to_store_filtered(result);
-    } else if(col && col->m_type == AssetType::ACTOR_RUNTIME) {
+        return result;
+    }
+    switch(col->m_type) {
+    case AssetType::ACTOR_RUNTIME: {
         std::vector<uint8_t> data = m_manager->get(col->m_stdname)->get_data();
         warpgate::utils::ADR adr(data);
         result = Gio::ListStore<Asset2ListItem>::create();
@@ -437,7 +541,8 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
                 )
             );
         }
-    } else if(col && col->m_type == AssetType::ANIMATION_NETWORK) {
+        break;}
+    case AssetType::ANIMATION_NETWORK: {
         std::filesystem::path path(col->m_stdname);
         std::string stem = path.stem().string();
         std::string name;
@@ -449,27 +554,18 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
         if(!m_manager->contains(name)) {
             return result;
         }
-        std::vector<uint8_t> data = m_manager->get(name)->get_data();
-        warpgate::mrn::MRN mrn;
-        try {
-            mrn = warpgate::mrn::MRN(data, name);
-        } catch(std::runtime_error e) {
-            spdlog::error("While loading {}: {}", name, e.what());
-            return result;
-        }
-
         result = Gio::ListStore<Asset2ListItem>::create();
-        std::vector<std::string> anim_names = mrn.file_names()->files()->filenames()->strings();
-        for(auto it = anim_names.begin(); it != anim_names.end(); it++) {
-            std::string value = *it;
-            result->append(
-                Asset2ListItem::create(
-                    value,
-                    AssetType::ANIMATION
-                )
-            );
-        }
-    } else if(col && col->m_type == AssetType::PALETTE) {
+        auto skeletons = Asset2ListItem::create("Skeletons", AssetType::VIRTUAL);
+        skeletons->virtual_parent = name;
+        skeletons->virtual_type = "skeletons";
+        result->append(skeletons);
+
+        auto animations = Asset2ListItem::create("Animations", AssetType::VIRTUAL);
+        animations->virtual_parent = name;
+        animations->virtual_type = "animations";
+        result->append(animations);
+        break;}
+    case AssetType::PALETTE: {
         if(!m_manager->contains(col->m_stdname)) {
             return result;
         }
@@ -487,7 +583,48 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
                 )
             );
         }
+        break;}
+    case AssetType::VIRTUAL: {
+        result = Gio::ListStore<Asset2ListItem>::create();
+        std::string vtype = *col->virtual_type;
+        if(vtype == "skeletons" || vtype == "animations") {
+            std::string name = *col->virtual_parent;
+            std::vector<uint8_t> data = m_manager->get(name)->get_data();
+            warpgate::mrn::MRN mrn;
+            try {
+                mrn = warpgate::mrn::MRN(data, name);
+            } catch(std::runtime_error e) {
+                spdlog::error("While loading {}: {}", name, e.what());
+                return result;
+            }
+
+            if(vtype == "animations") {
+                std::vector<std::string> anim_names = mrn.file_names()->files()->filenames()->strings();
+                for(auto it = anim_names.begin(); it != anim_names.end(); it++) {
+                    std::string value = *it;
+                    result->append(
+                        Asset2ListItem::create(
+                            value,
+                            AssetType::ANIMATION
+                        )
+                    );
+                }
+            } else {
+                std::vector<std::string> skeleton_names = mrn.skeleton_names()->skeleton_names()->strings();
+                for(auto it = skeleton_names.begin(); it != skeleton_names.end(); it++) {
+                    std::string value = *it;
+                    result->append(
+                        Asset2ListItem::create(
+                            value,
+                            AssetType::SKELETON
+                        )
+                    );
+                }
+            }
+        }
+        break;}
     }
+    
     return result;
 }
 
