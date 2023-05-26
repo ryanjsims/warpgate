@@ -7,7 +7,14 @@
 
 using namespace warpgate::gtk;
 
-Shader::Shader(const std::filesystem::path vertex, const std::filesystem::path fragment) : m_good(false) {
+Shader::Shader(
+    const std::filesystem::path vertex, 
+    const std::filesystem::path fragment, 
+    GLuint matrix_uniform, GLuint plane_uniform
+) : m_good(false)
+  , m_ubo_matrices(matrix_uniform)
+  , m_ubo_planes(plane_uniform)
+{
     std::string vertex_code;
     std::string fragment_code;
     std::ifstream vertex_file; 
@@ -75,16 +82,16 @@ Shader::Shader(const std::filesystem::path vertex, const std::filesystem::path f
     glDeleteShader(fragment_shader);
     m_good = true;
 
-    glGenBuffers(1, &m_ubo_matrices);
-    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), nullptr, GL_STATIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_ubo_matrices);
+    // glGenBuffers(1, &m_ubo_matrices);
+    // glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
+    // glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), nullptr, GL_STATIC_DRAW);
+    // glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_ubo_matrices);
 
-    glGenBuffers(1, &m_ubo_planes);
-    glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), nullptr, GL_STATIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_ubo_planes);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    // glGenBuffers(1, &m_ubo_planes);
+    // glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
+    // glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), nullptr, GL_STATIC_DRAW);
+    // glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_ubo_planes);
+    // glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 Shader::~Shader() {
@@ -110,16 +117,28 @@ void Shader::set_model(const glm::mat4& model) {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-void Shader::set_matrices(const Uniform& ubo) {
+void Shader::set_matrices(const Uniform ubo) {
     use();
     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_matrices);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), &ubo, GL_STATIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-void Shader::set_planes(const GridUniform& planes) {
+void Shader::set_matrices(GLuint object, const Uniform& ubo) {
+    glBindBuffer(GL_UNIFORM_BUFFER, object);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), &ubo, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+void Shader::set_planes(const GridUniform planes) {
     use();
     glBindBuffer(GL_UNIFORM_BUFFER, m_ubo_planes);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), &planes, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+void Shader::set_planes(GLuint object, const GridUniform& planes) {
+    glBindBuffer(GL_UNIFORM_BUFFER, object);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), &planes, GL_STATIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }

@@ -66,6 +66,9 @@ namespace warpgate::gtk {
         GLuint m_ebo = 0;
         GLuint m_buffer = 0;
 
+        GLuint m_matrices_uniform = 0;
+        GLuint m_planes_uniform = 0;
+
         void realize();
         void unrealize();
         bool render(const std::shared_ptr<Gdk::GLContext> &context);
@@ -79,6 +82,8 @@ namespace warpgate::gtk {
         bool on_key_pressed(guint keyval, guint keycode, Gdk::ModifierType state);
         void on_key_released(guint keyval, guint keycode, Gdk::ModifierType state);
         bool on_modifers(Gdk::ModifierType state);
+        void on_lmb_pressed(int n_buttons, double x, double y);
+        void on_lmb_released(int n_buttons, double x, double y);
         void on_mmb_pressed(int n_buttons, double x, double y);
         void on_mmb_released(int n_buttons, double x, double y);
 

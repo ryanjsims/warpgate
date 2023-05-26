@@ -1,12 +1,13 @@
 #include "utils/gtk/window.hpp"
 #include <thread>
+#include <regex>
 
 #include <gtkmm/treelistmodel.h>
 #include <gtkmm/treeexpander.h>
 #include <gtkmm/label.h>
 #include <gtkmm/signallistitemfactory.h>
 #include <gtkmm/dialog.h>
-#include <giomm/liststore.h>
+#include <gtkmm/gestureclick.h>
 #include <giomm/menu.h>
 #include <giomm/simpleactiongroup.h>
 #include <giomm/datainputstream.h>
@@ -65,6 +66,61 @@ protected:
     }
 };
 
+class LoadedListItem : public Glib::Object {
+public:
+    Glib::ustring m_name;
+    std::string m_stdname;
+    AssetType m_type;
+
+    static std::shared_ptr<LoadedListItem> create(std::string name, AssetType type = AssetType::UNKNOWN) {
+        return Glib::make_refptr_for_instance<LoadedListItem>(new LoadedListItem(name, type));
+    }
+
+protected:
+    LoadedListItem(std::string name, AssetType type) {
+        m_name.assign(name.c_str());
+        m_stdname = name;
+        m_type = type;
+    }
+};
+
+class NamelistFilter : public Gtk::Filter {
+public:
+    NamelistFilter(std::regex compare) 
+        : Gtk::Filter()
+        , m_compare(compare)
+    {
+
+    }
+    ~NamelistFilter() {}
+
+    void set_compare(std::regex compare) {
+        m_compare = compare;
+    }
+
+    std::regex get_compare() {
+        return m_compare;
+    }
+
+    bool match(const Glib::RefPtr<Glib::ObjectBase>& item) {
+        return match_vfunc(item);
+    }
+
+protected:
+    bool match_vfunc(const Glib::RefPtr<Glib::ObjectBase>& item) override {
+        auto namelist_item = std::dynamic_pointer_cast<Asset2ListItem>(item);
+        if(!namelist_item) {
+            return false;
+        }
+
+        return std::regex_search(namelist_item->m_stdname, m_compare);
+    }
+
+
+private:
+    std::regex m_compare;
+};
+
 Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", Gtk::FileChooser::Action::OPEN) {
     set_title("Warpgate");
     set_default_size(1280, 960);
@@ -93,8 +149,38 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     action_group->add_action("gen_namelist", sigc::mem_fun(*this, &Window::on_gen_namelist));
     action_group->add_action("export", sigc::mem_fun(*this, &Window::on_export));
     action_group->add_action("quit", sigc::mem_fun(*this, &Window::on_quit));
-
     insert_action_group("warpgate", action_group);
+
+    auto context_menu = Gio::Menu::create();
+
+    auto section1 = Gio::Menu::create();
+    section1->append("_Export", "loaded.export");
+    section1->append("_Remove", "loaded.remove");
+    context_menu->append_section(section1);
+
+    m_context_menu.set_menu_model(context_menu);
+    m_context_menu.set_has_arrow(false);
+    m_context_menu.set_parent(m_box_loaded);
+    int min, natural, min_base, natural_base;
+    m_context_menu.get_first_child()->measure(Gtk::Orientation::HORIZONTAL, -1, min, natural, min_base, natural_base);
+    m_context_menu.set_offset(natural >> 1, 0);
+    
+    //spdlog::info("Measure returned {} {} {} {}", min, natural, min_base, natural_base);
+    
+    // m_context_menu.signal_show().connect([&](){
+    //     if(m_context_menu.get_first_child() != nullptr) {
+    //         spdlog::info("Width of child {}", m_context_menu.get_first_child()->get_allocated_width());
+    //         spdlog::info("Child child width {}", m_context_menu.get_first_child()->get_first_child()->get_allocated_width());
+    //     } else {
+    //         spdlog::info("Child is nullptr");
+    //     }
+    // });
+
+    auto context_action_group = Gio::SimpleActionGroup::create();
+    context_action_group->add_action("export", sigc::mem_fun(*this, &Window::on_export_loaded));
+    context_action_group->add_action("remove", sigc::mem_fun(*this, &Window::on_remove_loaded));
+    insert_action_group("loaded", context_action_group);
+
     // = Gtk::FileChooserDialog("Import Namelist", Gtk::FileChooser::Action::OPEN);
     m_file_dialog.add_button("Import", Gtk::ResponseType::ACCEPT)->signal_clicked().connect([&]{
         m_file_dialog.hide();
@@ -118,18 +204,19 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
 
     m_pane_lists.set_orientation(Gtk::Orientation::VERTICAL);
     
-    auto factory = Gtk::SignalListItemFactory::create();
-    factory->signal_setup().connect(sigc::mem_fun(*this, &Window::on_setup_namelist_item));
-    factory->signal_bind().connect(sigc::mem_fun(*this, &Window::on_bind_namelist_item));
+    auto namelist_factory = Gtk::SignalListItemFactory::create();
+    namelist_factory->signal_setup().connect(sigc::mem_fun(*this, &Window::on_setup_namelist_item));
+    namelist_factory->signal_bind().connect(sigc::mem_fun(*this, &Window::on_bind_namelist_item));
 
-    auto root = create_namelist_model();
+    m_namelist_root = create_namelist_model();
 
-    m_tree_namelist = Gtk::TreeListModel::create(root, sigc::mem_fun(*this, &Window::create_namelist_model), false, false);
+    m_tree_namelist = Gtk::TreeListModel::create(m_namelist_root, sigc::mem_fun(*this, &Window::create_namelist_model), false, false);
     m_select_namelist = Gtk::SingleSelection::create(m_tree_namelist);
+    m_select_namelist->set_can_unselect();
     m_select_namelist->signal_selection_changed().connect(sigc::mem_fun(*this, &Window::on_namelist_selection_changed));
 
     m_view_namelist.set_model(m_select_namelist);
-    m_view_namelist.set_factory(factory);
+    m_view_namelist.set_factory(namelist_factory);
     m_view_namelist.signal_activate().connect(sigc::mem_fun(*this, &Window::on_namelist_row_activated));
 
     m_view_namelist.set_size_request(200, -1);
@@ -140,6 +227,11 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     m_scroll_namelist.set_vexpand(true);
     
     m_label_namelist.set_margin(5);
+    m_search_namelist.set_margin_start(5);
+    m_search_namelist.set_margin_end(5);
+
+    m_search_namelist.set_search_delay(500);
+    m_search_namelist.signal_search_changed().connect(sigc::mem_fun(*this, &Window::on_namelist_search_changed));
 
     m_search_namelist.set_placeholder_text("Filter...");
     m_box_namelist.append(m_label_namelist);
@@ -147,10 +239,37 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     m_box_namelist.append(m_scroll_namelist);
     m_pane_lists.set_start_child(m_box_namelist);
 
-    m_label_modellist.set_margin(5);
+    auto loaded_factory = Gtk::SignalListItemFactory::create();
+    loaded_factory->signal_setup().connect(sigc::mem_fun(*this, &Window::on_setup_loaded_list_item));
+    loaded_factory->signal_bind().connect(sigc::mem_fun(*this, &Window::on_bind_loaded_list_item));
 
-    m_box_modellist.append(m_label_modellist);
-    m_pane_lists.set_end_child(m_box_modellist);
+    m_loaded_root = create_loaded_list_model();
+    
+    m_tree_loaded = Gtk::TreeListModel::create(m_loaded_root, sigc::mem_fun(*this, &Window::create_loaded_list_model), false, false);
+    m_select_loaded = Gtk::SingleSelection::create(m_tree_loaded);
+    m_select_loaded->set_can_unselect();
+    m_select_loaded->signal_selection_changed().connect(sigc::mem_fun(*this, &Window::on_loaded_list_selection_changed));
+
+    m_view_loaded.set_model(m_select_loaded);
+    m_view_loaded.set_factory(loaded_factory);
+    m_view_loaded.signal_activate().connect(sigc::mem_fun(*this, &Window::on_loaded_list_row_activated));
+
+    m_view_loaded.set_size_request(200, -1);
+
+    m_scroll_loaded.set_child(m_view_loaded);
+    m_scroll_loaded.set_vexpand(true);
+
+    m_label_loaded.set_margin(5);
+
+    auto right_click = Gtk::GestureClick::create();
+    right_click->set_button(3);
+    right_click->set_propagation_phase(Gtk::PropagationPhase::BUBBLE);
+    right_click->signal_pressed().connect(sigc::mem_fun(*this, &Window::on_loaded_list_right_click));
+    m_box_loaded.add_controller(right_click);
+
+    m_box_loaded.append(m_label_loaded);
+    m_box_loaded.append(m_scroll_loaded);
+    m_pane_lists.set_end_child(m_box_loaded);
 
     m_pane_root.set_start_child(m_pane_lists);
     m_pane_root.set_end_child(m_renderer.get_area());
@@ -205,41 +324,70 @@ void Window::on_bind_namelist_item(const std::shared_ptr<Gtk::ListItem>& list_it
     }
 }
 
-void Window::on_setup_models_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
-    spdlog::trace("on_setup_models_item");
+void Window::on_setup_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
+    spdlog::trace("on_setup_loaded_list_item");
+    auto expander = Gtk::make_managed<Gtk::TreeExpander>();
     auto label = Gtk::make_managed<Gtk::Label>();
-    list_item->set_child(*label);
+    expander->set_child(*label);
+    list_item->set_child(*expander);
 }
 
-void Window::on_bind_models_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
-    spdlog::trace("on_bind_models_item");
-    //auto row = 
+void Window::on_bind_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
+    spdlog::trace("on_bind_loaded_list_item");
+    auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(list_item->get_item());
+    if (!row)
+        return;
+    list_item->set_selectable(true);
+    auto col = std::dynamic_pointer_cast<LoadedListItem>(row->get_item());
+    if (!col)
+        return;
+    auto expander = dynamic_cast<Gtk::TreeExpander*>(list_item->get_child());
+    if (!expander)
+        return;
+    expander->set_list_row(row);
+    auto label = dynamic_cast<Gtk::Label*>(expander->get_child());
+    if (!label)
+        return;
+    if(col->m_name.size() != 0) {
+        label->set_text(col->m_name);
+    }
 }
 
-std::shared_ptr<Gio::ListModel> Window::create_namelist_model(const std::shared_ptr<Glib::ObjectBase>& item) {
-    spdlog::trace("Create model");
+void Window::add_namelist_to_store_filtered(
+    std::shared_ptr<Gio::ListStore<Asset2ListItem>> store,
+    std::regex filter
+) {
+    for(uint32_t i = 0; i < m_namelist.size() && m_manager != nullptr; i++) {
+        if(!m_manager->contains(m_namelist[i])) {
+            continue;
+        }
+
+        if(!std::regex_search(m_namelist[i], filter)) {
+            continue;
+        }
+        auto asset2 = m_manager->get_raw(m_namelist[i]);
+        if(!asset2) {
+            continue;
+        }
+
+        auto item = Asset2ListItem::create(
+            m_namelist[i],
+            Asset2ListItem::type_from_filename(m_namelist[i]),
+            &(*asset2)
+        );
+        store->append(item);
+    }
+}
+
+std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(const std::shared_ptr<Glib::ObjectBase>& item) {
+    spdlog::trace("create_namelist_model");
     auto col = std::dynamic_pointer_cast<Asset2ListItem>(item);
     
     std::shared_ptr<Gio::ListStore<Asset2ListItem>> result;
     // Root case
     if(!col){
         result = Gio::ListStore<Asset2ListItem>::create();
-        for(uint32_t i = 0; i < m_namelist.size() && m_manager != nullptr; i++) {
-            if(!m_manager->contains(m_namelist[i])) {
-                continue;
-            }
-            auto asset2 = m_manager->get_raw(m_namelist[i]);
-            if(!asset2) {
-                continue;
-            }
-
-            auto item = Asset2ListItem::create(
-                m_namelist[i],
-                Asset2ListItem::type_from_filename(m_namelist[i]),
-                &(*asset2)
-            );
-            result->append(item);
-        }
+        add_namelist_to_store_filtered(result);
     } else if(col && col->m_type == AssetType::ACTOR_RUNTIME) {
         std::vector<uint8_t> data = m_manager->get(col->m_stdname)->get_data();
         warpgate::utils::ADR adr(data);
@@ -343,6 +491,26 @@ std::shared_ptr<Gio::ListModel> Window::create_namelist_model(const std::shared_
     return result;
 }
 
+std::shared_ptr<Gio::ListStore<LoadedListItem>> Window::create_loaded_list_model(const std::shared_ptr<Glib::ObjectBase>& item) {
+    auto root = std::dynamic_pointer_cast<LoadedListItem>(item);
+    std::shared_ptr<Gio::ListStore<LoadedListItem>> result;
+
+    // Create the top level model
+    if(!root) {
+        // Result needs to be created in every case where there is a sub-tree
+        result = Gio::ListStore<LoadedListItem>::create();
+        std::vector<std::string> loaded_names = m_renderer.get_model_names();
+        for(uint32_t i = 0; i < loaded_names.size(); i++) {
+            result->append(LoadedListItem::create(loaded_names[i], Asset2ListItem::type_from_filename(loaded_names[i])));
+        }
+    } else {
+        // Todo - add info about the item here, like skeleton, attached animations, etc
+        //        the LoadedListItem will need slots for those in its class though
+    }
+
+    return result;
+}
+
 void Window::on_namelist_selection_changed(uint32_t idx, uint32_t length) {
     auto item = m_select_namelist->get_selected_item();
     auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(item);
@@ -368,6 +536,54 @@ void Window::on_namelist_row_activated(uint32_t index) {
     }
 
     m_models_to_load.push_back(std::make_pair(col->m_stdname, col->m_type));
+}
+
+void Window::on_namelist_search_changed() {
+    Glib::ustring usearch = m_search_namelist.get_text();
+    std::string search = usearch.c_str();
+    try {
+        m_regex = std::regex(search, std::regex_constants::icase);
+    } catch(std::regex_error& e) {
+        spdlog::error("Failed to set regex: {}", e.what());
+        return;
+    }
+
+    Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_load_namelist));
+    m_view_namelist.set_sensitive(false);
+}
+
+void Window::on_loaded_list_selection_changed(uint32_t idx, uint32_t length) {
+    auto item = m_select_loaded->get_selected_item();
+    auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(item);
+    if (!row)
+        return;
+    auto col = std::dynamic_pointer_cast<LoadedListItem>(row->get_item());
+    if (!col)
+        return;
+    spdlog::info("Selected Loaded Model {}", col->m_stdname);
+}
+
+void Window::on_loaded_list_row_activated(uint32_t index) {
+    auto item = std::dynamic_pointer_cast<Gio::ListModel>(m_view_loaded.get_model())->get_object(index);
+    auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(item);
+    if (!row)
+        return;
+    auto col = std::dynamic_pointer_cast<LoadedListItem>(row->get_item());
+    if (!col)
+        return;
+    spdlog::info("Activated Loaded Model {}", col->m_stdname);
+    // if(m_models_to_load.size() == 0) {
+    //     Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_load_model));
+    // }
+
+    // m_models_to_load.push_back(std::make_pair(col->m_stdname, col->m_type));
+}
+
+void Window::on_loaded_list_right_click(int n_buttons, double x, double y) {
+    Gdk::Rectangle rect{(int)x, (int)y, 1, 1};
+    m_context_menu.set_pointing_to(rect);
+    //m_context_menu.set_offset(m_context_menu.get_width(), 0);
+    m_context_menu.popup();
 }
 
 void Window::on_load_namelist() {
@@ -429,8 +645,8 @@ bool Window::on_idle_load_manager() {
 }
 
 bool Window::on_idle_load_namelist() {
-    m_tree_namelist = Gtk::TreeListModel::create(create_namelist_model(), sigc::mem_fun(*this, &Window::create_namelist_model), false, false);
-    m_select_namelist->set_model(m_tree_namelist);
+    m_namelist_root->remove_all();
+    add_namelist_to_store_filtered(m_namelist_root, m_regex);
     m_view_namelist.set_sensitive(true);
     return false;
 }
@@ -443,6 +659,8 @@ bool Window::on_idle_load_model() {
     m_models_to_load.pop_back();
 
     m_renderer.load_model(model, type, m_manager);
+
+    m_loaded_root->append(LoadedListItem::create(model, type));
     return m_models_to_load.size() > 0;
 }
 
@@ -457,4 +675,29 @@ void Window::on_export() {
 void Window::on_quit() {
     spdlog::info("Called quit");
     set_visible(false);
+}
+
+void Window::on_export_loaded() {
+    spdlog::info("Called export loaded");
+}
+
+void Window::on_remove_loaded() {
+    spdlog::info("Called remove loaded");
+    auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(m_select_loaded->get_selected_item());
+    if(!row) {
+        return;
+    }
+    auto model = std::dynamic_pointer_cast<LoadedListItem>(row->get_item());
+    if(!model) {
+        return;
+    }
+    spdlog::info("Gonna destroy model '{}'", model->m_stdname);
+    m_renderer.destroy_model(model->m_stdname);
+    uint32_t index;
+    for(index = 0; index < m_loaded_root->get_n_items(); index++) {
+        if(m_loaded_root->get_item(index) == model) {
+            break;
+        }
+    }
+    m_loaded_root->remove(index);
 }

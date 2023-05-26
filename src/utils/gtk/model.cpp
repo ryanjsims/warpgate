@@ -1,6 +1,7 @@
 #include "utils/gtk/model.hpp"
 
 #include <utils/materials_3.h>
+#include <glm/gtx/string_cast.hpp>
 
 using namespace warpgate::gtk;
 
@@ -9,7 +10,9 @@ Model::Model(
     std::shared_ptr<warpgate::DME> dme,
     std::unordered_map<uint32_t, std::shared_ptr<Shader>> &shaders,
     std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures,
-    std::shared_ptr<synthium::Manager> manager
+    std::shared_ptr<synthium::Manager> manager,
+    GLuint matrices_uniform,
+    GLuint planes_uniform
 ) {
     m_name = name;
     m_uname.assign(name.c_str());
@@ -29,7 +32,7 @@ Model::Model(
         
         if(shaders.find(mesh->get_material_hash()) == shaders.end()) {
             auto[vertex, fragment] = mesh->get_shader_paths();
-            std::shared_ptr<Shader> shader = std::make_shared<Shader>(vertex, fragment);
+            std::shared_ptr<Shader> shader = std::make_shared<Shader>(vertex, fragment, matrices_uniform, planes_uniform);
             if(shader->bad()) {
                 continue;
             }
@@ -45,19 +48,16 @@ Model::~Model() {
 
 void Model::draw(
     std::unordered_map<uint32_t, std::shared_ptr<Shader>> &shaders,
-    std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures,
-    const Uniform &ubo,
-    const GridUniform &planes
+    std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures
 ) const {
+    if(m_meshes.size() > 0) {
+        shaders[m_meshes[0]->get_material_hash()]->set_model(m_model);
+    }
     for(uint32_t i = 0; i < m_meshes.size(); i++) {
         if(shaders.find(m_meshes[i]->get_material_hash()) == shaders.end()) {
             continue;
         }
         shaders[m_meshes[i]->get_material_hash()]->use();
-        shaders[m_meshes[i]->get_material_hash()]->set_matrices(ubo);
-        shaders[m_meshes[i]->get_material_hash()]->set_planes(planes);
-        shaders[m_meshes[i]->get_material_hash()]->set_model(m_model);
-
         m_meshes[i]->bind();
         std::vector<uint32_t> texture_hashes = m_meshes[i]->get_texture_hashes();
         for(uint32_t j = 0; j < texture_hashes.size(); j++) {
@@ -68,14 +68,6 @@ void Model::draw(
         }
 
         glDrawElements(GL_TRIANGLES, m_meshes[i]->index_count(), m_meshes[i]->index_size() == 4 ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT, 0);
-    
-        for(uint32_t j = 0; j < texture_hashes.size(); j++) {
-            if(textures.find(texture_hashes[j]) == textures.end()) {
-                continue;
-            }
-            textures[texture_hashes[j]]->unbind();
-        }
-        m_meshes[i]->unbind();
     }
     glBindVertexArray(0);
     glUseProgram(0);

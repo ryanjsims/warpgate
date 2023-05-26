@@ -21,15 +21,15 @@ namespace warpgate::gtk {
             std::shared_ptr<warpgate::DME> dme,
             std::unordered_map<uint32_t, std::shared_ptr<Shader>> &shaders,
             std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures,
-            std::shared_ptr<synthium::Manager> manager
+            std::shared_ptr<synthium::Manager> manager,
+            GLuint matrices_uniform,
+            GLuint planes_uniform
         );
         ~Model();
 
         void draw(
             std::unordered_map<uint32_t, std::shared_ptr<Shader>> &shaders,
-            std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures,
-            const Uniform &ubo,
-            const GridUniform &planes
+            std::unordered_map<uint32_t, std::shared_ptr<Texture>> &textures
         ) const;
         Glib::ustring uname() const;
         std::string name() const;

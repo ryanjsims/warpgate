@@ -27,6 +27,13 @@ ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec
     m_renderer.signal_resize().connect(sigc::mem_fun(*this, &ModelRenderer::on_resize));
     m_renderer.add_tick_callback(sigc::mem_fun(*this, &ModelRenderer::on_tick));
 
+    auto left_click = Gtk::GestureClick::create();
+    left_click->set_propagation_phase(Gtk::PropagationPhase::BUBBLE);
+    left_click->set_button(1);
+    left_click->signal_pressed().connect(sigc::mem_fun(*this, &ModelRenderer::on_lmb_pressed), false);
+    left_click->signal_released().connect(sigc::mem_fun(*this, &ModelRenderer::on_lmb_released), false);
+    m_renderer.add_controller(left_click);
+
     auto middle_click = Gtk::GestureClick::create();
     middle_click->set_propagation_phase(Gtk::PropagationPhase::BUBBLE);
     middle_click->set_button(2);
@@ -73,8 +80,18 @@ void ModelRenderer::realize() {
     try {
         m_renderer.throw_if_error();
         create_grid();
+        glGenBuffers(1, &m_matrices_uniform);
+        glBindBuffer(GL_UNIFORM_BUFFER, m_matrices_uniform);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), nullptr, GL_STATIC_DRAW);
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_matrices_uniform);
+
+        glGenBuffers(1, &m_planes_uniform);
+        glBindBuffer(GL_UNIFORM_BUFFER, m_planes_uniform);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), nullptr, GL_STATIC_DRAW);
+        glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_planes_uniform);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
         std::filesystem::path resources = "./resources";
-        m_programs[0] = std::make_shared<Shader>(resources / "shaders" / "grid.vert", resources / "shaders" / "grid.frag");
+        m_programs[0] = std::make_shared<Shader>(resources / "shaders" / "grid.vert", resources / "shaders" / "grid.frag", m_matrices_uniform, m_planes_uniform);
         m_programs[0]->set_matrices(m_matrices);
         m_programs[0]->set_planes(m_planes);
         // glFrontFace(GL_CW);
@@ -90,6 +107,8 @@ void ModelRenderer::unrealize() {
         m_renderer.throw_if_error();
         glDeleteBuffers(1, &m_buffer);
         glDeleteBuffers(1, &m_ebo);
+        glDeleteBuffers(1, &m_matrices_uniform);
+        glDeleteBuffers(1, &m_planes_uniform);
         glDeleteVertexArrays(1, &m_vao);
         glDeleteTextures(1, &m_msaa_depth_tex);
         glDeleteTextures(1, &m_msaa_tex);
@@ -112,16 +131,16 @@ bool ModelRenderer::render(const std::shared_ptr<Gdk::GLContext> &context) {
 
         m_matrices.viewMatrix = m_camera.get_view();
         m_matrices.invViewMatrix = glm::inverse(m_matrices.viewMatrix);
+        Shader::set_matrices(m_matrices_uniform, m_matrices);
+        Shader::set_planes(m_planes_uniform, m_planes);
 
         for(auto it = m_models.begin(); it != m_models.end(); it++) {
-            it->second->draw(m_programs, m_textures, m_matrices, m_planes);
+            it->second->draw(m_programs, m_textures);
         }
         
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        m_programs[0]->set_matrices(m_matrices);
-        m_programs[0]->set_planes(m_planes);
         draw_grid();
         glCheckError("Draw grid");
         
@@ -266,10 +285,24 @@ void ModelRenderer::on_mmb_pressed(int n_buttons, double x, double y) {
     Gdk::ModifierType state = Gdk::ModifierType::BUTTON2_MASK;
     spdlog::trace("Modifiers changed to {:08x}", (int)(modifiers_state | state));
     modifiers_state |= state;
+    m_renderer.grab_focus();
 }
 
 void ModelRenderer::on_mmb_released(int n_buttons, double x, double y) {
     Gdk::ModifierType state = ~Gdk::ModifierType::BUTTON2_MASK;
+    spdlog::trace("Modifiers changed to {:08x}", (int)(modifiers_state & state));
+    modifiers_state &= state;
+}
+
+void ModelRenderer::on_lmb_pressed(int n_buttons, double x, double y) {
+    Gdk::ModifierType state = Gdk::ModifierType::BUTTON1_MASK;
+    spdlog::trace("Modifiers changed to {:08x}", (int)(modifiers_state | state));
+    modifiers_state |= state;
+    m_renderer.grab_focus();
+}
+
+void ModelRenderer::on_lmb_released(int n_buttons, double x, double y) {
+    Gdk::ModifierType state = ~Gdk::ModifierType::BUTTON1_MASK;
     spdlog::trace("Modifiers changed to {:08x}", (int)(modifiers_state & state));
     modifiers_state &= state;
 }
@@ -355,7 +388,7 @@ void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr
         return;
     }
      
-    std::shared_ptr<Model> model = std::make_shared<Model>(name, dme, m_programs, m_textures, manager);
+    std::shared_ptr<Model> model = std::make_shared<Model>(name, dme, m_programs, m_textures, manager, m_matrices_uniform, m_planes_uniform);
     m_models[name] = model;
     m_renderer.queue_render();
 }
@@ -367,6 +400,7 @@ void ModelRenderer::destroy_model(std::string name) {
     }
     m_renderer.make_current();
     m_models.erase(name);
+    m_renderer.queue_render();
 }
 
 std::vector<std::string> ModelRenderer::get_model_names() const {
