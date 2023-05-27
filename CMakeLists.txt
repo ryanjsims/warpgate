@@ -207,6 +207,7 @@ if(${BUILD_WARPGATE_GUI})
   target_compile_options(hello_gtk PRIVATE ${GTKMM_CFLAGS_OTHER})
   copy_gtk_dlls(hello_gtk)
 
+  file(TOUCH ${CMAKE_BINARY_DIR}/warpgate_icon.o)
   add_executable(warpgate
     src/warpgate.cpp
     src/utils/gtk/common.cpp
@@ -218,6 +219,7 @@ if(${BUILD_WARPGATE_GUI})
     src/utils/gtk/window.cpp
     src/utils/adr.cpp
     src/utils/materials_3.cpp
+    ${CMAKE_BINARY_DIR}/warpgate_icon.o
   )
 
   target_link_directories(warpgate PRIVATE ${GTKMM_LIBRARY_DIRS} ${EPOXY_LIBRARY_DIRS})
@@ -254,8 +256,28 @@ if(${BUILD_WARPGATE_GUI})
     COMMAND "${GTK4_PREFIX}/bin/gtk4-update-icon-cache.exe" -t -q ${CMAKE_SOURCE_DIR}/share/icons/hicolor
   )
 
+  add_custom_target(compile_svg
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libcairo> $<TARGET_FILE_DIR:warpgate>
+    COMMAND cairosvg -W 32 -H 32 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/32x32/apps/warpgate.png
+    COMMAND cairosvg -W 48 -H 48 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/48x48/apps/warpgate.png
+    COMMAND cairosvg -W 64 -H 64 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/64x64/apps/warpgate.png
+    COMMAND cairosvg -W 128 -H 128 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/128x128/apps/warpgate.png
+    COMMAND cairosvg -W 256 -H 256 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/256x256/apps/warpgate.png
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/cairo-2.dll
+  )
+
+
+  add_custom_target(compile_icon
+    COMMAND python ${CMAKE_SOURCE_DIR}/script/png2ico.py ${CMAKE_SOURCE_DIR}/share/icons/hicolor/256x256/apps/warpgate.png ${CMAKE_SOURCE_DIR}/warpgate.ico
+    COMMAND windres ${CMAKE_SOURCE_DIR}/warpgate.rc -o ${CMAKE_BINARY_DIR}/warpgate_icon.o
+    DEPENDS
+    ${CMAKE_SOURCE_DIR}/share/icons/hicolor/256x256/apps/warpgate.png
+    ${CMAKE_SOURCE_DIR}/script/png2ico.py
+  )
+
   add_dependencies(bundle_icons update_icon_cache)
-  add_dependencies(warpgate opengl_warpgate_resources gdk_pixbuf_loaders materials_json bundle_icons)
+  add_dependencies(warpgate opengl_warpgate_resources gdk_pixbuf_loaders materials_json bundle_icons compile_icon)
 endif()
     
 add_executable(zone_converter 

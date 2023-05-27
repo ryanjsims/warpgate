@@ -203,6 +203,7 @@ private:
 Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", Gtk::FileChooser::Action::OPEN) {
     set_title("Warpgate");
     set_default_size(1280, 960);
+    set_icon_name("warpgate");
     set_child(m_box_root);
 
     auto win_menu = Gio::Menu::create();

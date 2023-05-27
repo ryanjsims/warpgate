@@ -6,3 +6,6 @@ include/version.h
 export/
 *.lnk
 *.cache
+warpgate_icon.o
+warpgate.ico
+warpgate.png
