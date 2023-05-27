@@ -24,15 +24,15 @@ if(${BUILD_WARPGATE_GUI})
 endif()
 
 if(${MATERIALS_JSON_PORTABLE})
-  set(MATERIALS_JSON_LOCATION "resources/materials.json")
+  set(MATERIALS_JSON_LOCATION "share/materials.json")
 else()
-  set(MATERIALS_JSON_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/materials.json")
+  set(MATERIALS_JSON_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/share/materials.json")
 endif()
 
 add_definitions(-DMATERIALS_JSON_LOCATION="${MATERIALS_JSON_LOCATION}" -DMATERIALS_JSON_PORTABLE=${MATERIALS_JSON_PORTABLE})
 
 add_custom_target(materials_json
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/share
   DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/resources/materials.json
 )
@@ -239,10 +239,14 @@ if(${BUILD_WARPGATE_GUI})
   copy_gtk_dlls(warpgate)
 
   add_custom_target(opengl_warpgate_resources
-      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/utils/vulkan/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/resources/shaders
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src/utils/vulkan/shaders ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/share/shaders
   )
 
-  add_dependencies(warpgate opengl_warpgate_resources)
+  add_custom_target(gdk_pixbuf_loaders
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/lib/gdk-pixbuf-2.0 ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/lib/gdk-pixbuf-2.0
+  )
+
+  add_dependencies(warpgate opengl_warpgate_resources gdk_pixbuf_loaders materials_json)
 endif()
     
 add_executable(zone_converter 

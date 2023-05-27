@@ -207,7 +207,7 @@ uint32_t Mesh::index_size() const {
 }
 
 std::pair<std::filesystem::path, std::filesystem::path> Mesh::get_shader_paths() const {
-    std::filesystem::path resources = "./resources";
+    std::filesystem::path resources = "./share";
     std::filesystem::path vertex, fragment;
     vertex = fragment = resources / "shaders" / material_name;
     vertex.replace_extension("vert");

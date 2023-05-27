@@ -90,7 +90,7 @@ void ModelRenderer::realize() {
         glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), nullptr, GL_STATIC_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_planes_uniform);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
-        std::filesystem::path resources = "./resources";
+        std::filesystem::path resources = "./share";
         m_programs[0] = std::make_shared<Shader>(resources / "shaders" / "grid.vert", resources / "shaders" / "grid.frag", m_matrices_uniform, m_planes_uniform);
         m_programs[0]->set_matrices(m_matrices);
         m_programs[0]->set_planes(m_planes);

@@ -47,6 +47,12 @@ PROPERTIES
   IMPORTED_IMPLIB "${INTL_LIBRARY_DIR}/libexpat.lib"
   IMPORTED_LOCATION "${GTK4_PREFIX}/bin/libexpat.dll"
 )
+add_library(libxml2 SHARED IMPORTED GLOBAL)
+set_target_properties(libxml2 
+PROPERTIES 
+  IMPORTED_IMPLIB "${INTL_LIBRARY_DIR}/libxml2.lib"
+  IMPORTED_LOCATION "${GTK4_PREFIX}/bin/libxml2.dll"
+)
 add_pkgconfig_dll_library(libpng libpng16 "libpng16.dll")
 add_pkgconfig_dll_library(libcairo cairo "cairo-2.dll")
 add_pkgconfig_dll_library(libjpeg libjpeg "jpeg62.dll")
@@ -62,6 +68,7 @@ add_pkgconfig_dll_library(libcairo_script cairo-script "cairo-script-interpreter
 add_pkgconfig_dll_library(pixman pixman-1 "pixman-1-0.dll")
 add_pkgconfig_dll_library(libfreetype freetype2 "freetype-6.dll")
 add_pkgconfig_dll_library(libfontconfig fontconfig "fontconfig-1.dll")
+add_pkgconfig_dll_library(librsvg librsvg-2.0 "rsvg-2.0-vs17.dll")
 
 function(copy_gtk_dlls target)
   add_custom_command(TARGET ${target} POST_BUILD
@@ -100,5 +107,7 @@ function(copy_gtk_dlls target)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libfreetype> $<TARGET_FILE_DIR:${target}>
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libfontconfig> $<TARGET_FILE_DIR:${target}>
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libexpat> $<TARGET_FILE_DIR:${target}>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:librsvg> $<TARGET_FILE_DIR:${target}>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libxml2> $<TARGET_FILE_DIR:${target}>
   )
 endfunction()
