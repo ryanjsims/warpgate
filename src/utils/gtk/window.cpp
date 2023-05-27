@@ -8,7 +8,6 @@
 #include <gtkmm/signallistitemfactory.h>
 #include <gtkmm/dialog.h>
 #include <gtkmm/gestureclick.h>
-#include <giomm/menu.h>
 #include <giomm/simpleactiongroup.h>
 #include <giomm/datainputstream.h>
 
@@ -55,7 +54,7 @@ public:
         case AssetType::ACTOR_RUNTIME:
             return "package-x-generic-symbolic";
         case AssetType::ANIMATION:
-            return "media-playback-start-symbolic";
+            return "media-seek-forward-symbolic";
         case AssetType::ANIMATION_NETWORK:
             return "network-wired-symbolic";
         case AssetType::MODEL:
@@ -231,37 +230,18 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     action_group->add_action("quit", sigc::mem_fun(*this, &Window::on_quit));
     insert_action_group("warpgate", action_group);
 
-    auto context_menu = Gio::Menu::create();
+    m_context_menu = Gio::Menu::create();
 
     auto section1 = Gio::Menu::create();
     section1->append("_Export", "loaded.export");
     section1->append("_Remove", "loaded.remove");
-    context_menu->append_section(section1);
-
-    m_context_menu.set_menu_model(context_menu);
-    m_context_menu.set_has_arrow(false);
-    m_context_menu.set_parent(m_box_loaded);
-    int min, natural, min_base, natural_base;
-    m_context_menu.get_first_child()->measure(Gtk::Orientation::HORIZONTAL, -1, min, natural, min_base, natural_base);
-    m_context_menu.set_offset(natural >> 1, 0);
+    m_context_menu->append_section(section1);
     
-    //spdlog::info("Measure returned {} {} {} {}", min, natural, min_base, natural_base);
-    
-    // m_context_menu.signal_show().connect([&](){
-    //     if(m_context_menu.get_first_child() != nullptr) {
-    //         spdlog::info("Width of child {}", m_context_menu.get_first_child()->get_allocated_width());
-    //         spdlog::info("Child child width {}", m_context_menu.get_first_child()->get_first_child()->get_allocated_width());
-    //     } else {
-    //         spdlog::info("Child is nullptr");
-    //     }
-    // });
-
     auto context_action_group = Gio::SimpleActionGroup::create();
     context_action_group->add_action("export", sigc::mem_fun(*this, &Window::on_export_loaded));
     context_action_group->add_action("remove", sigc::mem_fun(*this, &Window::on_remove_loaded));
     insert_action_group("loaded", context_action_group);
 
-    // = Gtk::FileChooserDialog("Import Namelist", Gtk::FileChooser::Action::OPEN);
     m_file_dialog.add_button("Import", Gtk::ResponseType::ACCEPT)->signal_clicked().connect([&]{
         m_file_dialog.hide();
     });
@@ -306,7 +286,9 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     m_scroll_namelist.set_focusable(false);
     m_scroll_namelist.set_vexpand(true);
     
-    m_label_namelist.set_margin(5);
+    m_label_namelist.set_margin_top(5);
+    m_label_namelist.set_margin_start(5);
+    m_label_namelist.set_margin_end(5);
     m_search_namelist.set_margin_start(5);
     m_search_namelist.set_margin_end(5);
 
@@ -314,6 +296,7 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     m_search_namelist.signal_search_changed().connect(sigc::mem_fun(*this, &Window::on_namelist_search_changed));
 
     m_search_namelist.set_placeholder_text("Filter...");
+    m_box_namelist.set_spacing(5);
     m_box_namelist.append(m_label_namelist);
     m_box_namelist.append(m_search_namelist);
     m_box_namelist.append(m_scroll_namelist);
@@ -322,6 +305,7 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     auto loaded_factory = Gtk::SignalListItemFactory::create();
     loaded_factory->signal_setup().connect(sigc::mem_fun(*this, &Window::on_setup_loaded_list_item));
     loaded_factory->signal_bind().connect(sigc::mem_fun(*this, &Window::on_bind_loaded_list_item));
+    loaded_factory->signal_teardown().connect(sigc::mem_fun(*this, &Window::on_teardown_loaded_list_item));
 
     m_loaded_root = create_loaded_list_model();
     
@@ -339,16 +323,19 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     m_scroll_loaded.set_child(m_view_loaded);
     m_scroll_loaded.set_vexpand(true);
 
-    m_label_loaded.set_margin(5);
+    m_label_loaded.set_margin_top(5);
+    m_label_loaded.set_margin_start(5);
+    m_label_loaded.set_margin_end(5);
 
-    auto right_click = Gtk::GestureClick::create();
-    right_click->set_button(3);
-    right_click->set_propagation_phase(Gtk::PropagationPhase::BUBBLE);
-    right_click->signal_pressed().connect(sigc::mem_fun(*this, &Window::on_loaded_list_right_click));
-    m_box_loaded.add_controller(right_click);
+    // auto right_click = Gtk::GestureClick::create();
+    // right_click->set_button(3);
+    // right_click->set_propagation_phase(Gtk::PropagationPhase::BUBBLE);
+    // right_click->signal_pressed().connect(sigc::mem_fun(*this, &Window::on_loaded_list_right_click));
+    //m_box_loaded.add_controller(right_click);
 
     m_box_loaded.append(m_label_loaded);
     m_box_loaded.append(m_scroll_loaded);
+    m_box_loaded.set_spacing(5);
     m_pane_lists.set_end_child(m_box_loaded);
 
     m_pane_root.set_start_child(m_pane_lists);
@@ -392,6 +379,7 @@ void Window::on_bind_namelist_item(const std::shared_ptr<Gtk::ListItem>& list_it
         return;
     auto col = std::dynamic_pointer_cast<Asset2ListItem>(row->get_item());
     list_item->set_selectable(col->m_type != AssetType::VIRTUAL);
+    list_item->set_activatable(col->m_type != AssetType::VIRTUAL);
     if (!col)
         return;
     auto expander = dynamic_cast<Gtk::TreeExpander*>(list_item->get_child());
@@ -421,8 +409,31 @@ void Window::on_setup_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& lis
     auto label = Gtk::make_managed<Gtk::Label>();
     auto icon = Gtk::make_managed<Gtk::Image>();
     auto box = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 5);
+    auto context_menu = std::make_shared<Gtk::PopoverMenu>(m_context_menu);
+    context_menu->set_has_arrow(false);
+    int min, natural, min_base, natural_base;
+    context_menu->get_first_child()->measure(Gtk::Orientation::HORIZONTAL, -1, min, natural, min_base, natural_base);
+    context_menu->set_offset(natural >> 1, 0);
+    m_menus.push_back(context_menu);
+    std::weak_ptr<Gtk::PopoverMenu> context_weak_ref = context_menu;
+
+    auto right_click = Gtk::GestureClick::create();
+    right_click->set_button(3);
+    right_click->set_propagation_phase(Gtk::PropagationPhase::BUBBLE);
+    right_click->signal_pressed().connect(
+        [this, context_weak_ref](int buttons, double x, double y) {
+            if(context_weak_ref.expired()) {
+                spdlog::error("Context menu already destroyed");
+                return;
+            }
+            std::shared_ptr<Gtk::PopoverMenu> menu = context_weak_ref.lock();
+            this->on_loaded_list_right_click(menu, buttons, x, y);
+        }
+    );
     box->append(*icon);
     box->append(*label);
+    context_menu->set_parent(*box);
+    box->add_controller(right_click);
     expander->set_child(*box);
     list_item->set_child(*expander);
 }
@@ -453,6 +464,29 @@ void Window::on_bind_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& list
         label->set_text(col->m_name);
     }
     icon->set_from_icon_name(Asset2ListItem::icon_from_asset_type(col->m_type));
+}
+
+void Window::on_teardown_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& list_item) {
+    spdlog::trace("on_teardown_loaded_list_item");
+    auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(list_item->get_item());
+    if (!row)
+        return;
+    auto expander = dynamic_cast<Gtk::TreeExpander*>(list_item->get_child());
+    if (!expander)
+        return;
+    auto box = dynamic_cast<Gtk::Box*>(expander->get_child());
+    if(!box)
+        return;
+    auto menu = dynamic_cast<Gtk::PopoverMenu*>(box->get_last_child());
+    size_t index;
+    for(index = 0; index < m_menus.size(); index++) {
+        if(m_menus[index].get() == menu) {
+            break;
+        }
+    }
+    if(index < m_menus.size()) {
+        m_menus.erase(m_menus.begin() + index);
+    }
 }
 
 void Window::add_namelist_to_store_filtered(
@@ -717,11 +751,24 @@ void Window::on_loaded_list_row_activated(uint32_t index) {
     // m_models_to_load.push_back(std::make_pair(col->m_stdname, col->m_type));
 }
 
-void Window::on_loaded_list_right_click(int n_buttons, double x, double y) {
+void Window::on_loaded_list_right_click(std::shared_ptr<Gtk::PopoverMenu> menu, int n_buttons, double x, double y) {
     Gdk::Rectangle rect{(int)x, (int)y, 1, 1};
-    m_context_menu.set_pointing_to(rect);
-    //m_context_menu.set_offset(m_context_menu.get_width(), 0);
-    m_context_menu.popup();
+    menu->set_pointing_to(rect);
+    menu->popup();
+
+    auto box = menu->get_parent();
+    auto expander = box->get_parent();
+    auto listitem = expander->get_parent();
+    auto listview = listitem->get_parent();
+    auto curritem = listview->get_first_child();
+    uint32_t index = 0;
+    while(curritem && curritem != listitem) {
+        curritem = curritem->get_next_sibling();
+        index++;
+    }
+    if(curritem) {
+        m_select_loaded->set_selected(index);
+    }
 }
 
 void Window::on_load_namelist() {

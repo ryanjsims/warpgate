@@ -136,6 +136,7 @@ bool ModelRenderer::render(const std::shared_ptr<Gdk::GLContext> &context) {
 
         for(auto it = m_models.begin(); it != m_models.end(); it++) {
             it->second->draw(m_programs, m_textures);
+            glCheckError(fmt::format("Drawing model '{}'", it->first));
         }
         
         glEnable(GL_BLEND);

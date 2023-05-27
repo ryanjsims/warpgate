@@ -20,8 +20,11 @@
 #include <gtkmm/label.h>
 #include <gtkmm/icontheme.h>
 #include <gtkmm/iconpaintable.h>
+
 #include <glibmm/main.h>
+
 #include <giomm/liststore.h>
+#include <giomm/menu.h>
 
 #include <sigc++/sigc++.h>
 #include <synthium/manager.h>
@@ -49,7 +52,8 @@ namespace warpgate::gtk {
         std::jthread load_manager;
 
         Gtk::PopoverMenuBar m_menubar;
-        Gtk::PopoverMenu m_context_menu;
+        std::shared_ptr<Gio::Menu> m_context_menu;
+        std::vector<std::shared_ptr<Gtk::PopoverMenu>> m_menus;
         Gtk::Box m_box_root {Gtk::Orientation::VERTICAL, 0}
                , m_box_namelist {Gtk::Orientation::VERTICAL, 0}
                , m_box_loaded {Gtk::Orientation::VERTICAL, 0};
@@ -81,6 +85,7 @@ namespace warpgate::gtk {
 
         void on_setup_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& list_item);
         void on_bind_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& list_item);
+        void on_teardown_loaded_list_item(const std::shared_ptr<Gtk::ListItem>& list_item);
 
         void add_namelist_to_store_filtered(
             std::shared_ptr<Gio::ListStore<Asset2ListItem>> store,
@@ -97,7 +102,7 @@ namespace warpgate::gtk {
 
         void on_loaded_list_selection_changed(uint32_t idx, uint32_t length);
         void on_loaded_list_row_activated(uint32_t index);
-        void on_loaded_list_right_click(int n_buttons, double x, double y);
+        void on_loaded_list_right_click(std::shared_ptr<Gtk::PopoverMenu> menu, int n_buttons, double x, double y);
 
         void on_load_namelist();
         void on_gen_namelist();
