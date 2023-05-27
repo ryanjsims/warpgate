@@ -1,0 +1,10 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <g id="facility-bg" stroke="none" fill="red" transform="translate(12.5 12.5) scale(0.75)">
+        <circle fill="white" fill-opacity="1.0" cx="50" cy="50" r="50"/>
+        <circle fill-opacity="0.75" cx="50" cy="50" r="45"/>
+    </g>
+    <g id="warpgate-fg" stroke="none" fill="white" transform="translate(12.5 12.5) scale(0.75)">
+        <path d="M 29.5 27 A 33 33 0 0 0 15.25 70.22 L 50 58.75 L 84.75 70.22 A 33 33 0 0 0 70.5 27 L 70 28 A 35 35 0 0 1 79.93 60.77 L 50 51.25 L 20.07 60.77 A 35 35 0 0 1 30 28 Z"/>
+        <polygon points="44,65 48,15 52,15 56,65"/>
+    </g>
+</svg>

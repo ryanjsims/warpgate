@@ -250,6 +250,11 @@ if(${BUILD_WARPGATE_GUI})
       COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/share/icons ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/share/icons
   )
 
+  add_custom_target(update_icon_cache
+    COMMAND "${GTK4_PREFIX}/bin/gtk4-update-icon-cache.exe" -t -q ${CMAKE_SOURCE_DIR}/share/icons/hicolor
+  )
+
+  add_dependencies(bundle_icons update_icon_cache)
   add_dependencies(warpgate opengl_warpgate_resources gdk_pixbuf_loaders materials_json bundle_icons)
 endif()
     

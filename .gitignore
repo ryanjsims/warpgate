@@ -5,3 +5,4 @@ models/
 include/version.h
 export/
 *.lnk
+*.cache
