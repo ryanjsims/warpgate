@@ -246,7 +246,11 @@ if(${BUILD_WARPGATE_GUI})
       COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/lib/gdk-pixbuf-2.0 ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/lib/gdk-pixbuf-2.0
   )
 
-  add_dependencies(warpgate opengl_warpgate_resources gdk_pixbuf_loaders materials_json)
+  add_custom_target(bundle_icons
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/share/icons ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/share/icons
+  )
+
+  add_dependencies(warpgate opengl_warpgate_resources gdk_pixbuf_loaders materials_json bundle_icons)
 endif()
     
 add_executable(zone_converter 
