@@ -48,6 +48,7 @@ namespace warpgate::gtk {
         warpgate::vulkan::Camera m_camera;
         bool m_panning = false;
         bool m_rotating = false;
+        bool m_shaders_loaded = false;
         Uniform m_matrices {};
         GridUniform m_planes {};
 

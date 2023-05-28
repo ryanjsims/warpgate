@@ -1,4 +1,5 @@
 #include "utils/gtk/model_renderer.hpp"
+#include "utils/common.h"
 
 #include <spdlog/spdlog.h>
 #include <gtkmm/gestureclick.h>
@@ -12,6 +13,7 @@
 #include <synthium/utils.h>
 
 using namespace warpgate::gtk;
+using namespace std::chrono_literals;
 
 ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}) {   
     utils::materials3::init_materials();
@@ -90,10 +92,17 @@ void ModelRenderer::realize() {
         glBufferData(GL_UNIFORM_BUFFER, sizeof(GridUniform), nullptr, GL_STATIC_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_planes_uniform);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
-        std::filesystem::path resources = "./share";
+        std::optional<std::filesystem::path> exe_path = executable_location();
+        if(!exe_path.has_value()) {
+            spdlog::error("Could not find base directory to load shaders!");
+            return;
+        }
+        std::filesystem::path base_dir = exe_path->parent_path();
+        std::filesystem::path resources = base_dir / "share";
         m_programs[0] = std::make_shared<Shader>(resources / "shaders" / "grid.vert", resources / "shaders" / "grid.frag", m_matrices_uniform, m_planes_uniform);
         m_programs[0]->set_matrices(m_matrices);
         m_programs[0]->set_planes(m_planes);
+        m_shaders_loaded = true;
         // glFrontFace(GL_CW);
     } catch(const Gdk::GLError &gle) {
         spdlog::error("ModelRenderer::realize:");

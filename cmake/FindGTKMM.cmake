@@ -25,10 +25,11 @@ add_pkgconfig_dll_library(cairo_gobject cairo-gobject "cairo-gobject-2.dll")
 add_pkgconfig_dll_library(graphene graphene-1.0 "graphene-1.0-0.dll")
 add_pkgconfig_dll_library(cairomm cairomm-1.16 "cairomm-vc143-1.16-1.dll")
 add_pkgconfig_dll_library(pangomm pangomm-2.48 "pangomm-vc143-2.48-1.dll")
-add_pkgconfig_dll_library(ffi libffi "ffi-7.dll")
+add_pkgconfig_dll_library(ffi libffi "ffi-8.dll")
 add_pkgconfig_dll_library(zlib_shared zlib "zlib1.dll")
 add_pkgconfig_dll_library(pcre libpcre2-8 "pcre2-8.dll")
-list(GET GTK4_LIBRARY_DIRS 1 INTL_LIBRARY_DIR)
+#message("GTK4 lib dirs: ${GTK4_LIBRARY_DIRS}")
+list(GET GTK4_LIBRARY_DIRS 0 INTL_LIBRARY_DIR)
 add_library(intl SHARED IMPORTED GLOBAL)
 set_target_properties(intl 
 PROPERTIES 

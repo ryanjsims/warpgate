@@ -1,5 +1,6 @@
 #include "utils/gtk/mesh.hpp"
 
+#include <utils/common.h>
 #include <utils/materials_3.h>
 
 std::unordered_map<std::string, int> component_types = {
@@ -207,7 +208,13 @@ uint32_t Mesh::index_size() const {
 }
 
 std::pair<std::filesystem::path, std::filesystem::path> Mesh::get_shader_paths() const {
-    std::filesystem::path resources = "./share";
+    std::optional<std::filesystem::path> exe_path = executable_location();
+    if(!exe_path.has_value()) {
+        spdlog::error("Could not find base directory to load shaders!");
+        exe_path = std::filesystem::path("./warpgate.exe");
+    }
+    std::filesystem::path base_dir = exe_path->parent_path();
+    std::filesystem::path resources = base_dir / "share";
     std::filesystem::path vertex, fragment;
     vertex = fragment = resources / "shaders" / material_name;
     vertex.replace_extension("vert");

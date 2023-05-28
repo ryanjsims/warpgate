@@ -16,7 +16,7 @@ set(BUILD_WARPGATE_GUI 0 CACHE BOOL "Enable experimental Warpgate GTK target. Re
 
 add_subdirectory(lib)
 
-if(${BUILD_WARPGATE_HIKOGUI})
+if(${BUILD_WARPGATE_HIKOGUI} OR ${BUILD_WARPGATE_GUI})
   find_package(Vulkan REQUIRED)
 endif()
 if(${BUILD_WARPGATE_GUI})
@@ -97,6 +97,7 @@ target_link_libraries(decompress PRIVATE spdlog::spdlog argparse ZLIB::ZLIB)
 
 add_executable(export
   src/export.cpp
+  src/utils/common.cpp
   src/utils/textures.cpp
   src/utils/materials_3.cpp
 )
@@ -106,6 +107,7 @@ target_link_libraries(export PRIVATE spdlog::spdlog synthium::synthium argparse 
 add_executable(dme_converter 
     src/dme_converter.cpp
     src/utils/gltf/common.cpp
+    src/utils/common.cpp
     src/utils/gltf.cpp
     src/utils/materials_3.cpp 
     src/utils/sign.cpp 
@@ -127,6 +129,7 @@ add_executable(chunk_converter
     src/utils/gltf/chunk.cpp
     src/utils/gltf/common.cpp
     src/utils/aabb.cpp
+    src/utils/common.cpp
     src/utils/materials_3.cpp 
     src/utils/sign.cpp 
     src/utils/textures.cpp
@@ -165,6 +168,7 @@ if(${BUILD_WARPGATE_HIKOGUI})
     src/warpgate_hi.cpp
     src/utils/vulkan/model_renderer.cpp
     src/utils/hikogui/widgets/model_widget.cpp
+    src/utils/common.cpp
     src/utils/materials_3.cpp
   )
 
@@ -218,11 +222,12 @@ if(${BUILD_WARPGATE_GUI})
     src/utils/gtk/texture.cpp
     src/utils/gtk/window.cpp
     src/utils/adr.cpp
+    src/utils/common.cpp
     src/utils/materials_3.cpp
     ${CMAKE_BINARY_DIR}/warpgate_icon.o
   )
 
-  target_link_directories(warpgate PRIVATE ${GTKMM_LIBRARY_DIRS} ${EPOXY_LIBRARY_DIRS})
+  target_link_directories(warpgate PRIVATE ${GTKMM_LIBRARY_DIRS} ${LIBEPOXY_LIBRARY_DIRS})
   target_link_libraries(warpgate 
     PRIVATE 
       gli 
@@ -233,7 +238,7 @@ if(${BUILD_WARPGATE_GUI})
       tinygltf
       ${PUGIXML_LINKED_LIBRARY}
       ${GTKMM_LIBRARIES}
-      ${EPOXY_LIBRARIES}
+      ${LIBEPOXY_LIBRARIES}
       ${Vulkan_LIBRARY}
   )
   target_include_directories(warpgate PRIVATE include/ lib/external/half/include/ ${GTKMM_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIR})
@@ -257,16 +262,24 @@ if(${BUILD_WARPGATE_GUI})
   )
 
   add_custom_target(compile_svg
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libcairo> $<TARGET_FILE_DIR:warpgate>
     COMMAND cairosvg -W 32 -H 32 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/32x32/apps/warpgate.png
     COMMAND cairosvg -W 48 -H 48 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/48x48/apps/warpgate.png
     COMMAND cairosvg -W 64 -H 64 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/64x64/apps/warpgate.png
     COMMAND cairosvg -W 128 -H 128 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/128x128/apps/warpgate.png
     COMMAND cairosvg -W 256 -H 256 ${CMAKE_SOURCE_DIR}/share/icons/hicolor/scalable/apps/warpgate.svg -o ${CMAKE_SOURCE_DIR}/share/icons/hicolor/256x256/apps/warpgate.png
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/cairo-2.dll
+    DEPENDS move_cairo
   )
 
+  add_custom_command(TARGET compile_svg PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libcairo> ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:pixman> ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libpng> ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zlib_shared> ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libfreetype> ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libfontconfig> ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libexpat> ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/
+  )
 
   add_custom_target(compile_icon
     COMMAND python ${CMAKE_SOURCE_DIR}/script/png2ico.py ${CMAKE_SOURCE_DIR}/share/icons/hicolor/256x256/apps/warpgate.png ${CMAKE_SOURCE_DIR}/warpgate.ico
@@ -276,6 +289,13 @@ if(${BUILD_WARPGATE_GUI})
     ${CMAKE_SOURCE_DIR}/script/png2ico.py
   )
 
+  add_custom_command(TARGET warpgate POST_BUILD 
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zlib> ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/zlib.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${GTK4_PREFIX}/share/glib-2.0/ ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/share/glib-2.0/
+  )
+
+  add_dependencies(compile_icon compile_svg)
+  add_dependencies(update_icon_cache compile_svg)
   add_dependencies(bundle_icons update_icon_cache)
   add_dependencies(warpgate opengl_warpgate_resources gdk_pixbuf_loaders materials_json bundle_icons compile_icon)
 endif()
@@ -286,8 +306,9 @@ add_executable(zone_converter
     src/utils/gltf/chunk.cpp
     src/utils/aabb.cpp
     src/utils/adr.cpp
+    src/utils/common.cpp
     src/utils/gltf.cpp
-    src/utils/materials_3.cpp 
+    src/utils/materials_3.cpp
     src/utils/sign.cpp 
     src/utils/textures.cpp
     src/utils/tsqueue.cpp 
