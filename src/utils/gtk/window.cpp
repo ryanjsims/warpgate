@@ -1,12 +1,13 @@
+#pragma warning( disable : 4250 )
 #include "utils/gtk/window.hpp"
 #include <thread>
 #include <regex>
 
 #include <gtkmm/treelistmodel.h>
 #include <gtkmm/treeexpander.h>
+#include <gtkmm/error.h>
 #include <gtkmm/label.h>
 #include <gtkmm/signallistitemfactory.h>
-#include <gtkmm/dialog.h>
 #include <gtkmm/gestureclick.h>
 #include <giomm/simpleactiongroup.h>
 #include <giomm/datainputstream.h>
@@ -199,7 +200,22 @@ private:
     std::regex m_compare;
 };
 
-Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", Gtk::FileChooser::Action::OPEN) {
+GenerateNamelistState::GenerateNamelistState()
+    : Glib::ObjectBase("GenerateNamelistState")
+    , property_finished(*this, "finished", true)
+    , pack_index(0)
+    , asset_index(0)
+{
+
+}
+
+GenerateNamelistState::~GenerateNamelistState() {}
+
+Window::Window() 
+    : m_manager(nullptr)
+    , m_load_namelist_dialog(*this, "Import Namelist", Gtk::FileChooser::Action::OPEN)
+    , m_gen_namelist_dialog(*this, "Generate Namelist", Gtk::FileChooser::Action::SAVE)
+{
     set_title("Warpgate");
     set_default_size(1280, 960);
     set_icon_name("warpgate");
@@ -225,7 +241,8 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
 
     auto action_group = Gio::SimpleActionGroup::create();
     action_group->add_action("load_namelist", sigc::mem_fun(*this, &Window::on_load_namelist));
-    action_group->add_action("gen_namelist", sigc::mem_fun(*this, &Window::on_gen_namelist));
+    auto action = action_group->add_action("gen_namelist", sigc::mem_fun(*this, &Window::on_gen_namelist));
+    m_generate_enable_binding = Glib::Binding::bind_property(m_generator.property_finished.get_proxy(), action->property_enabled());
     action_group->add_action("export", sigc::mem_fun(*this, &Window::on_export));
     action_group->add_action("quit", sigc::mem_fun(*this, &Window::on_quit));
     insert_action_group("warpgate", action_group);
@@ -242,25 +259,72 @@ Window::Window() : m_manager(nullptr), m_file_dialog(*this, "Import Namelist", G
     context_action_group->add_action("remove", sigc::mem_fun(*this, &Window::on_remove_loaded));
     insert_action_group("loaded", context_action_group);
 
-    m_file_dialog.add_button("Import", Gtk::ResponseType::ACCEPT)->signal_clicked().connect([&]{
-        m_file_dialog.hide();
+    auto filter_store = Gio::ListStore<Gtk::FileFilter>::create();
+    auto txt_filter = Gtk::FileFilter::create();
+    txt_filter->add_mime_type("text/plain");
+    filter_store->append(txt_filter);
+
+    m_dialog = Gtk::FileDialog::create();
+    m_dialog->set_accept_label("Generate");
+    m_dialog->set_title("Generate Namelist");
+    
+    // Yes, please use std::string for utf-8 strings, when the STL in c++20
+    //      absolutely **does not** support conversion from u8string to string...
+    //      I love it so much more than even just using a Glib::ustring like
+    //      ***every other*** API uses for that purpose... >.>
+    //m_dialog->set_initial_name("namelist.txt");
+
+    //At least using the C API works I guess, but I *shouldn't* have to use it
+    gtk_file_dialog_set_initial_name(m_dialog->gobj(), "namelist.txt");
+    m_dialog->set_filters(filter_store);
+
+    m_load_namelist_dialog.add_button("Import", Gtk::ResponseType::ACCEPT)->signal_clicked().connect([&]{
+        m_load_namelist_dialog.hide();
     });
-    m_file_dialog.add_button("Cancel", Gtk::ResponseType::CANCEL)->signal_clicked().connect([&]{
-        m_file_dialog.hide();
+    m_load_namelist_dialog.add_button("Cancel", Gtk::ResponseType::CANCEL)->signal_clicked().connect([&]{
+        m_load_namelist_dialog.hide();
     });
-    m_file_dialog.signal_response().connect(sigc::mem_fun(*this, &Window::on_file_dialog_signal_response));
-    m_file_dialog.signal_close_request().connect([&]{
-        m_file_dialog.hide();
+    m_load_namelist_dialog.signal_response().connect(sigc::mem_fun(*this, &Window::on_load_namelist_response));
+    m_load_namelist_dialog.signal_close_request().connect([&]{
+        m_load_namelist_dialog.hide();
         return true;
     }, false);
+
+    // m_gen_namelist_dialog.add_button("Generate", Gtk::ResponseType::ACCEPT)->signal_clicked().connect([&]{
+    //     m_gen_namelist_dialog.hide();
+    // });
+    // m_gen_namelist_dialog.add_button("Cancel", Gtk::ResponseType::CANCEL)->signal_clicked().connect([&]{
+    //     m_gen_namelist_dialog.hide();
+    // });
+    // m_gen_namelist_dialog.signal_response().connect(sigc::mem_fun(*this, &Window::on_gen_namelist_response));
+    // m_gen_namelist_dialog.signal_close_request().connect([&]{
+    //     m_gen_namelist_dialog.hide();
+    //     return true;
+    // }, false);
+    // m_gen_namelist_dialog.set_current_name("namelist.txt");
+    
+    // m_gen_namelist_dialog.set_filter(txt_filter);
 
     m_menubar.set_menu_model(win_menu);
     m_menubar.set_can_focus(false);
     m_menubar.set_focusable(false);
 
+    m_progress_visible_binding = Glib::Binding::bind_property(
+        m_generator.property_finished.get_proxy(),
+        m_progress_bar.property_visible(),
+        Glib::Binding::Flags::INVERT_BOOLEAN
+    );
+
+    m_progress_bar.set_hexpand(true);
+    //m_status_separator.set_hexpand();
+
+    m_box_status.append(m_status_bar);
+    m_box_status.append(m_status_separator);
+    m_box_status.append(m_progress_bar);
+
     m_box_root.append(m_menubar);
     m_box_root.append(m_pane_root);
-    m_box_root.append(m_status_bar);
+    m_box_root.append(m_box_status);
 
     m_pane_lists.set_orientation(Gtk::Orientation::VERTICAL);
     
@@ -354,6 +418,10 @@ void Window::on_manager_loaded(bool success) {
     if(success) {
         spdlog::info("Manager loaded");
         m_status_bar.push("Manager loaded");
+        m_generator.total_items = 0;
+        for(uint32_t i = 0; i < m_manager->pack_count(); i++) {
+            m_generator.total_items += m_manager->get_pack(i).asset_count();
+        }
     } else {
         m_status_bar.push("Manager failed to load");
     }
@@ -772,16 +840,16 @@ void Window::on_loaded_list_right_click(std::shared_ptr<Gtk::PopoverMenu> menu, 
 }
 
 void Window::on_load_namelist() {
-    spdlog::info("Called load namelist");
-    m_file_dialog.show();
+    spdlog::debug("Called load namelist");
+    m_load_namelist_dialog.show();
 }
 
-void Window::on_file_dialog_signal_response(int response) {
-    spdlog::info("Got response {}", response);
+void Window::on_load_namelist_response(int response) {
+    spdlog::debug("Got response {}", response);
     if(response != Gtk::ResponseType::ACCEPT) {
         return;
     }
-    auto file_chooser = (Gtk::FileChooser*)(&m_file_dialog);
+    auto file_chooser = (Gtk::FileChooser*)(&m_load_namelist_dialog);
     auto file = file_chooser->get_file();
     std::string data;
     try {
@@ -849,8 +917,114 @@ bool Window::on_idle_load_model() {
     return m_models_to_load.size() > 0;
 }
 
+bool Window::on_idle_generate_namelist() {
+    if(m_generator.pack_index >= m_manager->pack_count()) {
+        m_generator.property_finished = true;
+        std::shared_ptr<Gio::FileOutputStream> stream;
+        
+        stream = m_generator.file->append_to(Gio::File::CreateFlags::REPLACE_DESTINATION);
+        for(auto it = m_generator.names.begin(); it != m_generator.names.end(); it++) {
+            stream->write(it->data(), it->size());
+            stream->write("\n", 1);
+        }
+        stream->close();
+        m_generator.names.clear();
+        m_generator.file = nullptr;
+        m_status_bar.push("Namelist generation complete!");
+        return false;
+    }
+    synthium::Pack2 &pack = m_manager->get_pack(m_generator.pack_index);
+    if(m_generator.asset_index >= pack.asset_count()) {
+        m_generator.pack_index++;
+        m_generator.asset_index = 0;
+        return true;
+    }
+    std::shared_ptr<synthium::Asset2> asset = pack.asset(m_generator.asset_index, false);
+    m_generator.asset_index++;
+    std::vector<uint8_t> data = asset->get_data();
+    if(data.size() == 0 || strncmp("<ActorRuntime>", (const char*)data.data(), 14) != 0) {
+        m_generator.items_completed++;
+        m_progress_bar.set_fraction((double)m_generator.items_completed / (double)m_generator.total_items);
+        return true;
+    }
+
+    utils::ADR adr(data);
+    auto dme = adr.base_model();
+    if(dme) {
+        std::filesystem::path dme_path = *dme;
+        std::string adr_name = dme_path.stem().string();
+        if(adr_name.find("_LOD0") != std::string::npos) {
+            adr_name = adr_name.substr(0, adr_name.find("_LOD0"));
+        } else if(adr_name.find("_Lod0") != std::string::npos) {
+            adr_name = adr_name.substr(0, adr_name.find("_Lod0"));
+        } else if(adr_name.find("_lod0") != std::string::npos) {
+            adr_name = adr_name.substr(0, adr_name.find("_lod0"));
+        }
+        adr_name += ".adr";
+        m_generator.names.insert(adr_name);
+    }
+
+    auto dma = adr.base_palette();
+    if(dma) {
+        std::filesystem::path dma_path = *dma;
+        std::string adr_name = dma_path.stem().string();
+        if(adr_name.find("_LOD0") != std::string::npos) {
+            adr_name = adr_name.substr(0, adr_name.find("_LOD0"));
+        } else if(adr_name.find("_Lod0") != std::string::npos) {
+            adr_name = adr_name.substr(0, adr_name.find("_Lod0"));
+        } else if(adr_name.find("_lod0") != std::string::npos) {
+            adr_name = adr_name.substr(0, adr_name.find("_lod0"));
+        }
+        adr_name += ".adr";
+        m_generator.names.insert(adr_name);
+    }
+
+    auto mrn = adr.animation_network();
+    if(mrn) {
+        std::filesystem::path mrn_path = *mrn;
+        std::string mrn_name = mrn_path.stem().string();
+        if(mrn_name.find("X64") == std::string::npos && mrn_name.find("x64") == std::string::npos) {
+            mrn_name += "X64";
+        }
+        mrn_name += ".mrn";
+        m_generator.names.insert(mrn_name);
+    }
+
+    m_generator.items_completed++;
+    m_progress_bar.set_fraction((double)m_generator.items_completed / (double)m_generator.total_items);
+    return true;
+}
+
 void Window::on_gen_namelist() {
     spdlog::info("Called generate namelist");
+    if(m_generator.property_finished) {
+        m_generator.property_finished = false;
+        m_generator.pack_index = 0;
+        m_generator.asset_index = 0;
+        m_generator.items_completed = 0;
+        m_progress_bar.set_fraction((double)m_generator.items_completed / (double)m_generator.total_items);
+        m_dialog->save(sigc::mem_fun(*this, &Window::on_gen_namelist_response));
+    }
+}
+
+void Window::on_gen_namelist_response(std::shared_ptr<Gio::AsyncResult> &result) {
+    try {
+        m_generator.file = m_dialog->save_finish(result);
+    } catch(Gtk::DialogError &e) {
+        spdlog::error("Failed saving namelist: {}", e.what());
+        return;
+    }
+    if(m_generator.file == nullptr) {
+        return;
+    }
+    m_status_bar.push("Generating namelist...");
+    Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_generate_namelist));
+    // spdlog::info("Got generate namelist response {}", response);
+    // if(response != Gtk::ResponseType::ACCEPT) {
+    //     return;
+    // }
+    // spdlog::info("Got generate namelist name {}", m_gen_namelist_dialog.get_current_name().c_str());
+    // m_gen_namelist_dialog.get_file();
 }
 
 void Window::on_export() {

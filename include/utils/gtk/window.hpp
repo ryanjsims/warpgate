@@ -1,4 +1,5 @@
 #pragma once
+#pragma warning( disable : 4250 )
 #include <gtkmm/window.h>
 #include <gtkmm/box.h>
 #include <gtkmm/paned.h>
@@ -14,7 +15,10 @@
 #include <gtkmm/popovermenubar.h>
 #include <gtkmm/popovermenu.h>
 #include <gtkmm/filechooserdialog.h>
+#include <gtkmm/filedialog.h>
+#include <gtkmm/progressbar.h>
 #include <gtkmm/statusbar.h>
+#include <gtkmm/separator.h>
 #include <gtkmm/searchbar.h>
 #include <gtkmm/searchentry.h>
 #include <gtkmm/label.h>
@@ -22,6 +26,8 @@
 #include <gtkmm/iconpaintable.h>
 
 #include <glibmm/main.h>
+#include <glibmm/property.h>
+#include <glibmm/binding.h>
 
 #include <giomm/liststore.h>
 #include <giomm/menu.h>
@@ -33,10 +39,24 @@
 #include "utils/gtk/asset_type.hpp"
 
 #include <regex>
+#include <set>
 
 class Asset2ListItem;
 class LoadedListItem;
 class NamelistFilter;
+
+class GenerateNamelistState : Glib::Object {
+public:
+    GenerateNamelistState();
+    ~GenerateNamelistState() override;
+    uint32_t pack_index;
+    uint32_t asset_index;
+    uint32_t total_items;
+    uint32_t items_completed;
+    Glib::Property<bool> property_finished;
+    std::shared_ptr<Gio::File> file = nullptr;
+    std::set<std::string> names;
+};
 
 namespace warpgate::gtk {
     class Window : public Gtk::Window {
@@ -56,7 +76,8 @@ namespace warpgate::gtk {
         std::vector<std::shared_ptr<Gtk::PopoverMenu>> m_menus;
         Gtk::Box m_box_root {Gtk::Orientation::VERTICAL, 0}
                , m_box_namelist {Gtk::Orientation::VERTICAL, 0}
-               , m_box_loaded {Gtk::Orientation::VERTICAL, 0};
+               , m_box_loaded {Gtk::Orientation::VERTICAL, 0}
+               , m_box_status {Gtk::Orientation::HORIZONTAL, 0};
         Gtk::Paned m_pane_root, m_pane_lists;
 
         Gtk::ListView m_view_namelist, m_view_loaded;
@@ -64,19 +85,24 @@ namespace warpgate::gtk {
         std::shared_ptr<Gtk::SingleSelection> m_select_namelist, m_select_loaded;
         Gtk::Label m_label_namelist{"Namelist"}, m_label_loaded{"Models"};
         std::shared_ptr<Gtk::TreeListModel> m_tree_namelist, m_tree_loaded;
-        //std::shared_ptr<Gtk::FilterListModel> m_filtered_namelist;
-        //std::shared_ptr<Gtk::StringFilter> m_filter;
         std::regex m_regex;
 
         std::shared_ptr<Gio::ListStore<Asset2ListItem>> m_namelist_root;
         std::shared_ptr<Gio::ListStore<LoadedListItem>> m_loaded_root;
 
         Gtk::Statusbar m_status_bar;
-        Gtk::FileChooserDialog m_file_dialog;
+        Gtk::Separator m_status_separator;
+        Gtk::ProgressBar m_progress_bar;
+        std::shared_ptr<Gtk::FileDialog> m_dialog;
+        Gtk::FileChooserDialog m_load_namelist_dialog, m_gen_namelist_dialog;
         Gtk::SearchEntry m_search_namelist;
         Gtk::Box m_search_box {Gtk::Orientation::HORIZONTAL, 0};
 
         ModelRenderer m_renderer;
+
+        GenerateNamelistState m_generator;
+        std::shared_ptr<Glib::Binding> m_generate_enable_binding;
+        std::shared_ptr<Glib::Binding> m_progress_visible_binding;
 
         std::vector<std::pair<std::string, AssetType>> m_models_to_load;
 
@@ -112,9 +138,11 @@ namespace warpgate::gtk {
         void on_export_loaded();
         void on_remove_loaded();
 
-        void on_file_dialog_signal_response(int response);
+        void on_load_namelist_response(int response);
+        void on_gen_namelist_response(std::shared_ptr<Gio::AsyncResult> &result);
         bool on_idle_load_manager();
         bool on_idle_load_namelist();
         bool on_idle_load_model();
+        bool on_idle_generate_namelist();
     };
 };

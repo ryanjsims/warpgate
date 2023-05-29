@@ -243,6 +243,11 @@ if(${BUILD_WARPGATE_GUI})
   )
   target_include_directories(warpgate PRIVATE include/ lib/external/half/include/ ${GTKMM_INCLUDE_DIRS} ${Vulkan_INCLUDE_DIR})
   target_compile_options(warpgate PRIVATE ${GTKMM_CFLAGS_OTHER} ${EPOXY_CFLAGS_OTHER})
+  if(WIN32)
+    target_compile_definitions(warpgate PUBLIC /wdC4250)
+  else()
+
+  endif()
   copy_gtk_dlls(warpgate)
 
   add_custom_target(opengl_warpgate_resources

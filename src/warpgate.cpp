@@ -1,3 +1,4 @@
+#pragma warning( disable : 4250 )
 #include "utils/gtk/window.hpp"
 #include <gtkmm/application.h>
 #include <gtkmm/settings.h>
