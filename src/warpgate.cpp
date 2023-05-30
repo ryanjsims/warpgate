@@ -111,16 +111,17 @@ int main(int argc, char** argv)
     RenderDoc doc{};
 
     std::shared_ptr<Gtk::Application> app = Gtk::Application::create("org.warpgate.exporter");
-    //auto source = Gio::SettingsSchemaSource::create("C:\\Users\\ryans\\repos\\warpgate\\build\\share\\glib-2.0\\schemas", true);
-    //auto settings = Gio::Settings::create()
     auto settings = Gtk::Settings::get_default();
     settings->set_property<gboolean>("gtk-application-prefer-dark-theme", true);
     auto icon_theme = Gtk::IconTheme::get_for_display(Gdk::Display::get_default());
+    icon_theme->add_search_path("share/icons/hicolor/symbolic/apps/");
     if(icon_theme->has_icon("warpgate")) {
         Gtk::Window::set_default_icon_name("warpgate");
     } else {
         spdlog::warn("'warpgate' icon not found");
     }
+
+
     try {
         return app->make_window_and_run<warpgate::gtk::Window>(argc, argv);
     } catch(Glib::Error &e) {

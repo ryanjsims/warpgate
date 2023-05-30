@@ -228,7 +228,7 @@ if(${BUILD_WARPGATE_GUI})
   )
 
   target_link_directories(warpgate PRIVATE ${GTKMM_LIBRARY_DIRS} ${LIBEPOXY_LIBRARY_DIRS})
-  target_link_libraries(warpgate 
+  target_link_libraries(warpgate
     PRIVATE 
       gli 
       synthium::synthium
@@ -292,6 +292,7 @@ if(${BUILD_WARPGATE_GUI})
     DEPENDS
     ${CMAKE_SOURCE_DIR}/share/icons/hicolor/256x256/apps/warpgate.png
     ${CMAKE_SOURCE_DIR}/script/png2ico.py
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/warpgate_icon.o
   )
 
   add_custom_command(TARGET warpgate POST_BUILD 

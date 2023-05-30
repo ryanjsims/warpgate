@@ -55,7 +55,7 @@ public:
         case AssetType::ACTOR_RUNTIME:
             return "package-x-generic-symbolic";
         case AssetType::ANIMATION:
-            return "media-seek-forward-symbolic";
+            return "animation-symbolic";
         case AssetType::ANIMATION_NETWORK:
             return "network-wired-symbolic";
         case AssetType::MODEL:
@@ -64,7 +64,7 @@ public:
             return "view-paged-symbolic";
         case AssetType::ANIMATION_SET:
         case AssetType::SKELETON:
-            return "emblem-shared-symbolic";
+            return "skeleton-symbolic";
         case AssetType::TEXTURE:
             return "image-x-generic-symbolic";
         case AssetType::VIRTUAL:
