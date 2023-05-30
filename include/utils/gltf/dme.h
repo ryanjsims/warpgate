@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <dme.h>
+#include "utils/actor_sockets.h"
 #include "json.hpp"
 #include "parameter.h"
 #include "tiny_gltf.h"
@@ -27,6 +28,8 @@ namespace warpgate::utils::gltf::dme {
     
     int add_mesh_to_gltf(tinygltf::Model &gltf, const DME &dme, uint32_t index, uint32_t material_index, bool include_skeleton = true);
     int add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme, std::vector<int> mesh_nodes, bool rigify);
+    int add_actorsockets_to_gltf(tinygltf::Model &gltf, ActorSockets &actorSockets, std::string basename, int parent);
+    
     tinygltf::Model build_gltf_from_dme(
         const DME &dme, 
         tsqueue<std::pair<std::string, Semantic>> &image_queue, 

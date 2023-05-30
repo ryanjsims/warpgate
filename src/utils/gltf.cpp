@@ -23,28 +23,6 @@ using half_float::half;
 
 using namespace warpgate;
 
-// std::vector<Parameter::Semantic> semantics = {
-//     Parameter::Semantic::BASE_COLOR1,
-//     Parameter::Semantic::BASE_COLOR2,
-//     Parameter::Semantic::BASE_COLOR3,
-//     Parameter::Semantic::BASE_COLOR4,
-//     Parameter::Semantic::EMISSIVE1,
-//     Parameter::Semantic::NORMAL_MAP1,
-//     Parameter::Semantic::NORMAL_MAP2,
-//     Parameter::Semantic::SPECULAR1,
-//     Parameter::Semantic::SPECULAR2,
-//     Parameter::Semantic::SPECULAR3,
-//     Parameter::Semantic::SPECULAR4,
-//     Parameter::Semantic::DETAIL_SELECT,
-//     Parameter::Semantic::DETAIL_CUBE1,
-//     Parameter::Semantic::DETAIL_CUBE2,
-//     Parameter::Semantic::OVERLAY0,
-//     Parameter::Semantic::OVERLAY1,
-//     Parameter::Semantic::OVERLAY2,
-//     Parameter::Semantic::OVERLAY3,
-//     Parameter::Semantic::BASE_CAMO,
-// };
-
 int utils::gltf::dmat::add_material_to_gltf(
     tinygltf::Model &gltf, 
     const DMAT &dmat, 
@@ -360,6 +338,58 @@ int utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme
     gltf.skins.push_back(skin);
 
     return skin.skeleton;
+}
+
+int utils::gltf::dme::add_actorsockets_to_gltf(tinygltf::Model &gltf, ActorSockets &actorSockets, std::string basename, int parent) {
+    if(actorSockets.model_indices.find(basename) == actorSockets.model_indices.end()) {
+        return -1;
+    }
+    tinygltf::Node sockets;
+    sockets.name = "Sockets";
+    if(gltf.nodes[parent].translation.size() == 3) {
+        sockets.translation = {
+            -gltf.nodes[parent].translation[0],
+            -gltf.nodes[parent].translation[1],
+            -gltf.nodes[parent].translation[2]
+        };
+    }
+    if(gltf.nodes[parent].rotation.size() == 4) {
+        glm::quat rotation = glm::inverse(glm::quat(
+            gltf.nodes[parent].rotation[3], 
+            gltf.nodes[parent].rotation[0], 
+            gltf.nodes[parent].rotation[1], 
+            gltf.nodes[parent].rotation[2]
+        ));
+        sockets.rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
+    }
+    if(gltf.nodes[parent].scale.size() == 3) {
+        sockets.scale = {
+            1.0 / gltf.nodes[parent].scale[0],
+            1.0 / gltf.nodes[parent].scale[1],
+            1.0 / gltf.nodes[parent].scale[2]
+        };
+    }
+    int sockets_index = static_cast<int>(gltf.nodes.size());
+    gltf.nodes.push_back(sockets);
+    gltf.nodes[parent].children.push_back(sockets_index);
+
+    std::vector<utils::SkeletalModel> &models = actorSockets.skeletal_models;
+    uint32_t index = actorSockets.model_indices[basename];
+    logger::info("Adding {} sockets for {}", models[index].sockets.size(), basename);
+    for(auto it = models[index].sockets.begin(); it != models[index].sockets.end(); it++) {
+        int child_index = static_cast<int>(gltf.nodes.size());
+        tinygltf::Node socket;
+        socket.name = it->name.has_value() ? *(it->name) : "";
+        glm::vec3 offset = it->offset.has_value() ? *it->offset : glm::vec3{};
+        glm::quat rotation = it->rotation.has_value() ? *it->rotation : glm::quat{};
+        glm::vec3 scale = it->scale.has_value() ? *it->scale : glm::vec3{};
+        socket.translation = std::vector<double>{offset.x, offset.y, offset.z};
+        socket.rotation = std::vector<double>{rotation.x, rotation.y, rotation.z, rotation.w};
+        socket.scale = std::vector<double>{scale.x, scale.y, scale.z};
+        gltf.nodes.push_back(socket);
+        gltf.nodes[sockets_index].children.push_back(child_index);
+    }
+    return sockets_index;
 }
 
 tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
