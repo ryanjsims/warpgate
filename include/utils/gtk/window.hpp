@@ -93,8 +93,7 @@ namespace warpgate::gtk {
         Gtk::Statusbar m_status_bar;
         Gtk::Separator m_status_separator;
         Gtk::ProgressBar m_progress_bar;
-        std::shared_ptr<Gtk::FileDialog> m_dialog;
-        Gtk::FileChooserDialog m_load_namelist_dialog, m_gen_namelist_dialog;
+        std::shared_ptr<Gtk::FileDialog> m_namelist_dialog;
         Gtk::SearchEntry m_search_namelist;
         Gtk::Box m_search_box {Gtk::Orientation::HORIZONTAL, 0};
 
@@ -138,7 +137,7 @@ namespace warpgate::gtk {
         void on_export_loaded();
         void on_remove_loaded();
 
-        void on_load_namelist_response(int response);
+        void on_load_namelist_response(std::shared_ptr<Gio::AsyncResult> &result);
         void on_gen_namelist_response(std::shared_ptr<Gio::AsyncResult> &result);
         bool on_idle_load_manager();
         bool on_idle_load_namelist();

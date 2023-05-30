@@ -205,6 +205,8 @@ GenerateNamelistState::GenerateNamelistState()
     , property_finished(*this, "finished", true)
     , pack_index(0)
     , asset_index(0)
+    , items_completed(0)
+    , total_items(0)
 {
 
 }
@@ -213,8 +215,6 @@ GenerateNamelistState::~GenerateNamelistState() {}
 
 Window::Window() 
     : m_manager(nullptr)
-    , m_load_namelist_dialog(*this, "Import Namelist", Gtk::FileChooser::Action::OPEN)
-    , m_gen_namelist_dialog(*this, "Generate Namelist", Gtk::FileChooser::Action::SAVE)
 {
     set_title("Warpgate");
     set_default_size(1280, 960);
@@ -261,49 +261,22 @@ Window::Window()
 
     auto filter_store = Gio::ListStore<Gtk::FileFilter>::create();
     auto txt_filter = Gtk::FileFilter::create();
+    txt_filter->set_name("Text files");
     txt_filter->add_mime_type("text/plain");
     filter_store->append(txt_filter);
 
-    m_dialog = Gtk::FileDialog::create();
-    m_dialog->set_accept_label("Generate");
-    m_dialog->set_title("Generate Namelist");
+    m_namelist_dialog = Gtk::FileDialog::create();
     
     // Yes, please use std::string for utf-8 strings, when the STL in c++20
     //      absolutely **does not** support conversion from u8string to string...
     //      I love it so much more than even just using a Glib::ustring like
     //      ***every other*** API uses for that purpose... >.>
-    //m_dialog->set_initial_name("namelist.txt");
+    //m_gen_namelist_dialog->set_initial_name("namelist.txt");
 
     //At least using the C API works I guess, but I *shouldn't* have to use it
-    gtk_file_dialog_set_initial_name(m_dialog->gobj(), "namelist.txt");
-    m_dialog->set_filters(filter_store);
-
-    m_load_namelist_dialog.add_button("Import", Gtk::ResponseType::ACCEPT)->signal_clicked().connect([&]{
-        m_load_namelist_dialog.hide();
-    });
-    m_load_namelist_dialog.add_button("Cancel", Gtk::ResponseType::CANCEL)->signal_clicked().connect([&]{
-        m_load_namelist_dialog.hide();
-    });
-    m_load_namelist_dialog.signal_response().connect(sigc::mem_fun(*this, &Window::on_load_namelist_response));
-    m_load_namelist_dialog.signal_close_request().connect([&]{
-        m_load_namelist_dialog.hide();
-        return true;
-    }, false);
-
-    // m_gen_namelist_dialog.add_button("Generate", Gtk::ResponseType::ACCEPT)->signal_clicked().connect([&]{
-    //     m_gen_namelist_dialog.hide();
-    // });
-    // m_gen_namelist_dialog.add_button("Cancel", Gtk::ResponseType::CANCEL)->signal_clicked().connect([&]{
-    //     m_gen_namelist_dialog.hide();
-    // });
-    // m_gen_namelist_dialog.signal_response().connect(sigc::mem_fun(*this, &Window::on_gen_namelist_response));
-    // m_gen_namelist_dialog.signal_close_request().connect([&]{
-    //     m_gen_namelist_dialog.hide();
-    //     return true;
-    // }, false);
-    // m_gen_namelist_dialog.set_current_name("namelist.txt");
-    
-    // m_gen_namelist_dialog.set_filter(txt_filter);
+    gtk_file_dialog_set_initial_name(m_namelist_dialog->gobj(), "namelist.txt");
+    m_namelist_dialog->set_filters(filter_store);
+    m_namelist_dialog->set_default_filter(txt_filter);
 
     m_menubar.set_menu_model(win_menu);
     m_menubar.set_can_focus(false);
@@ -316,7 +289,6 @@ Window::Window()
     );
 
     m_progress_bar.set_hexpand(true);
-    //m_status_separator.set_hexpand();
 
     m_box_status.append(m_status_bar);
     m_box_status.append(m_status_separator);
@@ -390,12 +362,6 @@ Window::Window()
     m_label_loaded.set_margin_top(5);
     m_label_loaded.set_margin_start(5);
     m_label_loaded.set_margin_end(5);
-
-    // auto right_click = Gtk::GestureClick::create();
-    // right_click->set_button(3);
-    // right_click->set_propagation_phase(Gtk::PropagationPhase::BUBBLE);
-    // right_click->signal_pressed().connect(sigc::mem_fun(*this, &Window::on_loaded_list_right_click));
-    //m_box_loaded.add_controller(right_click);
 
     m_box_loaded.append(m_label_loaded);
     m_box_loaded.append(m_scroll_loaded);
@@ -812,11 +778,6 @@ void Window::on_loaded_list_row_activated(uint32_t index) {
     if (!col)
         return;
     spdlog::info("Activated Loaded Model {}", col->m_stdname);
-    // if(m_models_to_load.size() == 0) {
-    //     Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_load_model));
-    // }
-
-    // m_models_to_load.push_back(std::make_pair(col->m_stdname, col->m_type));
 }
 
 void Window::on_loaded_list_right_click(std::shared_ptr<Gtk::PopoverMenu> menu, int n_buttons, double x, double y) {
@@ -841,16 +802,19 @@ void Window::on_loaded_list_right_click(std::shared_ptr<Gtk::PopoverMenu> menu, 
 
 void Window::on_load_namelist() {
     spdlog::debug("Called load namelist");
-    m_load_namelist_dialog.show();
+    m_namelist_dialog->set_accept_label("Import");
+    m_namelist_dialog->set_title("Import Namelist");
+    m_namelist_dialog->open(*this, sigc::mem_fun(*this, &Window::on_load_namelist_response));
 }
 
-void Window::on_load_namelist_response(int response) {
-    spdlog::debug("Got response {}", response);
-    if(response != Gtk::ResponseType::ACCEPT) {
+void Window::on_load_namelist_response(std::shared_ptr<Gio::AsyncResult> &result) {
+    std::shared_ptr<Gio::File> file;
+    try {
+        file = m_namelist_dialog->open_finish(result);
+    } catch (Gtk::DialogError &e) {
+        spdlog::error("Error opening namelist: {}", e.what());
         return;
     }
-    auto file_chooser = (Gtk::FileChooser*)(&m_load_namelist_dialog);
-    auto file = file_chooser->get_file();
     std::string data;
     try {
         auto inputstream = file->read(nullptr);
@@ -921,8 +885,11 @@ bool Window::on_idle_generate_namelist() {
     if(m_generator.pack_index >= m_manager->pack_count()) {
         m_generator.property_finished = true;
         std::shared_ptr<Gio::FileOutputStream> stream;
-        
-        stream = m_generator.file->append_to(Gio::File::CreateFlags::REPLACE_DESTINATION);
+        if(m_generator.file->query_exists()) {
+            stream = m_generator.file->replace();
+        } else {
+            stream = m_generator.file->append_to();
+        }
         for(auto it = m_generator.names.begin(); it != m_generator.names.end(); it++) {
             stream->write(it->data(), it->size());
             stream->write("\n", 1);
@@ -1003,13 +970,16 @@ void Window::on_gen_namelist() {
         m_generator.asset_index = 0;
         m_generator.items_completed = 0;
         m_progress_bar.set_fraction((double)m_generator.items_completed / (double)m_generator.total_items);
-        m_dialog->save(sigc::mem_fun(*this, &Window::on_gen_namelist_response));
+
+        m_namelist_dialog->set_accept_label("Generate");
+        m_namelist_dialog->set_title("Generate Namelist");
+        m_namelist_dialog->save(*this, sigc::mem_fun(*this, &Window::on_gen_namelist_response));
     }
 }
 
 void Window::on_gen_namelist_response(std::shared_ptr<Gio::AsyncResult> &result) {
     try {
-        m_generator.file = m_dialog->save_finish(result);
+        m_generator.file = m_namelist_dialog->save_finish(result);
     } catch(Gtk::DialogError &e) {
         spdlog::error("Failed saving namelist: {}", e.what());
         return;
@@ -1019,12 +989,6 @@ void Window::on_gen_namelist_response(std::shared_ptr<Gio::AsyncResult> &result)
     }
     m_status_bar.push("Generating namelist...");
     Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_generate_namelist));
-    // spdlog::info("Got generate namelist response {}", response);
-    // if(response != Gtk::ResponseType::ACCEPT) {
-    //     return;
-    // }
-    // spdlog::info("Got generate namelist name {}", m_gen_namelist_dialog.get_current_name().c_str());
-    // m_gen_namelist_dialog.get_file();
 }
 
 void Window::on_export() {
