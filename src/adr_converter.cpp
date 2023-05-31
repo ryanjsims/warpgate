@@ -187,16 +187,16 @@ int main(int argc, const char* argv[]) {
     
     std::filesystem::path output_filename(parser.get<std::string>("output_file"));
     output_filename = std::filesystem::weakly_canonical(output_filename);
-    std::filesystem::path output_directory;
+    std::shared_ptr<std::filesystem::path> output_directory = std::make_shared<std::filesystem::path>();
     if(output_filename.has_parent_path()) {
-        output_directory = output_filename.parent_path();
+        *output_directory = output_filename.parent_path();
     }
 
     try {
         if(!std::filesystem::exists(output_filename.parent_path())) {
-            logger::debug("Creating directories '{}'...", (output_directory / "textures").string());
-            std::filesystem::create_directories(output_directory / "textures");
-            logger::debug("Created directories '{}'.", (output_directory / "textures").string());
+            logger::debug("Creating directories '{}'...", (*output_directory / "textures").string());
+            std::filesystem::create_directories(*output_directory / "textures");
+            logger::debug("Created directories '{}'.", (*output_directory / "textures").string());
         }
     } catch (std::filesystem::filesystem_error& err) {
         logger::error("Failed to create directory {}: {}", err.path1().string(), err.what());
@@ -254,7 +254,7 @@ int main(int argc, const char* argv[]) {
         dme.reset(new DME(dme_data_span, output_filename.stem().string()));
     }
     int parent_index;
-    tinygltf::Model gltf = utils::gltf::dme::build_gltf_from_dme(*dme, image_queue, output_directory, export_textures, include_skeleton, rigify_skeleton, &parent_index);
+    tinygltf::Model gltf = utils::gltf::dme::build_gltf_from_dme(*dme, image_queue, *output_directory, export_textures, include_skeleton, rigify_skeleton, &parent_index);
 
     std::string basename = std::filesystem::path(input_str).stem().string();
     if(actorSockets.model_indices.find(basename) != actorSockets.model_indices.end()) {

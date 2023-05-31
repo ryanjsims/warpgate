@@ -38,6 +38,10 @@
 #include "utils/gtk/model_renderer.hpp"
 #include "utils/gtk/asset_type.hpp"
 
+#include "utils/actor_sockets.h"
+#include "utils/gltf/dme.h"
+#include "utils/tsqueue.h"
+
 #include <regex>
 #include <set>
 
@@ -56,6 +60,18 @@ public:
     Glib::Property<bool> property_finished;
     std::shared_ptr<Gio::File> file = nullptr;
     std::set<std::string> names;
+};
+
+class ExportModelState : Glib::Object {
+public:
+    ExportModelState();
+    ~ExportModelState() override;
+    
+    Glib::Property<std::shared_ptr<LoadedListItem>> property_export_item;
+    Glib::Property<bool> property_finished;
+    Glib::Property<std::filesystem::path> property_path;
+    std::shared_ptr<Gio::File> file = nullptr;
+    static std::shared_ptr<warpgate::utils::ActorSockets> actorSockets;
 };
 
 namespace warpgate::gtk {
@@ -93,7 +109,7 @@ namespace warpgate::gtk {
         Gtk::Statusbar m_status_bar;
         Gtk::Separator m_status_separator;
         Gtk::ProgressBar m_progress_bar;
-        std::shared_ptr<Gtk::FileDialog> m_namelist_dialog;
+        std::shared_ptr<Gtk::FileDialog> m_namelist_dialog, m_model_dialog;
         Gtk::SearchEntry m_search_namelist;
         Gtk::Box m_search_box {Gtk::Orientation::HORIZONTAL, 0};
 
@@ -102,6 +118,11 @@ namespace warpgate::gtk {
         GenerateNamelistState m_generator;
         std::shared_ptr<Glib::Binding> m_generate_enable_binding;
         std::shared_ptr<Glib::Binding> m_progress_visible_binding;
+
+        ExportModelState m_exporter;
+        utils::tsqueue<std::pair<std::string, Semantic>> m_image_queue;
+        std::vector<std::thread> m_image_processor_pool;
+        std::shared_ptr<std::filesystem::path> m_output_directory;
 
         std::vector<std::pair<std::string, AssetType>> m_models_to_load;
 
@@ -139,9 +160,11 @@ namespace warpgate::gtk {
 
         void on_load_namelist_response(std::shared_ptr<Gio::AsyncResult> &result);
         void on_gen_namelist_response(std::shared_ptr<Gio::AsyncResult> &result);
+        void on_export_loaded_response(std::shared_ptr<Gio::AsyncResult> &result);
         bool on_idle_load_manager();
         bool on_idle_load_namelist();
         bool on_idle_load_model();
         bool on_idle_generate_namelist();
+        bool on_idle_export_model();
     };
 };

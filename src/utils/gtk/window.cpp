@@ -15,6 +15,8 @@
 #include <dme_loader.h>
 #include <mrn_loader.h>
 #include "utils/adr.h"
+#include "utils/gltf/common.h"
+#include "utils/gltf/dmat.h"
 
 using namespace warpgate::gtk;
 
@@ -213,6 +215,17 @@ GenerateNamelistState::GenerateNamelistState()
 
 GenerateNamelistState::~GenerateNamelistState() {}
 
+ExportModelState::ExportModelState()
+    : Glib::ObjectBase("ExportModelState")
+    , property_finished(*this, "finished", true)
+    , property_export_item(*this, "export_item", nullptr)
+    , property_path(*this, "path", ".")
+{}
+
+ExportModelState::~ExportModelState() {}
+
+std::shared_ptr<warpgate::utils::ActorSockets> ExportModelState::actorSockets = nullptr;
+
 Window::Window() 
     : m_manager(nullptr)
 {
@@ -259,11 +272,11 @@ Window::Window()
     context_action_group->add_action("remove", sigc::mem_fun(*this, &Window::on_remove_loaded));
     insert_action_group("loaded", context_action_group);
 
-    auto filter_store = Gio::ListStore<Gtk::FileFilter>::create();
+    auto namelist_filter_store = Gio::ListStore<Gtk::FileFilter>::create();
     auto txt_filter = Gtk::FileFilter::create();
-    txt_filter->set_name("Text files");
+    txt_filter->set_name("Text files (.txt)");
     txt_filter->add_mime_type("text/plain");
-    filter_store->append(txt_filter);
+    namelist_filter_store->append(txt_filter);
 
     m_namelist_dialog = Gtk::FileDialog::create();
     
@@ -275,8 +288,19 @@ Window::Window()
 
     //At least using the C API works I guess, but I *shouldn't* have to use it
     gtk_file_dialog_set_initial_name(m_namelist_dialog->gobj(), "namelist.txt");
-    m_namelist_dialog->set_filters(filter_store);
+    m_namelist_dialog->set_filters(namelist_filter_store);
     m_namelist_dialog->set_default_filter(txt_filter);
+
+    auto model_filter_store = Gio::ListStore<Gtk::FileFilter>::create();
+    auto gltf_filter = Gtk::FileFilter::create();
+    gltf_filter->set_name("glTF model files (.gltf/.glb)");
+    gltf_filter->add_mime_type("model/gltf+json");
+    gltf_filter->add_mime_type("model/gltf-binary");
+    model_filter_store->append(gltf_filter);
+
+    m_model_dialog = Gtk::FileDialog::create();
+    m_model_dialog->set_filters(model_filter_store);
+    m_model_dialog->set_default_filter(gltf_filter);    
 
     m_menubar.set_menu_model(win_menu);
     m_menubar.set_can_focus(false);
@@ -289,6 +313,7 @@ Window::Window()
     );
 
     m_progress_bar.set_hexpand(true);
+    m_progress_bar.set_visible(false);
 
     m_box_status.append(m_status_bar);
     m_box_status.append(m_status_separator);
@@ -374,10 +399,15 @@ Window::Window()
     //Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_load_manager));
     load_manager = std::jthread(sigc::mem_fun(*this, &Window::on_idle_load_manager));
     m_status_bar.push("Loading Manager...");
+
+    m_output_directory = std::make_shared<std::filesystem::path>();
 }
 
 Window::~Window() {
-
+    m_image_queue.close();
+    for(auto it = m_image_processor_pool.begin(); it != m_image_processor_pool.end(); it++) {
+        it->join();
+    }
 }
 
 void Window::on_manager_loaded(bool success) {
@@ -387,6 +417,19 @@ void Window::on_manager_loaded(bool success) {
         m_generator.total_items = 0;
         for(uint32_t i = 0; i < m_manager->pack_count(); i++) {
             m_generator.total_items += m_manager->get_pack(i).asset_count();
+        }
+        if(m_manager->contains("ActorSockets.xml")) {
+            std::vector<uint8_t> data = m_manager->get("ActorSockets.xml")->get_data();
+            ExportModelState::actorSockets = std::make_shared<utils::ActorSockets>(data);
+        }
+
+        for(uint32_t i = 0; i < 4; i++) {
+            m_image_processor_pool.push_back(std::thread{
+                utils::gltf::dmat::process_images, 
+                std::ref(*m_manager), 
+                std::ref(m_image_queue), 
+                m_output_directory
+            });
         }
     } else {
         m_status_bar.push("Manager failed to load");
@@ -851,6 +894,7 @@ bool Window::on_idle_load_manager() {
     for(int i = 0; i < 24; i++) {
         assets.push_back(server / ("assets_x64_" + std::to_string(i) + ".pack2"));
     }
+    assets.push_back(server / "data_x64_0.pack2");
     try {
         m_manager = std::make_shared<synthium::Manager>(assets);
         on_manager_loaded(true);
@@ -962,6 +1006,109 @@ bool Window::on_idle_generate_namelist() {
     return true;
 }
 
+bool Window::on_idle_export_model() {
+    try {
+        std::filesystem::create_directories(*m_output_directory / "textures");
+    } catch(std::filesystem::filesystem_error& err) {
+        spdlog::error("Export failed!");
+        spdlog::error("Failed to create directory {}: {}", err.path1().string(), err.what());
+        m_exporter.property_finished = true;
+        return false;
+    }
+    std::shared_ptr<LoadedListItem> item = m_exporter.property_export_item.get_value();
+    std::shared_ptr<synthium::Asset2> asset = m_manager->get(item->m_stdname);
+    std::vector<uint8_t> adr_data, dmat_data, dme_data;
+    std::optional<std::string> dme_name, dmat_name;
+    std::shared_ptr<DME> dme;
+    std::shared_ptr<DMAT> dmat;
+    std::shared_ptr<utils::ADR> adr;
+    switch(item->m_type) {
+    case AssetType::ACTOR_RUNTIME:
+        adr_data = asset->get_data();
+        adr = std::make_shared<utils::ADR>(adr_data);
+        dme_name = adr->base_model();
+        if(!dme_name) {
+            spdlog::error("Export failed!");
+            spdlog::error("ActorRuntime '{}' did not have a base model to export!", item->m_stdname);
+            m_exporter.property_finished = true;
+            return false;
+        }
+        dmat_name = adr->base_palette();
+        if(dmat_name) {
+            dmat_data = m_manager->get(*dmat_name)->get_data();
+            dmat = std::make_shared<DMAT>(dmat_data);
+        }
+
+        dme_data = m_manager->get(*dme_name)->get_data();
+        if(dmat) {
+            dme = std::make_shared<DME>(dme_data, m_exporter.property_path.get_value().stem().string(), dmat);
+        } else {
+            dme = std::make_shared<DME>(dme_data, m_exporter.property_path.get_value().stem().string());
+        }
+        break;
+    case AssetType::MODEL:
+        dme_data = asset->get_data();
+        dme = std::make_shared<DME>(dme_data, m_exporter.property_path.get_value().stem().string());
+        break;
+    default:
+        spdlog::error("Export failed!");
+        spdlog::error("Cannot export item '{}'", item->m_stdname);
+        m_exporter.property_finished = true;
+        return false;
+    }
+    
+    int parent_index;
+    tinygltf::Model gltf = utils::gltf::dme::build_gltf_from_dme(*dme, m_image_queue, *m_output_directory, true, true, false, &parent_index);
+    std::string basename = std::filesystem::path(item->m_stdname).stem().string();
+    size_t lod_index = utils::lowercase(basename).find("_lod0");
+    if(lod_index != std::string::npos) {
+        spdlog::info("Removing _lod0 from '{}'", basename);
+        basename = basename.substr(0, lod_index);
+        spdlog::info("Removed _lod0 from '{}'", basename);
+    }
+    //asset = m_manager->get("ActorSockets.xml")
+    if(ExportModelState::actorSockets->model_indices.find(basename) != ExportModelState::actorSockets->model_indices.end()) {
+        int cog_index = utils::gltf::findCOGIndex(gltf, gltf.nodes[parent_index]);
+        if(cog_index != -1) {
+            parent_index = cog_index;
+        }
+        utils::gltf::dme::add_actorsockets_to_gltf(gltf, *ExportModelState::actorSockets, basename, parent_index);
+    } else {
+        spdlog::warn("'{}' not found in actorSockets!", basename);
+    }
+
+    uint8_t* buffer = nullptr;
+    size_t size = 0;
+    tinygltf::TinyGLTF writer;
+    std::string format = m_exporter.property_path.get_value().extension().string();
+    if(format != ".glb" && format != ".gltf") {
+        spdlog::warn("Extension was not gltf or glb! Defaulting to gltf");
+        format = ".gltf";
+    }
+    writer.SerializeGltfSceneToBuffer(&gltf, &buffer, &size, m_exporter.property_path.get_value().string(), false, format == ".glb", format == ".gltf", format == ".glb");
+    if(size == 0 || buffer == nullptr) {
+        spdlog::error("Failed to serialize glTF file!");
+        m_exporter.property_finished = true;
+        return false;
+    }
+    std::shared_ptr<Gio::FileOutputStream> stream;
+    if(m_exporter.file->query_exists()) {
+        stream = m_exporter.file->replace();
+    } else {
+        stream = m_exporter.file->append_to();
+    }
+    GError *c_error = nullptr;
+    bool success = g_output_stream_write_all(G_OUTPUT_STREAM(stream->gobj()), buffer, size, nullptr, nullptr, &c_error);
+    if(!success) {
+        Glib::Error error = Glib::Error(c_error);
+        spdlog::error("Error writing to output stream: {}", error.what());
+    }
+    stream->close();
+    delete[] buffer;
+    m_exporter.property_finished = true;
+    return false;
+}
+
 void Window::on_gen_namelist() {
     spdlog::info("Called generate namelist");
     if(m_generator.property_finished) {
@@ -1002,6 +1149,56 @@ void Window::on_quit() {
 
 void Window::on_export_loaded() {
     spdlog::info("Called export loaded");
+    auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(m_select_loaded->get_selected_item());
+    if(!row) {
+        return;
+    }
+    auto model = std::dynamic_pointer_cast<LoadedListItem>(row->get_item());
+    if(!model) {
+        return;
+    }
+
+    m_exporter.property_export_item = model;
+    m_model_dialog->set_title("Export Model...");
+    m_model_dialog->set_accept_label("Export");
+    std::filesystem::path p(model->m_stdname);
+    gtk_file_dialog_set_initial_name(m_model_dialog->gobj(), (p.stem().string() + ".gltf").c_str());
+    m_model_dialog->save(*this, sigc::mem_fun(*this, &Window::on_export_loaded_response));
+}
+
+void Window::on_export_loaded_response(std::shared_ptr<Gio::AsyncResult> &result) {
+    try {
+        m_exporter.file = m_model_dialog->save_finish(result);
+    } catch(Gtk::DialogError &e) {
+        switch(e.code()) {
+        case Gtk::DialogError::FAILED:
+            spdlog::error("Choosing export file: {}", e.what());
+            break;
+        case Gtk::DialogError::CANCELLED:
+            spdlog::debug("Operation cancelled by user");
+            break;
+        case Gtk::DialogError::DISMISSED:
+            spdlog::debug("Dialog dismissed by user");
+            break;
+        default:
+            spdlog::error("Something weird happened: code {} - {}", e.code(), e.what());
+            break;
+        }
+
+        return;
+    }
+
+    // FFS gtkmm... you return a corrupted std::string in the c++ api when its /this easy/...
+    char* c_path = g_file_get_path(m_exporter.file->gobj());
+    std::string path;
+    if(c_path != nullptr) {
+        path = c_path;
+        m_exporter.property_path = path;
+        *m_output_directory = m_exporter.property_path.get_value().parent_path();
+    }
+
+    m_exporter.property_finished = false;
+    Glib::signal_idle().connect(sigc::mem_fun(*this, &Window::on_idle_export_model));
 }
 
 void Window::on_remove_loaded() {

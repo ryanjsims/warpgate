@@ -28,7 +28,7 @@ namespace warpgate::utils::gltf::dmat {
     void process_images(
         synthium::Manager& manager, 
         utils::tsqueue<std::pair<std::string, Semantic>>& queue, 
-        std::filesystem::path output_directory
+        std::shared_ptr<std::filesystem::path> output_directory
     );
 
     void build_material(

@@ -221,9 +221,15 @@ if(${BUILD_WARPGATE_GUI})
     src/utils/gtk/shader.cpp
     src/utils/gtk/texture.cpp
     src/utils/gtk/window.cpp
+    src/utils/gltf/common.cpp
+    src/utils/actor_sockets.cpp
     src/utils/adr.cpp
     src/utils/common.cpp
+    src/utils/gltf.cpp
     src/utils/materials_3.cpp
+    src/utils/sign.cpp
+    src/utils/textures.cpp
+    src/utils/tsqueue.cpp
     ${CMAKE_BINARY_DIR}/warpgate_icon.o
   )
 

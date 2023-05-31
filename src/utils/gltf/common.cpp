@@ -75,3 +75,18 @@ void utils::gltf::update_bone_transforms(tinygltf::Model &gltf, int skeleton_roo
         };
     }
 }
+
+bool utils::gltf::isCOG(tinygltf::Node node) {
+    return node.name == "COG";
+}
+
+int utils::gltf::findCOGIndex(tinygltf::Model &gltf, tinygltf::Node &node) {
+    int index = -1;
+    for(auto it = node.children.begin(); it != node.children.end() && index == -1; it++) {
+        if(isCOG(gltf.nodes[*it])) {
+            return *it;
+        }
+        index = findCOGIndex(gltf, gltf.nodes[*it]);
+    }
+    return index;
+}

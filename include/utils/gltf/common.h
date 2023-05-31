@@ -18,4 +18,8 @@ namespace warpgate::utils::gltf {
     );
 
     void update_bone_transforms(tinygltf::Model &gltf, int skeleton_root);
+
+    bool isCOG(tinygltf::Node node);
+
+    int findCOGIndex(tinygltf::Model &gltf, tinygltf::Node &node);
 }

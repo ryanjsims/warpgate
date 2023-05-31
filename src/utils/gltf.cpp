@@ -430,9 +430,9 @@ tinygltf::Model utils::gltf::dme::build_gltf_from_dme(
 void utils::gltf::dmat::process_images(
     synthium::Manager& manager, 
     utils::tsqueue<std::pair<std::string, Semantic>>& queue, 
-    std::filesystem::path output_directory
+    std::shared_ptr<std::filesystem::path> output_directory
 ) {
-    logger::debug("Got output directory {}", output_directory.string());
+    logger::debug("Got output directory {}", output_directory->string());
     while(!queue.is_closed()) {
         auto texture_info = queue.try_dequeue({"", Semantic::UNKNOWN});
         std::string texture_name = texture_info.first, albedo_name;
@@ -463,7 +463,7 @@ void utils::gltf::dmat::process_images(
         case Semantic::Overlay3:
         case Semantic::Overlay4:
         case Semantic::TilingOverlay:
-            utils::textures::save_texture(texture_name, manager.get(texture_name)->get_data(), output_directory);
+            utils::textures::save_texture(texture_name, manager.get(texture_name)->get_data(), *output_directory);
             break;
         case Semantic::Bump:
         case Semantic::BumpMap:
@@ -471,7 +471,7 @@ void utils::gltf::dmat::process_images(
         case Semantic::BumpMap2:
         case Semantic::BumpMap3:
         case Semantic::bumpMap:
-            utils::textures::process_normalmap(texture_name, manager.get(texture_name)->get_data(), output_directory);
+            utils::textures::process_normalmap(texture_name, manager.get(texture_name)->get_data(), *output_directory);
             break;
         case Semantic::Spec:
         case Semantic::SpecMap:
@@ -481,14 +481,14 @@ void utils::gltf::dmat::process_images(
             index = albedo_name.find_last_of('_');
             albedo_name[index + 1] = 'C';
             if(manager.contains(albedo_name)) {
-                utils::textures::process_specular(texture_name, manager.get(texture_name)->get_data(), manager.get(albedo_name)->get_data(), output_directory);
+                utils::textures::process_specular(texture_name, manager.get(texture_name)->get_data(), manager.get(albedo_name)->get_data(), *output_directory);
             } else {
-                utils::textures::save_texture(texture_name, manager.get(texture_name)->get_data(), output_directory);
+                utils::textures::save_texture(texture_name, manager.get(texture_name)->get_data(), *output_directory);
             }
             break;
         case Semantic::detailBump:
         case Semantic::DetailBump:
-            utils::textures::process_detailcube(texture_name, manager.get(texture_name)->get_data(), output_directory);
+            utils::textures::process_detailcube(texture_name, manager.get(texture_name)->get_data(), *output_directory);
             break;
         default:
             logger::warn("Skipping unimplemented semantic: {} ({})", texture_name, semantic_name(semantic));
