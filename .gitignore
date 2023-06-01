@@ -9,3 +9,4 @@ export/
 warpgate_icon.o
 warpgate.ico
 warpgate.png
+script/shaders/*
