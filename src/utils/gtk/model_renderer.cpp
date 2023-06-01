@@ -376,12 +376,12 @@ void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr
         if(palette.has_value() && (*palette).size() > 0) {
             std::filesystem::path model_path = *model;
             std::filesystem::path palette_path = *palette;
-            if(utils::lowercase(model_path.stem().string()) == utils::lowercase(palette_path.stem().string())) {
-                // Palette is not different than what would already be included in the dme.
-                break;
-            }
+            // if(utils::lowercase(model_path.stem().string()) == utils::lowercase(palette_path.stem().string())) {
+            //     // Palette is not different than what would already be included in the dme.
+            //     break;
+            // }
             asset2 = manager->get(*palette);
-            data2 = asset->get_data();
+            data2 = asset2->get_data();
             std::shared_ptr<warpgate::DMAT> dmat = std::make_shared<warpgate::DMAT>(data2);
             dme->set_dmat(dmat);
         }
