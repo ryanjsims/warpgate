@@ -20,9 +20,10 @@ layout (location = 0) in vec2 inTexcoord0;
 layout (location = 1) in vec2 inTexcoord1;
 layout (location = 2) in vec2 inTexcoord2;
 
+
 layout (location = 0) out vec4 outFragColor;
 
 void main() 
 {
-  outFragColor = texture(diffuseSampler, inTexcoord0);
+  outFragColor = texture(diffuseSampler, inTexcoord0.st);
 }

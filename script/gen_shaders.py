@@ -36,7 +36,7 @@ in_texcoord_format = "layout (location = {0}) in {1} inTexcoord{0};\n"
 assignment_format = "	outTexcoord{0} = inTexcoord{0};\n"
 color_format = "inColor{}"
 
-color_out_texture = "outFragColor = texture(diffuseSampler, inTexcoord0.uv);"
+color_out_texture = "outFragColor = texture(diffuseSampler, inTexcoord0.st);"
 color_out_notexture = "outFragColor = vec4(0, 0, 0, 1);"
 
 fragment_base = """#version 450
