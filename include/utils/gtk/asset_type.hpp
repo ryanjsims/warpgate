@@ -7,10 +7,13 @@ namespace warpgate::gtk {
         ANIMATION,
         ANIMATION_NETWORK,
         ANIMATION_SET,
+        MATERIAL,
         MODEL,
         PALETTE,
+        PARAMETER,
         SKELETON,
         TEXTURE,
-        VIRTUAL
+        VALUE,
+        VIRTUAL,
     };
 }

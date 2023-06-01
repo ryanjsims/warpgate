@@ -15,10 +15,19 @@
 #include <dme_loader.h>
 #include <mrn_loader.h>
 #include "utils/adr.h"
+#include "utils/materials_3.h"
 #include "utils/gltf/common.h"
 #include "utils/gltf/dmat.h"
 
 using namespace warpgate::gtk;
+
+struct ParameterData {
+    warpgate::Semantic semantic;
+    warpgate::Parameter::D3DXParamClass paramclass;
+    warpgate::Parameter::D3DXParamType paramtype;
+    std::vector<uint8_t> data;
+    std::shared_ptr<const warpgate::Material> material;
+};
 
 class Asset2ListItem : public Glib::Object {
 public:
@@ -31,6 +40,8 @@ public:
 
     std::optional<std::string> virtual_parent;
     std::optional<std::string> virtual_type;
+
+    void* user_data = nullptr;
 
     static std::shared_ptr<Asset2ListItem> create(std::string name, AssetType type = AssetType::UNKNOWN, const synthium::Asset2Raw *asset = nullptr) {
         return Glib::make_refptr_for_instance<Asset2ListItem>(new Asset2ListItem(name, type, asset));
@@ -60,20 +71,32 @@ public:
             return "animation-symbolic";
         case AssetType::ANIMATION_NETWORK:
             return "network-wired-symbolic";
+        case AssetType::MATERIAL:
+            return "emoji-symbols-symbolic";
         case AssetType::MODEL:
             return "application-x-appliance-symbolic";
         case AssetType::PALETTE:
-            return "view-paged-symbolic";
+            return "applications-graphics-symbolic";
+        case AssetType::PARAMETER:
+            return "preferences-system-symbolic";
         case AssetType::ANIMATION_SET:
         case AssetType::SKELETON:
             return "skeleton-symbolic";
         case AssetType::TEXTURE:
             return "image-x-generic-symbolic";
+        case AssetType::VALUE:
+            return "application-x-addon-symbolic";
         case AssetType::VIRTUAL:
             return "folder-symbolic";
         case AssetType::UNKNOWN:
         default:
             return "emblem-important-symbolic";
+        }
+    }
+
+    ~Asset2ListItem() override {
+        if(user_data != nullptr) {
+            delete user_data;
         }
     }
 
@@ -592,6 +615,81 @@ void Window::add_namelist_to_store_filtered(
     }
 }
 
+void handle_parameter(ParameterData* parameter, std::shared_ptr<Gio::ListStore<Asset2ListItem>> result) {
+    switch(parameter->paramclass) {
+    case warpgate::Parameter::D3DXParamClass::SCALAR:
+        switch(parameter->paramtype) {
+        case warpgate::Parameter::D3DXParamType::BOOL:
+            result->append(Asset2ListItem::create(parameter->data[0] ? "true" : "false", AssetType::VALUE));
+            break;
+        case warpgate::Parameter::D3DXParamType::INT:
+            if(parameter->data.size() < sizeof(int)) {
+                break;
+            }
+            result->append(Asset2ListItem::create(fmt::format("{:d}", *(int*)parameter->data.data()), AssetType::VALUE));
+            break;
+        case warpgate::Parameter::D3DXParamType::FLOAT:
+            if(parameter->data.size() < sizeof(float)) {
+                break;
+            }
+            result->append(Asset2ListItem::create(fmt::format("{:.6f}", *(float*)parameter->data.data()), AssetType::VALUE));
+            break;
+        default:
+            result->append(Asset2ListItem::create(fmt::format("Scalar of unhandled D3DXParamType {}", (uint32_t)parameter->paramtype), AssetType::VALUE));
+            break;
+        }
+        break;
+    case warpgate::Parameter::D3DXParamClass::VECTOR:
+        switch(parameter->paramtype) {
+        case warpgate::Parameter::D3DXParamType::BOOL:{
+            std::span<bool> view((bool*)parameter->data.data(), parameter->data.size() / sizeof(bool));
+            for(uint32_t i = 0; i < view.size(); i++) {
+                result->append(Asset2ListItem::create(view[i] ? "true" : "false", AssetType::VALUE));
+            }
+            break;}
+        case warpgate::Parameter::D3DXParamType::INT:{
+            std::span<int> view((int*)parameter->data.data(), parameter->data.size() / sizeof(int));
+            for(uint32_t i = 0; i < view.size(); i++) {
+                result->append(Asset2ListItem::create(fmt::format("{:d}", view[i]), AssetType::VALUE));
+            }
+            break;}
+        case warpgate::Parameter::D3DXParamType::FLOAT:{
+            std::span<float> view((float*)parameter->data.data(), parameter->data.size() / sizeof(float));
+            for(uint32_t i = 0; i < view.size(); i++) {
+                result->append(Asset2ListItem::create(fmt::format("{:.6f}", view[i]), AssetType::VALUE));
+            }
+            break;}
+        default:
+            result->append(Asset2ListItem::create(fmt::format("Vector of unhandled D3DXParamType {}", (uint32_t)parameter->paramtype), AssetType::VALUE));
+            break;
+        }
+        break;
+    case warpgate::Parameter::D3DXParamClass::OBJECT:
+        switch(parameter->paramtype) {
+        case warpgate::Parameter::D3DXParamType::TEXTURE:
+        case warpgate::Parameter::D3DXParamType::TEXTURE1D:
+        case warpgate::Parameter::D3DXParamType::TEXTURE2D:
+        case warpgate::Parameter::D3DXParamType::TEXTURE3D:
+        case warpgate::Parameter::D3DXParamType::TEXTURECUBE:{
+            std::optional<std::string> texture_name = parameter->material->texture(parameter->semantic);
+            if(!texture_name.has_value()) {
+                std::stringstream stream;
+                stream << std::setw(8) << std::setfill('0') << std::uppercase << std::hex << *(uint32_t*)parameter->data.data();
+                texture_name = stream.str();
+            }
+            result->append(Asset2ListItem::create(*texture_name, AssetType::TEXTURE));
+            break;}
+        default:
+            result->append(Asset2ListItem::create(fmt::format("Object of unhandled D3DXParamType {}", (uint32_t)parameter->paramtype), AssetType::VALUE));
+            break;
+        }
+        break;
+    default:
+        result->append(Asset2ListItem::create(fmt::format("Unhandled D3DXParamClass {} of unhandled D3DXParamType {}", (uint32_t)parameter->paramclass, (uint32_t)parameter->paramtype), AssetType::VALUE));
+        break;
+    }
+}
+
 std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(const std::shared_ptr<Glib::ObjectBase>& item) {
     spdlog::trace("create_namelist_model");
     auto col = std::dynamic_pointer_cast<Asset2ListItem>(item);
@@ -677,24 +775,81 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
         animations->virtual_type = "animations";
         result->append(animations);
         break;}
+    case AssetType::MATERIAL: {
+        std::vector<uint8_t> data = m_manager->get(*col->virtual_parent)->get_data();
+        warpgate::DMAT dmat(data);
+        uint32_t material_definition = std::stoul(*col->virtual_type);
+        std::shared_ptr<const warpgate::Material> material = nullptr;
+        for(uint32_t i = 0; i < dmat.material_count(); i++) {
+            if(dmat.material(i)->definition() == material_definition) {
+                material = dmat.material(i);
+                break;
+            }
+        }
+        if(material == nullptr) {
+            return result;
+        }
+
+        result = Gio::ListStore<Asset2ListItem>::create();
+        for(uint32_t i = 0; i < material->param_count(); i++) {
+            auto parameter = material->parameter(i);
+            auto parameter_li = Asset2ListItem::create(
+                warpgate::semantic_name(parameter.semantic_hash()),
+                AssetType::PARAMETER
+            );
+
+            ParameterData* data = new ParameterData{};
+            if(data == nullptr) {
+                break;
+            }
+            data->semantic = parameter.semantic_hash();
+            data->paramclass = parameter._class();
+            data->paramtype = parameter.type();
+            std::span<uint8_t> span = parameter.data();
+            data->data = std::vector<uint8_t>(span.begin(), span.end());
+            data->material = material;
+
+            // listitem takes ownership of data
+            parameter_li->user_data = (void*)data;
+            result->append(parameter_li);
+        }
+        break;}
     case AssetType::PALETTE: {
         if(!m_manager->contains(col->m_stdname)) {
             return result;
         }
-        std::vector<uint8_t> data = m_manager->get(col->m_stdname)->get_data();
-        warpgate::DMAT dmat(data);
+        // std::vector<uint8_t> data = m_manager->get(col->m_stdname)->get_data();
+        // warpgate::DMAT dmat(data);
 
         result = Gio::ListStore<Asset2ListItem>::create();
-        std::vector<std::string> texture_names = dmat.textures();
-        for(auto it = texture_names.begin(); it != texture_names.end(); it++) {
-            std::string value = *it;
-            result->append(
-                Asset2ListItem::create(
-                    value,
-                    AssetType::TEXTURE
-                )
-            );
+        auto materials = Asset2ListItem::create("Materials", AssetType::VIRTUAL);
+        materials->virtual_parent = col->m_stdname;
+        materials->virtual_type = "materials";
+        result->append(materials);
+
+        auto textures = Asset2ListItem::create("Textures", AssetType::VIRTUAL);
+        textures->virtual_parent = col->m_stdname;
+        textures->virtual_type = "textures";
+        result->append(textures);
+        // std::vector<std::string> texture_names = dmat.textures();
+        // for(auto it = texture_names.begin(); it != texture_names.end(); it++) {
+        //     std::string value = *it;
+        //     result->append(
+        //         Asset2ListItem::create(
+        //             value,
+        //             AssetType::TEXTURE
+        //         )
+        //     );
+        // }
+        break;}
+    case AssetType::PARAMETER: {
+        ParameterData* parameter = (ParameterData*)col->user_data;
+        if(parameter == nullptr) {
+            break;
         }
+
+        result = Gio::ListStore<Asset2ListItem>::create();
+        handle_parameter(parameter, result);
         break;}
     case AssetType::VIRTUAL: {
         result = Gio::ListStore<Asset2ListItem>::create();
@@ -731,6 +886,34 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
                             AssetType::SKELETON
                         )
                     );
+                }
+            }
+        } else if (vtype == "textures" || vtype == "materials") {
+            std::vector<uint8_t> data = m_manager->get(*col->virtual_parent)->get_data();
+            warpgate::DMAT dmat(data);
+
+            if(vtype == "textures") {
+                std::vector<std::string> texture_names = dmat.textures();
+                for(auto it = texture_names.begin(); it != texture_names.end(); it++) {
+                    std::string value = *it;
+                    result->append(
+                        Asset2ListItem::create(
+                            value,
+                            AssetType::TEXTURE
+                        )
+                    );
+                }
+            } else {
+                for(uint32_t i = 0; i < dmat.material_count(); i++) {
+                    uint32_t material_definition = dmat.material(i)->definition();
+                    nlohmann::json definition = utils::materials3::materials["materialDefinitions"][std::to_string(material_definition)];
+                    auto listitem = Asset2ListItem::create(
+                        definition["name"],
+                        AssetType::MATERIAL
+                    );
+                    listitem->virtual_parent = *col->virtual_parent;
+                    listitem->virtual_type = std::to_string(material_definition);
+                    result->append(listitem);
                 }
             }
         }
