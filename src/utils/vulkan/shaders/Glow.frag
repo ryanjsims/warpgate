@@ -15,6 +15,7 @@ layout(binding = 2) uniform sampler2D specularSampler;
 layout(binding = 3) uniform sampler2D normalSampler;
 layout(binding = 4) uniform sampler2D detailMaskSampler;
 layout(binding = 5) uniform samplerCube detailCubeSampler;
+layout(binding = 6) uniform sampler2D emissiveSampler;
 
 layout (location = 0) in vec2 inTexcoord0;
 layout (location = 1) in vec2 inTexcoord1;
@@ -25,5 +26,5 @@ layout (location = 0) out vec4 outFragColor;
 
 void main() 
 {
-  outFragColor = texture(diffuseSampler, inTexcoord0.st);
+  outFragColor = texture(emissiveSampler, inTexcoord0.st);
 }
