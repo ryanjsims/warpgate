@@ -1,4 +1,5 @@
 #include "utils/gtk/mesh.hpp"
+#include "utils/gtk/common.hpp"
 
 #include <utils/common.h>
 #include <utils/materials_3.h>
@@ -60,17 +61,20 @@ Mesh::Mesh(
 {
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
+    spdlog::debug("        Vertex array id: {}", vao);
 
     std::span<uint8_t> index_data = mesh->index_data();
 
     glGenBuffers(1, &indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_data.size(), index_data.data(), GL_STATIC_DRAW);
+    spdlog::debug("        Index buffer id: {}", indices);
 
     vertex_streams.resize(mesh->vertex_stream_count());
     glGenBuffers(mesh->vertex_stream_count(), vertex_streams.data());
     for(uint32_t vs_index = 0; vs_index < mesh->vertex_stream_count(); vs_index++) {
         glBindBuffer(GL_ARRAY_BUFFER, vertex_streams[vs_index]);
+        spdlog::debug("        Vertex stream id: {}", vertex_streams[vs_index]);
         std::span<uint8_t> vs_data = mesh->vertex_stream(vs_index);
         glBufferData(GL_ARRAY_BUFFER, vs_data.size(), vs_data.data(), GL_STATIC_DRAW);
     }
@@ -140,6 +144,7 @@ Mesh::Mesh(
         case Parameter::WarpgateSemantic::SPECULAR:
         case Parameter::WarpgateSemantic::DETAILCUBE:
         case Parameter::WarpgateSemantic::DETAILMASK:
+        case Parameter::WarpgateSemantic::EMISSIVE:
             break;
         default:
             continue;
@@ -165,30 +170,56 @@ Mesh::Mesh(
 }
 
 Mesh::~Mesh() {
+    spdlog::debug("    Deleting mesh...");
+    spdlog::debug("        Deleting index buffer id: {}", indices);
     glDeleteBuffers(1, &indices);
+    indices = 0;
+    for(uint32_t i = 0; i < vertex_streams.size(); i++) {
+        spdlog::debug("        Deleting vertex stream id: {}", vertex_streams[i]);
+    }
     glDeleteBuffers(vertex_streams.size(), vertex_streams.data());
+    memset(vertex_streams.data(), 0, vertex_streams.size() * sizeof(uint32_t));
+    spdlog::debug("        Deleting vertex array id: {}", vao);
     glDeleteVertexArrays(1, &vao);
+    vao = 0;
 }
 
 void Mesh::bind() const {
+    spdlog::debug("    Binding mesh...");
+    spdlog::debug("        Binding vertex array id: {}", vao);
     glBindVertexArray(vao);
+    glCheckError("Mesh bind VAO");
+    spdlog::debug("        Binding index buffer id: {}", indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices);
+    glCheckError("Mesh bind indices");
     for(uint32_t i = 0; i < vertex_layouts.size(); i++) {
         const Layout& layout = vertex_layouts[i];
+        spdlog::debug("        Binding vertex stream id: {}", vertex_streams[layout.vs_index]);
         glBindBuffer(GL_ARRAY_BUFFER, vertex_streams[layout.vs_index]);
+        glCheckError("Mesh bind vertex stream");
         glEnableVertexAttribArray(layout.pointer);
+        glCheckError("Mesh enable vertex attrib array");
         glVertexAttribPointer(layout.pointer, layout.count, layout.type, layout.normalized, layout.stride, layout.offset);
+        glCheckError("Mesh vertex attrib pointer");
     }
 }
 
 void Mesh::unbind() const {
+    spdlog::debug("    Unbinding mesh...");
     for(uint32_t i = 0; i < vertex_layouts.size(); i++) {
         const Layout& layout = vertex_layouts[i];
         glDisableVertexAttribArray(layout.pointer);
+        glCheckError("Mesh disable vertex attrib array");
     }
+    spdlog::debug("        Unbinding vertex streams");
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glCheckError("Mesh unbind vertex stream");
+    spdlog::debug("        Unbinding index buffer id: {}", indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glCheckError("Mesh unbind indices");
+    spdlog::debug("        Unbinding vertex array id: {}", vao);
     glBindVertexArray(0);
+    glCheckError("Mesh unbind VAO");
 }
 
 std::vector<uint32_t> Mesh::get_texture_hashes() const {

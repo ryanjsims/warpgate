@@ -354,6 +354,12 @@ void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr
         spdlog::warn("{} already loaded", name);
         return;
     }
+    if(m_deleted_models.find(name) != m_deleted_models.end()) {
+        m_models[name] = m_deleted_models[name];
+        m_deleted_models.erase(name);
+        m_renderer.queue_render();
+        return;
+    }
     m_renderer.make_current();
     std::shared_ptr<synthium::Asset2> asset = manager->get(name), asset2;
     std::shared_ptr<warpgate::DME> dme;
@@ -409,6 +415,7 @@ void ModelRenderer::destroy_model(std::string name) {
         return;
     }
     m_renderer.make_current();
+    m_deleted_models[name] = m_models[name];
     m_models.erase(name);
     m_renderer.queue_render();
 }

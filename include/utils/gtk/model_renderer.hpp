@@ -57,7 +57,7 @@ namespace warpgate::gtk {
         std::unordered_map<uint32_t, std::shared_ptr<Shader>> m_programs;
         std::unordered_map<uint32_t, std::shared_ptr<Texture>> m_textures;
         std::unordered_map<uint32_t, std::vector<std::shared_ptr<Mesh>>> m_meshes_by_material;
-        std::map<std::string, std::shared_ptr<Model>> m_models;
+        std::map<std::string, std::shared_ptr<Model>> m_models, m_deleted_models;
 
         GLint gtk_fbo = 0;
         GLuint m_msaa_fbo = 0;

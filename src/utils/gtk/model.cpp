@@ -18,10 +18,12 @@ Model::Model(
     m_uname.assign(name.c_str());
     m_model = glm::identity<glm::mat4>();
     std::shared_ptr<const warpgate::DMAT> dmat = dme->dmat();
+    spdlog::debug("Creating model '{}'", m_name);
     for(uint32_t mesh_index = 0; mesh_index < dme->mesh_count(); mesh_index++) {
         uint32_t material_definition = dmat->material(mesh_index)->definition();
         std::string layout_name = utils::materials3::materials["materialDefinitions"][std::to_string(material_definition)]["drawStyles"][0]["inputLayout"];
         
+        spdlog::debug("    Creating mesh with layout '{}'", layout_name);
         std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>(
             dme->mesh(mesh_index),
             dmat->material(mesh_index),
@@ -31,6 +33,7 @@ Model::Model(
         );
         
         if(shaders.find(mesh->get_material_hash()) == shaders.end()) {
+            spdlog::debug("    Creating shader with layout '{}'", layout_name);
             auto[vertex, fragment] = mesh->get_shader_paths();
             std::shared_ptr<Shader> shader = std::make_shared<Shader>(vertex, fragment, matrices_uniform, planes_uniform);
             if(shader->bad()) {
@@ -40,9 +43,11 @@ Model::Model(
         }
         m_meshes.push_back(mesh);
     }
+    spdlog::debug("Done");
 }
 
 Model::~Model() {
+    spdlog::debug("Destroying model '{}'", m_name);
     m_meshes.clear();
 }
 
@@ -69,6 +74,8 @@ void Model::draw(
 
         glDrawElements(GL_TRIANGLES, m_meshes[i]->index_count(), m_meshes[i]->index_size() == 4 ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT, 0);
     }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     glUseProgram(0);
 }
