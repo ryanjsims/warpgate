@@ -144,6 +144,8 @@ int32_t Texture::get_unit() {
         return 3;
     case Parameter::WarpgateSemantic::DETAILMASK:
         return 4;
+    case Parameter::WarpgateSemantic::EMISSIVE:
+        return 5;
     default:
         return -1;
     }
