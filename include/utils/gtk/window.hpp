@@ -35,8 +35,9 @@
 #include <sigc++/sigc++.h>
 #include <synthium/manager.h>
 
-#include "utils/gtk/model_renderer.hpp"
 #include "utils/gtk/asset_type.hpp"
+#include "utils/gtk/model_renderer.hpp"
+#include "utils/gtk/loaded_list_item.hpp"
 
 #include "utils/actor_sockets.h"
 #include "utils/gltf/dme.h"
@@ -46,7 +47,6 @@
 #include <set>
 
 class Asset2ListItem;
-class LoadedListItem;
 class NamelistFilter;
 
 class GenerateNamelistState : Glib::Object {
@@ -103,6 +103,9 @@ namespace warpgate::gtk {
         std::shared_ptr<Gtk::TreeListModel> m_tree_namelist, m_tree_loaded;
         std::regex m_regex;
 
+        Glib::Property<Glib::VariantBase> property_log_level;
+        std::shared_ptr<Glib::Binding> m_log_level_state_binding;
+
         std::shared_ptr<Gio::ListStore<Asset2ListItem>> m_namelist_root;
         std::shared_ptr<Gio::ListStore<LoadedListItem>> m_loaded_root;
 
@@ -154,6 +157,7 @@ namespace warpgate::gtk {
         void on_gen_namelist();
         void on_export();
         void on_quit();
+        void on_set_log_level(Glib::ustring level);
 
         void on_export_loaded();
         void on_remove_loaded();

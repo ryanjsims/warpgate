@@ -2,10 +2,13 @@
 
 #include "utils/vulkan/camera.hpp"
 #include "utils/gtk/asset_type.hpp"
+#include "utils/gtk/bone.hpp"
 #include "utils/gtk/common.hpp"
+#include "utils/gtk/loaded_list_item.hpp"
 #include "utils/gtk/mesh.hpp"
 #include "utils/gtk/model.hpp"
 #include "utils/gtk/texture.hpp"
+#include "utils/gtk/skeleton.hpp"
 #include "utils/gtk/shader.hpp"
 #include "utils/gtk/structs.hpp"
 #include <dme_loader.h>
@@ -28,18 +31,27 @@
 #include <gtkmm/window.h>
 #include <gtkmm/box.h>
 #include <gtkmm/glarea.h>
+
+#include <glibmm/property.h>
+#include <glibmm/propertyproxy.h>
+
+#include <giomm/liststore.h>
+
 #include <epoxy/gl.h>
 
 namespace warpgate::gtk {
-    class ModelRenderer {
+    class ModelRenderer : public Glib::Object {
     public:
         ModelRenderer();
+        ~ModelRenderer() override;
 
         Gtk::GLArea &get_area();
-        void load_model(std::string name, AssetType type, std::shared_ptr<synthium::Manager> manager);
+        void load_model(std::string name, AssetType type, std::shared_ptr<synthium::Manager> manager, std::string parent = "");
         void destroy_model(std::string name);
 
         std::vector<std::string> get_model_names() const;
+
+        Glib::PropertyProxy<std::shared_ptr<Gio::ListStore<LoadedListItem>>> property_loaded_models();
     
     protected:
         Gdk::ModifierType modifiers_state {0};
@@ -58,6 +70,7 @@ namespace warpgate::gtk {
         std::unordered_map<uint32_t, std::shared_ptr<Texture>> m_textures;
         std::unordered_map<uint32_t, std::vector<std::shared_ptr<Mesh>>> m_meshes_by_material;
         std::map<std::string, std::shared_ptr<Model>> m_models, m_deleted_models;
+        Glib::Property<std::shared_ptr<Gio::ListStore<LoadedListItem>>> property_model_items; 
 
         GLint gtk_fbo = 0;
         GLuint m_msaa_fbo = 0;
@@ -69,6 +82,9 @@ namespace warpgate::gtk {
 
         GLuint m_matrices_uniform = 0;
         GLuint m_planes_uniform = 0;
+
+        void add_loaded_item(std::string name, AssetType type, std::string parent = "");
+        void remove_loaded_item(std::string name);
 
         void realize();
         void unrealize();

@@ -215,6 +215,7 @@ if(${BUILD_WARPGATE_GUI})
   add_executable(warpgate
     src/warpgate.cpp
     src/utils/gtk/common.cpp
+    src/utils/gtk/loaded_list_item.cpp
     src/utils/gtk/mesh.cpp
     src/utils/gtk/model_renderer.cpp
     src/utils/gtk/model.cpp

@@ -9,6 +9,7 @@
 #include <gtkmm/label.h>
 #include <gtkmm/signallistitemfactory.h>
 #include <gtkmm/gestureclick.h>
+#include <giomm/menuitem.h>
 #include <giomm/simpleactiongroup.h>
 #include <giomm/datainputstream.h>
 
@@ -119,75 +120,6 @@ protected:
     }
 };
 
-class LoadedListItem : public Glib::Object {
-public:
-    Glib::ustring m_name;
-    std::string m_stdname;
-    AssetType m_type;
-
-    using stack_t = std::vector<std::string>;
-
-    static std::shared_ptr<LoadedListItem> create(std::string name, AssetType type = AssetType::UNKNOWN) {
-        return Glib::make_refptr_for_instance<LoadedListItem>(new LoadedListItem(name, type));
-    }
-
-    stack_t find_child(std::shared_ptr<LoadedListItem> search) {
-        stack_t to_return;
-        if(search.get() == this) {
-            to_return.push_back(m_stdname);
-        } else {
-            for(auto it = m_children_by_name.begin(); it != m_children_by_name.end() && to_return.size() == 0; it++) {
-                to_return = it->second->find_child(search);
-            }
-            to_return.push_back(m_stdname);
-        }
-        return to_return;
-    }
-
-    bool add_child(std::shared_ptr<LoadedListItem> child) {
-        if(m_children_by_name.find(child->m_stdname) != m_children_by_name.end()) {
-            spdlog::warn("Child '{}' already exists in this tree", child->m_stdname);
-            return false;
-        }
-        m_children.push_back(child);
-        m_children_by_name[child->m_stdname] = child;
-        return true;
-    }
-
-    std::shared_ptr<LoadedListItem> get_child(stack_t path) {
-        if(path.empty()) {
-            return nullptr;
-        }
-        if(path.back() == m_stdname) {
-            path.pop_back();
-        }
-        auto iter = m_children_by_name.find(path.back());
-        if(iter == m_children_by_name.end()) {
-            spdlog::error("Path corrupt: '{}' not in '{}'", path.back(), m_stdname);
-            return nullptr;
-        }
-        path.pop_back();
-        if(path.size() == 0) {
-            return iter->second;
-        }
-        return iter->second->get_child(path);
-    }
-
-    std::vector<std::shared_ptr<LoadedListItem>> children() const {
-        return m_children;
-    }
-
-protected:
-    std::vector<std::shared_ptr<LoadedListItem>> m_children;
-    std::unordered_map<std::string, std::shared_ptr<LoadedListItem>> m_children_by_name;
-
-    LoadedListItem(std::string name, AssetType type) {
-        m_name.assign(name.c_str());
-        m_stdname = name;
-        m_type = type;
-    }
-};
-
 class NamelistFilter : public Gtk::Filter {
 public:
     NamelistFilter(std::regex compare) 
@@ -249,8 +181,10 @@ ExportModelState::~ExportModelState() {}
 
 std::shared_ptr<warpgate::utils::ActorSockets> ExportModelState::actorSockets = nullptr;
 
-Window::Window() 
-    : m_manager(nullptr)
+Window::Window()
+    : Glib::ObjectBase("Window")
+    , m_manager(nullptr)
+    , property_log_level(*this, "log_level", Glib::Variant<Glib::ustring>::create("info"))
 {
     set_title("Warpgate");
     set_default_size(1280, 960);
@@ -275,12 +209,25 @@ Window::Window()
     file_section3->append("_Quit", "warpgate.quit");
     file_menu->append_section(file_section3);
 
+    auto debug_menu = Gio::Menu::create();
+    win_menu->append_submenu("_Debug", debug_menu);
+
+    auto log_level_section = Gio::Menu::create();
+    log_level_section->append("Debug", "warpgate.set_log_level::debug");
+    log_level_section->append("Info", "warpgate.set_log_level::info");
+    log_level_section->append("Warning", "warpgate.set_log_level::warning");
+    log_level_section->append("Error", "warpgate.set_log_level::error");
+    debug_menu->append_section("Log Level", log_level_section);
+
     auto action_group = Gio::SimpleActionGroup::create();
     action_group->add_action("load_namelist", sigc::mem_fun(*this, &Window::on_load_namelist));
     auto action = action_group->add_action("gen_namelist", sigc::mem_fun(*this, &Window::on_gen_namelist));
     m_generate_enable_binding = Glib::Binding::bind_property(m_generator.property_finished.get_proxy(), action->property_enabled());
     action_group->add_action("export", sigc::mem_fun(*this, &Window::on_export));
     action_group->add_action("quit", sigc::mem_fun(*this, &Window::on_quit));
+
+    auto log_level_action = action_group->add_action_radio_string("set_log_level", sigc::mem_fun(*this, &Window::on_set_log_level), "info");
+    m_log_level_state_binding = Glib::Binding::bind_property(property_log_level.get_proxy(), log_level_action->property_state());
     insert_action_group("warpgate", action_group);
 
     m_context_menu = Gio::Menu::create();
@@ -930,11 +877,13 @@ std::shared_ptr<Gio::ListStore<LoadedListItem>> Window::create_loaded_list_model
     // Create the top level model
     if(!root) {
         // Result needs to be created in every case where there is a sub-tree
-        result = Gio::ListStore<LoadedListItem>::create();
-        std::vector<std::string> loaded_names = m_renderer.get_model_names();
-        for(uint32_t i = 0; i < loaded_names.size(); i++) {
-            result->append(LoadedListItem::create(loaded_names[i], Asset2ListItem::type_from_filename(loaded_names[i])));
-        }
+        // result = Gio::ListStore<LoadedListItem>::create();
+        // std::vector<std::string> loaded_names = m_renderer.get_model_names();
+        // for(uint32_t i = 0; i < loaded_names.size(); i++) {
+        //     result->append(LoadedListItem::create(loaded_names[i], Asset2ListItem::type_from_filename(loaded_names[i])));
+        // }
+
+        result = m_renderer.property_loaded_models();
     } else {
         // Todo - add info about the item here, like skeleton, attached animations, etc
         //        the LoadedListItem will need slots for those in its class though
@@ -1104,7 +1053,7 @@ bool Window::on_idle_load_model() {
 
     m_renderer.load_model(model, type, m_manager);
 
-    m_loaded_root->append(LoadedListItem::create(model, type));
+    //m_loaded_root->append(LoadedListItem::create(model, type));
     return m_models_to_load.size() > 0;
 }
 
@@ -1330,6 +1279,20 @@ void Window::on_quit() {
     set_visible(false);
 }
 
+void Window::on_set_log_level(Glib::ustring _level) {
+    std::string level = _level.c_str();
+    if(level == "debug") {
+        spdlog::set_level(spdlog::level::debug);
+    } else if(level == "info") {
+        spdlog::set_level(spdlog::level::info);
+    } else if(level == "warning") {
+        spdlog::set_level(spdlog::level::warn);
+    } else if(level == "error") {
+        spdlog::set_level(spdlog::level::err);
+    }
+    property_log_level = Glib::Variant<Glib::ustring>::create(_level);
+}
+
 void Window::on_export_loaded() {
     spdlog::info("Called export loaded");
     auto row = std::dynamic_pointer_cast<Gtk::TreeListRow>(m_select_loaded->get_selected_item());
@@ -1396,11 +1359,11 @@ void Window::on_remove_loaded() {
     }
     spdlog::info("Gonna destroy model '{}'", model->m_stdname);
     m_renderer.destroy_model(model->m_stdname);
-    uint32_t index;
-    for(index = 0; index < m_loaded_root->get_n_items(); index++) {
-        if(m_loaded_root->get_item(index) == model) {
-            break;
-        }
-    }
-    m_loaded_root->remove(index);
+    // uint32_t index;
+    // for(index = 0; index < m_loaded_root->get_n_items(); index++) {
+    //     if(m_loaded_root->get_item(index) == model) {
+    //         break;
+    //     }
+    // }
+    // m_loaded_root->remove(index);
 }

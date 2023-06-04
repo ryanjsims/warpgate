@@ -12,9 +12,10 @@
 #include <unordered_map>
 
 #include <glibmm/ustring.h>
+#include <glibmm/object.h>
 
 namespace warpgate::gtk {
-    class Model {
+    class Model : Glib::Object {
     public:
         Model(
             std::string name,

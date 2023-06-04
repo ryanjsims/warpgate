@@ -15,7 +15,11 @@
 using namespace warpgate::gtk;
 using namespace std::chrono_literals;
 
-ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}) {   
+ModelRenderer::ModelRenderer()
+    : Glib::ObjectBase("ModelRenderer")
+    , property_model_items(*this, "model_items", nullptr)
+    , m_camera(glm::vec3{2.0f, 2.0f, 2.0f}, glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f})
+{   
     utils::materials3::init_materials();
     
     m_renderer.set_expand(true);
@@ -71,6 +75,16 @@ ModelRenderer::ModelRenderer() : m_camera(glm::vec3{2.0f, 2.0f, -2.0f}, glm::vec
     m_renderer.add_controller(key);
 
     m_renderer.set_focusable();
+
+    property_model_items = Gio::ListStore<LoadedListItem>::create();
+}
+
+ModelRenderer::~ModelRenderer() {
+
+}
+
+Glib::PropertyProxy<std::shared_ptr<Gio::ListStore<LoadedListItem>>> ModelRenderer::property_loaded_models() {
+    return property_model_items.get_proxy();
 }
 
 Gtk::GLArea &ModelRenderer::get_area() {
@@ -349,13 +363,55 @@ void ModelRenderer::create_grid() {
     glBindVertexArray(0);
 }
 
-void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr<synthium::Manager> manager) {
+void ModelRenderer::add_loaded_item(std::string name, AssetType type, std::string parent_name) {
+    if(parent_name == "") {
+        property_model_items.get_value()->append(LoadedListItem::create(name, type));
+    } else {
+        std::shared_ptr<LoadedListItem> parent_item = nullptr;
+        for(uint32_t i = 0; i < property_model_items.get_value()->get_n_items() && parent_item == nullptr; i++) {
+            parent_item = property_model_items.get_value()->get_item(i)->get_child(parent_name);
+        }
+        if(parent_item == nullptr) {
+            spdlog::error("Parent '{}' does not exist in loaded items!", parent_name);
+            return;
+        }
+        parent_item->add_child(LoadedListItem::create(name, type));
+    }
+    property_model_items.notify();
+}
+
+void ModelRenderer::remove_loaded_item(std::string name) {
+    std::shared_ptr<LoadedListItem> item = nullptr;
+    uint32_t i;
+    for(i = 0; i < property_model_items.get_value()->get_n_items() && item == nullptr; i++) {
+        auto curr_item = property_model_items.get_value()->get_item(i);
+        if(curr_item->m_stdname == name) {
+            item = curr_item;
+        } else {
+            item = curr_item->get_child(name);
+        }
+    }
+    if(item == nullptr) {
+        spdlog::error("Item '{}' does not exist in loaded items!", name);
+        return;
+    }
+    if(item->parent() == nullptr) {
+        property_model_items.get_value()->remove(i - 1);
+    } else {
+        item->parent()->remove_child(name);
+        item->set_parent(nullptr);
+    }
+    property_model_items.notify();
+}
+
+void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr<synthium::Manager> manager, std::string parent) {
     if(m_models.find(name) != m_models.end()) {
         spdlog::warn("{} already loaded", name);
         return;
     }
     if(m_deleted_models.find(name) != m_deleted_models.end()) {
         m_models[name] = m_deleted_models[name];
+        add_loaded_item(name, type, parent);
         m_deleted_models.erase(name);
         m_renderer.queue_render();
         return;
@@ -406,6 +462,7 @@ void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr
      
     std::shared_ptr<Model> model = std::make_shared<Model>(name, dme, m_programs, m_textures, manager, m_matrices_uniform, m_planes_uniform);
     m_models[name] = model;
+    add_loaded_item(name, type, parent);
     m_renderer.queue_render();
 }
 
@@ -417,6 +474,7 @@ void ModelRenderer::destroy_model(std::string name) {
     m_renderer.make_current();
     m_deleted_models[name] = m_models[name];
     m_models.erase(name);
+    remove_loaded_item(name);
     m_renderer.queue_render();
 }
 

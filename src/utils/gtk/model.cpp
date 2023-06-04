@@ -13,7 +13,8 @@ Model::Model(
     std::shared_ptr<synthium::Manager> manager,
     GLuint matrices_uniform,
     GLuint planes_uniform
-) {
+) : Glib::ObjectBase("Model")
+{
     m_name = name;
     m_uname.assign(name.c_str());
     m_model = glm::identity<glm::mat4>();
