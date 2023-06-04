@@ -77,6 +77,13 @@ ModelRenderer::ModelRenderer()
     m_renderer.set_focusable();
 
     property_model_items = Gio::ListStore<LoadedListItem>::create();
+
+    m_bone = std::make_shared<Bone>(glm::mat4(
+        glm::vec4{1.0, 0.0, 0.0, 0.0},
+        glm::vec4{0.0, 1.0, 0.0, 0.0},
+        glm::vec4{0.0, 0.0, 1.0, 0.0},
+        glm::vec4{0.0, 0.0, 0.0, 1.0}
+    ));
 }
 
 ModelRenderer::~ModelRenderer() {
@@ -100,6 +107,7 @@ void ModelRenderer::realize() {
         glBindBuffer(GL_UNIFORM_BUFFER, m_matrices_uniform);
         glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniform), nullptr, GL_STATIC_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_matrices_uniform);
+        Bone::init(m_matrices_uniform);
 
         glGenBuffers(1, &m_planes_uniform);
         glBindBuffer(GL_UNIFORM_BUFFER, m_planes_uniform);
@@ -161,6 +169,8 @@ bool ModelRenderer::render(const std::shared_ptr<Gdk::GLContext> &context) {
             it->second->draw(m_programs, m_textures);
             glCheckError(fmt::format("Drawing model '{}'", it->first));
         }
+
+        m_bone->draw();
         
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

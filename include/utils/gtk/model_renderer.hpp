@@ -57,6 +57,8 @@ namespace warpgate::gtk {
         Gdk::ModifierType modifiers_state {0};
         Rect viewport = {};
 
+        std::shared_ptr<Bone> m_bone;
+
         warpgate::vulkan::Camera m_camera;
         bool m_panning = false;
         bool m_rotating = false;
