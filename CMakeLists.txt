@@ -74,6 +74,7 @@ add_executable(adr_converter
     src/utils/adr.cpp
     src/utils/gltf/common.cpp
     src/utils/gltf.cpp
+    src/utils/common.cpp 
     src/utils/materials_3.cpp 
     src/utils/sign.cpp 
     src/utils/textures.cpp
@@ -214,11 +215,13 @@ if(${BUILD_WARPGATE_GUI})
   file(TOUCH ${CMAKE_BINARY_DIR}/warpgate_icon.o)
   add_executable(warpgate
     src/warpgate.cpp
+    src/utils/gtk/bone.cpp
     src/utils/gtk/common.cpp
     src/utils/gtk/loaded_list_item.cpp
     src/utils/gtk/mesh.cpp
     src/utils/gtk/model_renderer.cpp
     src/utils/gtk/model.cpp
+    src/utils/gtk/skeleton.cpp
     src/utils/gtk/shader.cpp
     src/utils/gtk/texture.cpp
     src/utils/gtk/window.cpp

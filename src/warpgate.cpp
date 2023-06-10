@@ -126,6 +126,11 @@ int main(int argc, char** argv)
         return app->make_window_and_run<warpgate::gtk::Window>(argc, argv);
     } catch(Glib::Error &e) {
         spdlog::error("Glib error: {} - {} - {}", e.code(), g_quark_to_string(e.domain()), e.what());
+        std::this_thread::sleep_for(30s);
         return e.code();
+    } catch(std::exception &e) {
+        spdlog::error("std::exception: {}", e.what());
+        std::this_thread::sleep_for(30s);
+        return -1;
     }
 }

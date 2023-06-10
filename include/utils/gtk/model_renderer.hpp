@@ -72,6 +72,7 @@ namespace warpgate::gtk {
         std::unordered_map<uint32_t, std::shared_ptr<Texture>> m_textures;
         std::unordered_map<uint32_t, std::vector<std::shared_ptr<Mesh>>> m_meshes_by_material;
         std::map<std::string, std::shared_ptr<Model>> m_models, m_deleted_models;
+        std::map<std::string, std::shared_ptr<Skeleton>> m_skeletons, m_deleted_skeletons;
         Glib::Property<std::shared_ptr<Gio::ListStore<LoadedListItem>>> property_model_items; 
 
         GLint gtk_fbo = 0;
@@ -86,7 +87,7 @@ namespace warpgate::gtk {
         GLuint m_planes_uniform = 0;
 
         void add_loaded_item(std::string name, AssetType type, std::string parent = "");
-        void remove_loaded_item(std::string name);
+        void remove_loaded_item(std::string name, std::string parent = "");
 
         void realize();
         void unrealize();

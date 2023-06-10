@@ -15,6 +15,8 @@ namespace warpgate::gtk {
         bool good() const;
         bool bad() const;
 
+        GLuint get_program() const;
+
         void set_model(const glm::mat4 &model);
         void set_matrices(const Uniform ubo);
         static void set_matrices(GLuint object, const Uniform& ubo);

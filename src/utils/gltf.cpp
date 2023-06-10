@@ -257,7 +257,7 @@ int utils::gltf::dme::add_skeleton_to_gltf(tinygltf::Model &gltf, const DME &dme
             packed_inv[3][0], packed_inv[3][1], packed_inv[3][2]
         ));
         glm::mat4 bind_matrix = glm::inverse(inverse_bind_matrix);
-        glm::mat4 rotated = glm::rotate(inverse_bind_matrix, (float)M_PI, glm::vec3(0, 1, 0));
+        //glm::mat4 rotated = glm::rotate(inverse_bind_matrix, (float)M_PI, glm::vec3(0, 1, 0));
         std::span<float> inverse_matrix_data(&inverse_bind_matrix[0].x, 16);
         std::span<float> matrix_data(&bind_matrix[0].x, 16);
         //bone_node.matrix = std::vector<double>(matrix_data.begin(), matrix_data.end());

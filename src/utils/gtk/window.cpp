@@ -717,6 +717,11 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
         skeletons->virtual_type = "skeletons";
         result->append(skeletons);
 
+        // auto skeleton_maps = Asset2ListItem::create("Skeleton Maps", AssetType::VIRTUAL);
+        // skeleton_maps->virtual_parent = name;
+        // skeleton_maps->virtual_type = "skeleton_maps";
+        // result->append(skeleton_maps);
+
         auto animations = Asset2ListItem::create("Animations", AssetType::VIRTUAL);
         animations->virtual_parent = name;
         animations->virtual_type = "animations";
@@ -801,7 +806,7 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
     case AssetType::VIRTUAL: {
         result = Gio::ListStore<Asset2ListItem>::create();
         std::string vtype = *col->virtual_type;
-        if(vtype == "skeletons" || vtype == "animations") {
+        if(vtype == "skeletons" || vtype == "animations" || vtype == "skeleton_maps") {
             std::string name = *col->virtual_parent;
             std::vector<uint8_t> data = m_manager->get(name)->get_data();
             warpgate::mrn::MRN mrn;
@@ -823,7 +828,7 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
                         )
                     );
                 }
-            } else {
+            } else if(vtype == "skeletons") {
                 std::vector<std::string> skeleton_names = mrn.skeleton_names()->skeleton_names()->strings();
                 for(auto it = skeleton_names.begin(); it != skeleton_names.end(); it++) {
                     std::string value = *it;
@@ -834,6 +839,8 @@ std::shared_ptr<Gio::ListStore<Asset2ListItem>> Window::create_namelist_model(co
                         )
                     );
                 }
+            // } else if(vtype == "skeleton_maps") {
+                
             }
         } else if (vtype == "textures" || vtype == "materials") {
             std::vector<uint8_t> data = m_manager->get(*col->virtual_parent)->get_data();
@@ -887,6 +894,13 @@ std::shared_ptr<Gio::ListStore<LoadedListItem>> Window::create_loaded_list_model
     } else {
         // Todo - add info about the item here, like skeleton, attached animations, etc
         //        the LoadedListItem will need slots for those in its class though
+        result = Gio::ListStore<LoadedListItem>::create();
+        if(root->children().size() > 0) {
+            std::vector<std::shared_ptr<LoadedListItem>> children = root->children();
+            for(auto it = children.begin(); it != children.end(); it++) {
+                result->append(*it);
+            }
+        }
     }
 
     return result;

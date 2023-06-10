@@ -78,7 +78,7 @@ ModelRenderer::ModelRenderer()
 
     property_model_items = Gio::ListStore<LoadedListItem>::create();
 
-    m_bone = std::make_shared<Bone>(glm::mat4(
+    m_bone = std::make_shared<Bone>("test", glm::mat4(
         glm::vec4{1.0, 0.0, 0.0, 0.0},
         glm::vec4{0.0, 1.0, 0.0, 0.0},
         glm::vec4{0.0, 0.0, 1.0, 0.0},
@@ -170,7 +170,13 @@ bool ModelRenderer::render(const std::shared_ptr<Gdk::GLContext> &context) {
             glCheckError(fmt::format("Drawing model '{}'", it->first));
         }
 
-        m_bone->draw();
+        m_bone->draw_individual();
+        glCheckError(fmt::format("Drawing individual bone '{}'", m_bone->name()));
+
+        for(auto it = m_skeletons.begin(); it != m_skeletons.end(); it++) {
+            it->second->draw();
+            glCheckError(fmt::format("Drawing skeleton '{}'", it->first));
+        }
         
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -379,7 +385,13 @@ void ModelRenderer::add_loaded_item(std::string name, AssetType type, std::strin
     } else {
         std::shared_ptr<LoadedListItem> parent_item = nullptr;
         for(uint32_t i = 0; i < property_model_items.get_value()->get_n_items() && parent_item == nullptr; i++) {
-            parent_item = property_model_items.get_value()->get_item(i)->get_child(parent_name);
+            auto curr_item = property_model_items.get_value()->get_item(i);
+            if(curr_item->m_stdname == parent_name) {
+                parent_item = curr_item;
+            } else {
+                parent_item = curr_item->get_child(parent_name);
+            }
+            //parent_item = property_model_items.get_value()->get_item(i)->get_child(parent_name);
         }
         if(parent_item == nullptr) {
             spdlog::error("Parent '{}' does not exist in loaded items!", parent_name);
@@ -387,19 +399,35 @@ void ModelRenderer::add_loaded_item(std::string name, AssetType type, std::strin
         }
         parent_item->add_child(LoadedListItem::create(name, type));
     }
-    property_model_items.notify();
 }
 
-void ModelRenderer::remove_loaded_item(std::string name) {
+void ModelRenderer::remove_loaded_item(std::string name, std::string parent_name) {
     std::shared_ptr<LoadedListItem> item = nullptr;
     uint32_t i;
-    for(i = 0; i < property_model_items.get_value()->get_n_items() && item == nullptr; i++) {
-        auto curr_item = property_model_items.get_value()->get_item(i);
-        if(curr_item->m_stdname == name) {
-            item = curr_item;
-        } else {
-            item = curr_item->get_child(name);
+    if(parent_name == "") {
+        for(i = 0; i < property_model_items.get_value()->get_n_items() && item == nullptr; i++) {
+            auto curr_item = property_model_items.get_value()->get_item(i);
+            if(curr_item->m_stdname == name) {
+                item = curr_item;
+            } else {
+                item = curr_item->get_child(name);
+            }
         }
+    } else {
+        std::shared_ptr<LoadedListItem> parent_item = nullptr;
+        for(uint32_t i = 0; i < property_model_items.get_value()->get_n_items() && parent_item == nullptr; i++) {
+            auto curr_item = property_model_items.get_value()->get_item(i);
+            if(curr_item->m_stdname == parent_name) {
+                parent_item = curr_item;
+            } else {
+                parent_item = curr_item->get_child(parent_name);
+            }
+        }
+        if(parent_item == nullptr) {
+            spdlog::error("Parent '{}' does not exist in loaded items!", parent_name);
+            return;
+        }
+        item = parent_item->get_child(name);
     }
     if(item == nullptr) {
         spdlog::error("Item '{}' does not exist in loaded items!", name);
@@ -411,7 +439,6 @@ void ModelRenderer::remove_loaded_item(std::string name) {
         item->parent()->remove_child(name);
         item->set_parent(nullptr);
     }
-    property_model_items.notify();
 }
 
 void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr<synthium::Manager> manager, std::string parent) {
@@ -423,6 +450,11 @@ void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr
         m_models[name] = m_deleted_models[name];
         add_loaded_item(name, type, parent);
         m_deleted_models.erase(name);
+
+        m_skeletons[name] = m_deleted_skeletons[name];
+        add_loaded_item("Skeleton", AssetType::SKELETON, name);
+        m_deleted_skeletons.erase(name);
+        property_model_items.notify();
         m_renderer.queue_render();
         return;
     }
@@ -463,6 +495,8 @@ void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr
         data = asset->get_data();
         dme = std::make_shared<warpgate::DME>(data, name);
         break;
+    case AssetType::SKELETON:
+        // Todo...
     case AssetType::ANIMATION:
         // Todo...
     default:
@@ -471,8 +505,12 @@ void ModelRenderer::load_model(std::string name, AssetType type, std::shared_ptr
     }
      
     std::shared_ptr<Model> model = std::make_shared<Model>(name, dme, m_programs, m_textures, manager, m_matrices_uniform, m_planes_uniform);
+    std::shared_ptr<Skeleton> skeleton = std::make_shared<Skeleton>(dme);
     m_models[name] = model;
+    m_skeletons[name] = skeleton;
     add_loaded_item(name, type, parent);
+    add_loaded_item("Skeleton", AssetType::SKELETON, name);
+    property_model_items.notify();
     m_renderer.queue_render();
 }
 
@@ -482,9 +520,13 @@ void ModelRenderer::destroy_model(std::string name) {
         return;
     }
     m_renderer.make_current();
+    m_deleted_skeletons[name] = m_skeletons[name];
+    m_skeletons.erase(name);
+    remove_loaded_item("Skeleton", name);
     m_deleted_models[name] = m_models[name];
     m_models.erase(name);
     remove_loaded_item(name);
+    property_model_items.notify();
     m_renderer.queue_render();
 }
 

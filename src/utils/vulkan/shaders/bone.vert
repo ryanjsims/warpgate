@@ -12,12 +12,20 @@ layout (binding = 0) uniform UBO
 	uint faction;
 } ubo;
 
+uniform float _length;
+
 out gl_PerVertex 
 {
-    vec4 gl_Position;   
+    vec4 gl_Position;
 };
+
+layout (location = 0) out vec3 viewSpacePos;
+layout (location = 1) out vec3 facing;
 
 void main() 
 {
-	gl_Position = ubo.projectionMatrix * ubo.viewMatrix * ubo.modelMatrix * vec4(inPos.xyz, 1.0);
+    facing = normalize(vec3(inPos.xz, inPos.y * 0.1)).xzy;
+	gl_Position = ubo.projectionMatrix * ubo.viewMatrix * ubo.modelMatrix * vec4(_length * inPos.xyz, 1.0);
+
+    viewSpacePos = (ubo.viewMatrix * ubo.modelMatrix * vec4(_length * inPos, 1.0)).xyz;
 }

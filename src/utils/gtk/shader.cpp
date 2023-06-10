@@ -143,6 +143,10 @@ void Shader::set_planes(GLuint object, const GridUniform& planes) {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
+GLuint Shader::get_program() const {
+    return m_program;
+}
+
 GLuint Shader::create_shader(int type, const char *src) {
     spdlog::debug("create shader from source:\n{}", src);
     GLuint shader = glCreateShader(type);
