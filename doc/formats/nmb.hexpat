@@ -69,12 +69,12 @@ fn relative_to_parent(u128 offset) {
 };
 
 struct orientation_transform_locations {
-	u8* translation_data : u64 [[pointer_base("relative_to_parents_parent")]];
+    u8* translation_data : u64 [[pointer_base("relative_to_parents_parent")]];
     u8* rotation_data : u64 [[pointer_base("relative_to_parents_parent")]];
 };
 
 struct orientation_subheader {
-	u32 datalength;
+    u32 datalength;
     u32 alignment;
     u32 element_count;
     bool full;
@@ -110,7 +110,7 @@ struct orientation_data {
 };
 
 struct expanded_string_table {
-	u32 string_count;
+    u32 string_count;
     u32 string_data_size;
     u32* string_ids[string_count] : u64 [[pointer_base("relative_to_parent")]];
     u32* string_offsets[string_count] : u64 [[pointer_base("relative_to_parent")]];
@@ -138,7 +138,7 @@ struct skeleton_data {
     u32 unknown_array1[2];
     string_table* ptr_bone_names_table : u64 [[pointer_base("relative_to_parent")]];
     u8* ptr_orientations_packet : u64 [[pointer_base("relative_to_parent")]];
-	u32 unknown_int;
+    u32 unknown_int;
     padding[4];
     u8* ptr_end_data[96] : u64 [[pointer_base("relative_to_parent")]];
     u32 unknown_int2;
@@ -227,13 +227,13 @@ struct nsa_data_first_segment {
     }
     padding[12];
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	vec3_short *translation_data[translation_bone_count] : u64 [[pointer_base("relative_to_parent")]];
+        vec3_short *translation_data[translation_bone_count] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_translation_data;
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	vec3_short *rotation_data[rotation_bone_count] : u64 [[pointer_base("relative_to_parent")]];
+        vec3_short *rotation_data[rotation_bone_count] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_rotation_data;
     }
@@ -281,18 +281,18 @@ struct nsa_data_second_segment {
     u32 rotation_bone_count;
     u32 scale_bone_count;
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    translation_sample_data *translation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
-	    dequantization_info *translation_deq_info[deq_info_sets(translation_bone_count)] : u64 [[pointer_base("relative_to_parent")]];
+        translation_sample_data *translation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
+        dequantization_info *translation_deq_info[deq_info_sets(translation_bone_count)] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_translation_data;
         u64 null_translation_deq_info;
     }
     
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	sample_padding = ((std::mem::read_unsigned($+8, 8) - std::mem::read_unsigned($, 8)) % (samples * rotation_bone_count * 2)) / samples;
-    	//std::print("{:3d} sample_padding = {} samples={:2d} rotation_bone_count={:2d}", i, sample_padding, samples, rotation_bone_count);
-	    rotation_sample_data *rotation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
-	    dequantization_info *rotation_deq_info[deq_info_sets(rotation_bone_count)] : u64 [[pointer_base("relative_to_parent")]];
+        sample_padding = ((std::mem::read_unsigned($+8, 8) - std::mem::read_unsigned($, 8)) % (samples * rotation_bone_count * 2)) / samples;
+        //std::print("{:3d} sample_padding = {} samples={:2d} rotation_bone_count={:2d}", i, sample_padding, samples, rotation_bone_count);
+        rotation_sample_data *rotation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
+        dequantization_info *rotation_deq_info[deq_info_sets(rotation_bone_count)] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_rotation_data;
         u64 null_rotation_deq_info;
@@ -308,26 +308,26 @@ struct nsa_data_second_segment {
 };
 
 struct nsa_data_end_segment {
-	u32 version;
-	u32 unk_array[3];
-	u32 size;
-	u32 alignment;
-	float frame_rate;
-	u32 samples;
-	dequantization_factors translation_factors;
+    u32 version;
+    u32 unk_array[3];
+    u32 size;
+    u32 alignment;
+    float frame_rate;
+    u32 samples;
+    dequantization_factors translation_factors;
     if(std::mem::read_unsigned($+16, 8) == 0x00) {
-	    quaternion rotation;
-	    padding[8];
+        quaternion rotation;
+        padding[8];
     } else {
         dequantization_factors rotation_factors;
     }
-	if(std::mem::read_unsigned($, 8) != 0x00) {
-		translation_bone_data *translation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
-	} else {
-		u64 null_translation_data;
-	}
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    rotation_bone_data *rotation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
+        translation_bone_data *translation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
+    } else {
+        u64 null_translation_data;
+    }
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        rotation_bone_data *rotation_data[samples] : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_rotation_data;
     }
@@ -365,21 +365,21 @@ struct nsa_data {
     } else {
         u64 null_scl;
     }
-	
-	if(std::mem::read_unsigned($, 8) != 0x00) {
-    	nsa_data_first_segment *static_data : u64 [[pointer_base("relative_to_parent")]];
+    
+    if(std::mem::read_unsigned($, 8) != 0x00) {
+        nsa_data_first_segment *static_data : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_static_data;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	nsa_data_second_segment *dynamic_data : u64 [[pointer_base("relative_to_parent")]];
+        nsa_data_second_segment *dynamic_data : u64 [[pointer_base("relative_to_parent")]];
     } else {
         u64 null_dynamic_data;
     }
     if(std::mem::read_unsigned($, 8) != 0x00) {
-    	nsa_data_end_segment *end_data_ptr : u64 [[pointer_base("relative_to_parent")]];
+        nsa_data_end_segment *end_data_ptr : u64 [[pointer_base("relative_to_parent")]];
     } else {
-    	u64 null_end_data;
+        u64 null_end_data;
     }
     padding[8];
 };
@@ -400,7 +400,7 @@ struct file_data {
 
 struct expanded_string_table_ptr {
     if(std::mem::read_unsigned($, 8) != 0x00) {
-	    expanded_string_table* table : u64 [[pointer_base("relative_to_parents_parent")]];
+        expanded_string_table* table : u64 [[pointer_base("relative_to_parents_parent")]];
     } else {
         u64 null_string_table;
     }
@@ -411,8 +411,8 @@ struct network_data_chunk {
 };
 
 struct network_data_offset_table {
-	u32 chunk_count;
-	u32 chunk_size;
+    u32 chunk_count;
+    u32 chunk_size;
     network_data_chunk* ptrs[chunk_count] : u64 [[pointer_base("relative_to_parent")]];
 };
 
@@ -446,7 +446,7 @@ struct network_data {
 };
 
 struct skeleton_names_data {
-	expanded_string_table_ptr names_table;
+    expanded_string_table_ptr names_table;
 };
 
 struct event_range {
@@ -495,7 +495,7 @@ struct skeleton_map_data {
 };
 
 struct packet {
-	i = i + 1;
+    i = i + 1;
     header head;
     std::print("Packet {}: Type {}", i, head.type);
     /*if(head.type == PacketType::skeleton) {
@@ -520,11 +520,11 @@ struct packet {
         network_data network;
         u8 data[head.datalength - sizeof(network)];
     } else if(head.type == PacketType::skeleton_names) {
-    	skeleton_names_data skeletons;
-    	padding[head.datalength - sizeof(skeletons)];
+        skeleton_names_data skeletons;
+        padding[head.datalength - sizeof(skeletons)];
     } else if(head.type == PacketType::skeleton_map) {
-    	skeleton_map_data map;
-    	padding[head.datalength - sizeof(map)];
+        skeleton_map_data map;
+        padding[head.datalength - sizeof(map)];
     } */else {
         u8 data[head.datalength];
     }
