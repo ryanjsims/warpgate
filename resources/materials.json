@@ -6514,7 +6514,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Shield",
-                    "value": "CharacterShield",
+                    "value": "BumpRigidShield",
                     "hash": 1881004734
                 },
                 {
@@ -6534,12 +6534,6 @@
                     "name": "Outline",
                     "value": "OutlineRigid",
                     "hash": 2037737054
-                },
-                {
-                    "type": "ValidEffect",
-                    "name": "StructureShieldEffect",
-                    "value": "BumpRigidShield",
-                    "hash": 2521965518
                 }
             ],
             "drawStyles": [
@@ -6833,7 +6827,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Shield",
-                    "value": "CharacterShield",
+                    "value": "BumpRigidShield",
                     "hash": 1881004734
                 },
                 {
@@ -6853,12 +6847,6 @@
                     "name": "Outline",
                     "value": "OutlineRigid",
                     "hash": 2037737054
-                },
-                {
-                    "type": "ValidEffect",
-                    "name": "StructureShieldEffect",
-                    "value": "BumpRigidShield",
-                    "hash": 2521965518
                 }
             ],
             "drawStyles": [
@@ -7579,15 +7567,15 @@
                 },
                 {
                     "type": "ValidEffect",
-                    "name": "StructureDeResEffect",
+                    "name": "DeRes",
                     "value": "StructureDeRes",
-                    "hash": 3115001720
+                    "hash": 3727590638
                 },
                 {
                     "type": "ValidEffect",
-                    "name": "StructureShieldEffect",
+                    "name": "Shield",
                     "value": "StructureShield",
-                    "hash": 2521965518
+                    "hash": 1881004734
                 }
             ],
             "drawStyles": [
@@ -7636,15 +7624,15 @@
                 },
                 {
                     "type": "ValidEffect",
-                    "name": "StructureDeResEffect",
+                    "name": "DeRes",
                     "value": "StructureDeRes",
-                    "hash": 3115001720
+                    "hash": 3727590638
                 },
                 {
                     "type": "ValidEffect",
-                    "name": "StructureShieldEffect",
+                    "name": "Shield",
                     "value": "StructureShield",
-                    "hash": 2521965518
+                    "hash": 1881004734
                 }
             ],
             "drawStyles": [
@@ -8554,7 +8542,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -8618,7 +8606,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -8682,7 +8670,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -8746,7 +8734,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -8810,7 +8798,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -8874,7 +8862,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -8938,7 +8926,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -9002,7 +8990,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -9066,7 +9054,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -9130,7 +9118,7 @@
                 {
                     "type": "ValidEffect",
                     "name": "Visualizer",
-                    "value": "RigidSkinnedLODs",
+                    "value": "RigidLODs",
                     "hash": 3238564935
                 },
                 {
@@ -13826,6 +13814,84 @@
                 }
             ]
         },
+        "2362474471": {
+            "name": "CrystalRigid",
+            "hash": 2362474471,
+            "properties": [
+                {
+                    "name": "EffectName",
+                    "variable": "Shield",
+                    "hash": 3900163276
+                }
+            ],
+            "drawStyles": [
+                {
+                    "name": "Glow",
+                    "effect": "Vehicle.efb",
+                    "technique": "CrystalShieldColor",
+                    "inputLayout": "Vehicle",
+                    "hash": 3649488835
+                },
+                {
+                    "name": "Pick",
+                    "effect": "PickRigid.efb",
+                    "inputLayout": "Vehicle",
+                    "hash": 1780832582
+                }
+            ]
+        },
+        "1975252943": {
+            "name": "CrystalRigidOpaque",
+            "hash": 1975252943,
+            "properties": [
+                {
+                    "name": "EffectName",
+                    "variable": "Shield",
+                    "hash": 3900163276
+                }
+            ],
+            "drawStyles": [
+                {
+                    "name": "Glow",
+                    "effect": "Vehicle.efb",
+                    "technique": "CrystalShieldColorOpaque",
+                    "inputLayout": "Vehicle",
+                    "hash": 3649488835
+                },
+                {
+                    "name": "Pick",
+                    "effect": "PickRigid.efb",
+                    "inputLayout": "Vehicle",
+                    "hash": 1780832582
+                }
+            ]
+        },
+        "3519446375": {
+            "name": "CristalRigidOpaque_NoSkinned",
+            "hash": 3519446375,
+            "properties": [
+                {
+                    "name": "EffectName",
+                    "variable": "Shield",
+                    "hash": 3900163276
+                }
+            ],
+            "drawStyles": [
+                {
+                    "name": "Glow",
+                    "effect": "Structure.efb",
+                    "technique": "CrystalShieldColorOpaque",
+                    "inputLayout": "Structure",
+                    "hash": 3649488835
+                },
+                {
+                    "name": "Pick",
+                    "effect": "PickRigid.efb",
+                    "inputLayout": "Structure",
+                    "hash": 1780832582
+                }
+            ]
+        },
         "2805060007": {
             "name": "StructureShield",
             "hash": 2805060007,
@@ -15259,10 +15325,10 @@
                     "hash": 2966471072
                 },
                 {
-                    "name": "MiniMap",
-                    "effect": "StreamWater.fxo",
+                    "name": "MiniMapTransparent",
+                    "effect": "StreamWater_minimap.efb",
                     "inputLayout": "Object",
-                    "hash": 2008845393
+                    "hash": 1571232405
                 },
                 {
                     "name": "Pick",
@@ -16021,6 +16087,40 @@
                     "name": "Glow",
                     "effect": "ForceFieldColor.efb",
                     "technique": "AlphaBlendTech",
+                    "inputLayout": "ForceField",
+                    "hash": 3649488835
+                },
+                {
+                    "name": "Pick",
+                    "effect": "PickRigid.efb",
+                    "inputLayout": "ForceField",
+                    "hash": 1780832582
+                }
+            ]
+        },
+        "3548507893": {
+            "name": "ForceFieldEmpireTint",
+            "hash": 3548507893,
+            "properties": [
+                {
+                    "type": "ValidEffect",
+                    "name": "Visualizer",
+                    "value": "RigidLODs",
+                    "hash": 3238564935
+                }
+            ],
+            "drawStyles": [
+                {
+                    "name": "Distortion",
+                    "effect": "ForceFieldColor.efb",
+                    "technique": "DistortionTech",
+                    "inputLayout": "ForceField",
+                    "hash": 1757275279
+                },
+                {
+                    "name": "Glow",
+                    "effect": "ForceFieldColor.efb",
+                    "technique": "WithEmpireTint",
                     "inputLayout": "ForceField",
                     "hash": 3649488835
                 },
