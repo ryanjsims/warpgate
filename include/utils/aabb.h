@@ -40,6 +40,7 @@ namespace warpgate::utils {
         AABB operator-(const glm::dvec3 translation);
         AABB operator*(const glm::dquat rotation);
         AABB operator*(const glm::dvec3 scale);
+        AABB operator*(const glm::dmat4 trs);
 
     private:
         glm::dvec4 midpoint_, half;

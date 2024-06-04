@@ -1,5 +1,6 @@
 #include "utils/aabb.h"
 #include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 #include <stdexcept>
 
 using namespace warpgate::utils;
@@ -135,4 +136,13 @@ AABB AABB::operator*(const glm::dvec3 scale) {
     glm::dvec4 min = midpoint_ - new_half;
     glm::dvec4 max = midpoint_ + new_half;
     return AABB(min, max);
+}
+
+AABB AABB::operator*(const glm::dmat4 trs) {
+    glm::dvec3 translation, skew, scale;
+    glm::dvec4 perspective;
+    glm::dquat rotation;
+    glm::decompose(trs, scale, rotation, translation, skew, perspective);
+
+    return ((*this + translation) * rotation) * scale;
 }
