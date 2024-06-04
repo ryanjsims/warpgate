@@ -173,13 +173,6 @@ void build_argument_parser(argparse::ArgumentParser &parser, int &log_level) {
         .scan<'g', double>();
 }
 
-glm::dquat get_quaternion(warpgate::zone::Float4 vector) {
-    glm::dvec3 axis_angle{-vector.y, vector.x + M_PI / 2, -vector.z};
-    //double angle = glm::length(axis_angle);
-    //glm::dvec3 axis = glm::normalize(axis_angle);
-    return glm::normalize(glm::dquat{axis_angle});
-}
-
 int main(int argc, char* argv[]) {
     try {
         argparse::ArgumentParser parser("zone_converter", WARPGATE_VERSION);
@@ -388,6 +381,12 @@ int main(int argc, char* argv[]) {
         tinygltf::Node object_parent;
         object_parent.name = "Objects";
         gltf.nodes.push_back(object_parent);
+        glm::dmat4 gltf_conversion = glm::transpose(glm::dmat4{
+            glm::dvec4{1.0, 0.0, 0.0, 0.0},
+            glm::dvec4{0.0, 1.0, 0.0, 0.0},
+            glm::dvec4{0.0, 0.0, 1.0, 0.0},
+            glm::dvec4{0.0, 0.0, 0.0, 1.0},
+        });
 
         uint32_t objects_count = continent.objects_count();
         for(uint32_t i = 0; i < objects_count; i++) {
@@ -404,18 +403,11 @@ int main(int argc, char* argv[]) {
             warpgate::DME dme(dme_data, std::filesystem::path(object->actor_file()).stem().string());
             
             warpgate::AABB aabb_data = dme.aabb();
-            warpgate::utils::AABB dme_aabb(aabb_data.min.z, aabb_data.min.y, aabb_data.min.x, aabb_data.max.z, aabb_data.max.y, aabb_data.max.x);
+            warpgate::utils::AABB dme_aabb(aabb_data.min.x, aabb_data.min.y, aabb_data.min.z, aabb_data.max.x, aabb_data.max.y, aabb_data.max.z);
             std::vector<uint32_t> instances_to_add;
             uint32_t instance_count = object->instance_count();
             for(uint32_t j = 0; j < instance_count; j++) {
-                warpgate::zone::Instance instance = object->instance(j);
-                warpgate::zone::Float4 rot = instance.rotation();
-                warpgate::zone::Float4 trans = instance.translation();
-                warpgate::zone::Float4 scale_data = instance.scale();
-                glm::dquat rotation = get_quaternion(rot);
-                glm::dvec3 translation(trans.z, trans.y, -trans.x + 256);
-                glm::dvec3 scale(scale_data.x, scale_data.y, scale_data.z);
-                if(aabb && !aabb->overlaps(((dme_aabb + translation) * rotation) * scale)) {
+                if(aabb && !aabb->overlaps(dme_aabb * object->instance(j).transform() /*(translation * rotation * scale)*/)) {
                     continue;
                 }
                 instances_to_add.push_back(j);
@@ -426,36 +418,26 @@ int main(int argc, char* argv[]) {
             logger::info("Adding {} instances of {}", instances_to_add.size(), object->actor_file());
             int object_index = warpgate::utils::gltf::dme::add_dme_to_gltf(gltf, dme, dme_image_queue, output_directory, texture_indices, material_indices, dme_sampler_index, export_textures, false, false);
             gltf.nodes.at(object_parent_index).children.push_back(object_index);
-            warpgate::zone::Float4 rot = object->instance(instances_to_add[0]).rotation();
-            warpgate::zone::Float4 trans = object->instance(instances_to_add[0]).translation();
-            warpgate::zone::Float4 scale_data = object->instance(instances_to_add[0]).scale();
-            gltf.nodes.at(object_index).translation = {trans.z, trans.y, -trans.x};
-            glm::dquat rotation = get_quaternion(rot);
-            gltf.nodes.at(object_index).rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
-            gltf.nodes.at(object_index).scale = {scale_data.x, scale_data.y, scale_data.z};
-            for(auto it = instances_to_add.begin() + 1; it != instances_to_add.end(); it++) {
-                uint32_t instance = *it;
-                rot = object->instance(instance).rotation();
-                trans = object->instance(instance).translation();
-                scale_data = object->instance(instance).scale();
-                rotation = get_quaternion(rot);
+            for(auto it = instances_to_add.begin(); it != instances_to_add.end(); it++) {
+                glm::dvec4 translation = ((warpgate::zone::Float4)object->instance(*it).translation()).vector() * gltf_conversion;
+                glm::dvec4 rot = ((warpgate::zone::Float4)object->instance(*it).rotation()).vector();
+                glm::dquat rotation = glm::dquat(glm::dvec3(rot.y, rot.x, rot.z));
+                glm::dvec4 scale = ((warpgate::zone::Float4)object->instance(*it).scale()).vector() * gltf_conversion;
                 tinygltf::Node parent;
                 int parent_index = (int)gltf.nodes.size();
-                parent.name = dme.get_name() + "_" + std::to_string(instance);
-                if(parent.name == "Common_Props_Pipes_LargeStraightLong_87") {
-                    glm::dvec3 modified_rot = glm::eulerAngles(rotation);
-                    logger::info("Original transformations:");
-                    logger::info("    T: {: .4f} {: .4f} {: .4f}", trans.x, trans.y, trans.z);
-                    logger::info("    R: {: .4f} {: .4f} {: .4f}", rot.x, rot.y, rot.z);
-                    logger::info("    S: {: .4f} {: .4f} {: .4f}", scale_data.x, scale_data.y, scale_data.z);
-                    logger::info("Modified transformations:");
-                    logger::info("    T: {: .4f} {: .4f} {: .4f}", trans.z, trans.y, -trans.x);
-                    logger::info("    R: {: .4f} {: .4f} {: .4f}", modified_rot.x, modified_rot.y, modified_rot.z);
-                    logger::info("    S: {: .4f} {: .4f} {: .4f}", scale_data.x, scale_data.y, scale_data.z);
-                }
-                parent.translation = {trans.z, trans.y, -trans.x};
+                parent.name = dme.get_name() + "_" + std::to_string(*it);
+                parent.translation = {translation.x, translation.y, translation.z};
                 parent.rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
-                parent.scale = {scale_data.x, scale_data.y, scale_data.z};
+                parent.scale = {scale.x, scale.y, scale.z};
+
+                if(it == instances_to_add.begin()) {
+                    gltf.nodes.at(object_index).name = parent.name;
+                    gltf.nodes.at(object_index).translation = parent.translation;
+                    gltf.nodes.at(object_index).rotation = parent.rotation;
+                    gltf.nodes.at(object_index).scale = parent.scale;
+                    continue;
+                }
+
                 gltf.nodes.push_back(parent);
                 if(gltf.nodes.at(object_index).children.size() > 0) {
                     for(int child : gltf.nodes.at(object_index).children) {
