@@ -320,8 +320,8 @@ int main(int argc, char* argv[]) {
         tinygltf::Node terrain_parent;
         terrain_parent.name = "Terrain";
         gltf.nodes.push_back(terrain_parent);
-        double min_z = ((int)(header.chunk_info.start_y + header.chunk_info.count_y)) * -64.0;
-        double max_z = header.chunk_info.start_y * -64.0;
+        double min_z = header.chunk_info.start_y * 64.0;
+        double max_z = ((int)(header.chunk_info.start_y + header.chunk_info.count_y)) * 64.0;
         std::vector<std::pair<int, int>> chunk_indices;
         for(uint32_t x = 0; x < header.chunk_info.count_x; x += 4) {
             if(aabb) {
@@ -334,7 +334,7 @@ int main(int argc, char* argv[]) {
             }
             for(uint32_t y = 0; y < header.chunk_info.count_y; y += 4) {
                 if(aabb) {
-                    glm::dvec4 minimum{((int)(header.chunk_info.start_x + x)) * 64.0, 0.0, ((int)(header.chunk_info.start_y + y)) * -64.0, 1.0};
+                    glm::dvec4 minimum{((int)(header.chunk_info.start_x + x)) * 64.0, 0.0, ((int)(header.chunk_info.start_y + y)) * 64.0, 1.0};
                     glm::dvec4 maximum = minimum + glm::dvec4{256.0, 1024.0, 256.0, 0.0};
                     warpgate::utils::AABB strip_aabb(minimum, maximum);
                     if(!aabb->overlaps(strip_aabb)) {
@@ -368,7 +368,7 @@ int main(int argc, char* argv[]) {
             int chunk_index = warpgate::utils::gltf::chunk::add_chunks_to_gltf(
                 gltf, cnk0, cnk1, chunk_image_queue, output_directory,
                 chunk_stem, chunk_sampler_index, export_textures);
-            std::vector<double> translation = {x * 64.0, 0.0, z * -64.0};
+            std::vector<double> translation = {z * 64.0, 0.0, x * 64.0};
             // if(aabb) {
             //     translation[0] -= aabb->midpoint().x;
             //     translation[2] -= aabb->midpoint().z;
