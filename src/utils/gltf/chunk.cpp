@@ -280,6 +280,8 @@ int utils::gltf::chunk::add_materials_to_gltf(
         material.pbrMetallicRoughness.metallicRoughnessTexture.index = utils::gltf::add_texture_to_gltf(gltf, output_directory / "textures" / name / (texture_basename + "_S.png"), output_directory, sampler_index);
         material.normalTexture.index = utils::gltf::add_texture_to_gltf(gltf, output_directory / "textures" / name / (texture_basename + "_N.png"), output_directory, sampler_index);
         material.doubleSided = true;
+        material.extensions["KHR_materials_specular"] = tinygltf::Value(tinygltf::Value::Object());
+        material.extensions["KHR_materials_specular"].Get<tinygltf::Value::Object>()["specularFactor"] = tinygltf::Value(0.0f);
         material.name = name;
         gltf.materials.push_back(material);
     }
