@@ -12,4 +12,4 @@ add_library(
         include/zone_loader.h
 )
 target_include_directories(zone_loader PUBLIC include)
-target_link_libraries(zone_loader PRIVATE spdlog::spdlog)
+target_link_libraries(zone_loader PRIVATE spdlog::spdlog gli)

@@ -1,5 +1,6 @@
 #pragma once
 #include <cstring>
+#include <glm/fwd.hpp>
 #include <span>
 #include <stdexcept>
 
@@ -58,6 +59,8 @@ namespace warpgate::zone {
 
         // Version 5 only
         std::span<uint8_t> unk_data2() const;
+
+        glm::dmat4 transform() const;
     
     private:
         uint32_t version;

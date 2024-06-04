@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string_view>
+#include <glm/vec4.hpp>
 
 namespace warpgate::zone {
     struct ChunkInfo {
@@ -28,6 +29,10 @@ namespace warpgate::zone {
 
     struct Float4 {
         float x, y, z, w;
+    public:
+        glm::dvec4 vector() {
+            return glm::dvec4{x, y, z, w};
+        }
     };
 
     struct FloatMapEntry {

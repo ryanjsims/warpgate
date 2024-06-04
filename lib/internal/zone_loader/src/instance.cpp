@@ -1,5 +1,7 @@
 #include "instance.h"
 
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #include <spdlog/spdlog.h>
 
 using namespace warpgate::zone;
@@ -191,4 +193,16 @@ std::span<uint8_t> Instance::unk_data2() const {
             spdlog::warn("unk_data2 field only valid in zone v5");
             return {};
     }
+}
+
+glm::dmat4 Instance::transform() const {
+    glm::dvec4 translation = ((Float4)this->translation()).vector();
+    // rotation appears to be a Y(XZ?)W euler angles rotation vector
+    glm::dvec4 rotation = ((Float4)this->rotation()).vector();
+    glm::dvec4 scale = ((Float4)this->scale()).vector();
+
+    glm::dmat4 trs = glm::translate(glm::identity<glm::dmat4>(), glm::dvec3(translation));
+    trs = trs * glm::eulerAngleYXZ(rotation[0], rotation[1], rotation[2]);
+    trs = glm::scale(trs, glm::dvec3(scale));
+    return trs;
 }
