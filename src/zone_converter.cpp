@@ -21,6 +21,7 @@
 #include "tiny_gltf.h"
 #include "version.h"
 
+#include <glm/gtx/euler_angles.hpp>
 #include <glob/glob.h>
 #include <spdlog/spdlog.h>
 
@@ -421,7 +422,7 @@ int main(int argc, char* argv[]) {
             for(auto it = instances_to_add.begin(); it != instances_to_add.end(); it++) {
                 glm::dvec4 translation = ((warpgate::zone::Float4)object->instance(*it).translation()).vector() * gltf_conversion;
                 glm::dvec4 rot = ((warpgate::zone::Float4)object->instance(*it).rotation()).vector();
-                glm::dquat rotation = glm::dquat(glm::dvec3(rot.y, rot.x, rot.z));
+                glm::dquat rotation = glm::dquat(glm::eulerAngleYXZ(rot[0], rot[1], rot[2]));
                 glm::dvec4 scale = ((warpgate::zone::Float4)object->instance(*it).scale()).vector() * gltf_conversion;
                 tinygltf::Node parent;
                 int parent_index = (int)gltf.nodes.size();
@@ -462,13 +463,13 @@ int main(int argc, char* argv[]) {
         logger::info("Checking {} lights...", lights_count);
         for(uint32_t i = 0; i < lights_count; i++) {
             warpgate::zone::Float4 translation = continent.light(i)->translation();
-            if(aabb && !aabb->contains({translation.z, translation.y, -translation.x})) {
+            if(aabb && !aabb->contains({translation.x, translation.y, translation.z})) {
                 continue;
             }
             warpgate::zone::Color4ARGB color = continent.light(i)->color();
             warpgate::zone::LightType type = continent.light(i)->type();
-            warpgate::zone::Float4 rot = continent.light(i)->rotation();
-            glm::dquat rotation(glm::dvec3(rot.y + M_PI, rot.x + M_PI / 2, rot.z));
+            glm::vec4 rot = ((warpgate::zone::Float4)continent.light(i)->rotation()).vector();
+            glm::dquat rotation(glm::eulerAngleYXZ(rot[0], rot[1], rot[2]));
             float intensity = ((warpgate::zone::Float2)continent.light(i)->unk_floats()).x;
             uint64_t light_hash = color.r | color.g << 8 | color.b << 16 | ((uint32_t)type & 0xFF) << 24 | ((uint64_t)(*(reinterpret_cast<uint32_t*>(&intensity)))) << 32;
             if(light_index_map.find(light_hash) == light_index_map.end()) {
@@ -484,8 +485,9 @@ int main(int argc, char* argv[]) {
             }
             tinygltf::Node light_node;
             light_node.name = continent.light(i)->name();
-            light_node.translation = {translation.z, translation.y, -translation.x};
+            light_node.translation = {translation.x, translation.y, translation.z};
             light_node.rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
+            light_node.scale = {1.0, 1.0, -1.0};
             light_node.extensions["KHR_lights_punctual"] = tinygltf::Value(tinygltf::Value::Object());
             light_node.extensions["KHR_lights_punctual"].Get<tinygltf::Value::Object>()["light"] = tinygltf::Value((int)light_index_map.at(light_hash));
             gltf.nodes.at(light_parent_index).children.push_back((int)gltf.nodes.size());
