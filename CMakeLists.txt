@@ -66,7 +66,7 @@ add_executable(test_zone
   src/test_zone.cpp
 )
 target_include_directories(test_zone PUBLIC include/)
-target_link_libraries(test_zone PRIVATE zone_loader spdlog::spdlog synthium::synthium)
+target_link_libraries(test_zone PRIVATE zone_loader spdlog::spdlog synthium::synthium gli)
 
 add_executable(adr_converter 
     src/adr_converter.cpp
@@ -123,7 +123,7 @@ target_include_directories(dme_converter PUBLIC
   lib/external/half/include/
   lib/external/tinygltf/
   lib/external/synthium/include)
-target_link_libraries(dme_converter PRIVATE dme_loader spdlog::spdlog tinygltf argparse synthium::synthium gli)
+target_link_libraries(dme_converter PRIVATE dme_loader spdlog::spdlog tinygltf argparse synthium::synthium gli ${PUGIXML_LINKED_LIBRARY})
 
 add_executable(chunk_converter
     src/chunk_converter.cpp

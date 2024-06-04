@@ -181,14 +181,15 @@ int main(int argc, const char* argv[]) {
     bool rigify_skeleton = parser.get<bool>("--rigify");
 
     std::vector<std::thread> image_processor_pool;
+    std::shared_ptr<std::filesystem::path> output_directory_ptr{&output_directory};
     if(export_textures) {
         logger::info("Using {} image processing thread{}", image_processor_thread_count, image_processor_thread_count == 1 ? "" : "s");
         for(uint32_t i = 0; i < image_processor_thread_count; i++) {
             image_processor_pool.push_back(std::thread{
                 utils::gltf::dmat::process_images, 
-                std::ref(manager), 
-                std::ref(image_queue), 
-                output_directory
+                std::ref(manager),
+                std::ref(image_queue),
+                output_directory_ptr
             });
         }
     } else {

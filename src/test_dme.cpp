@@ -61,12 +61,12 @@ int main() {
             if(mosquito.dmat()->material(i)->parameter(j).type() == Parameter::D3DXParamType::TEXTURE) {
                 if(hashes_to_names.find(mosquito.dmat()->material(i)->parameter(j).get<uint32_t>(16)) != hashes_to_names.end()) {
                     logger::info("{:d}: {}",
-                        mosquito.dmat()->material(i)->parameter(j).semantic_hash(), 
+                        (uint32_t)((warpgate::Semantic)mosquito.dmat()->material(i)->parameter(j).semantic_hash()), 
                         hashes_to_names.at(mosquito.dmat()->material(i)->parameter(j).get<uint32_t>(16))
                     );
                 } else {
                     logger::info("{:d}: {:#010x}",
-                        mosquito.dmat()->material(i)->parameter(j).semantic_hash(), 
+                        (uint32_t)((warpgate::Semantic)mosquito.dmat()->material(i)->parameter(j).semantic_hash()), 
                         (uint32_t)mosquito.dmat()->material(i)->parameter(j).get<uint32_t>(16)
                     );
                 }
